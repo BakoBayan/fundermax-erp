@@ -130,6 +130,8 @@ export function getDB(): DatabaseSync {
       image_url TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT,
+      job_type TEXT DEFAULT 'generic',
+      door_spec_json TEXT,
       FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
     );
 
@@ -291,6 +293,20 @@ export function getDB(): DatabaseSync {
     }
   } catch (migErr) {
     console.error("[SQLite Migration Error: permissions_json]", migErr);
+  }
+
+  try {
+    const ordersCols = db.prepare("PRAGMA table_info(orders)").all() as Array<{ name: string }>;
+    if (!ordersCols.some((col) => col.name === "job_type")) {
+      db.exec("ALTER TABLE orders ADD COLUMN job_type TEXT DEFAULT 'generic';");
+      console.log("[SQLite Migration] orders table job_type column added.");
+    }
+    if (!ordersCols.some((col) => col.name === "door_spec_json")) {
+      db.exec("ALTER TABLE orders ADD COLUMN door_spec_json TEXT;");
+      console.log("[SQLite Migration] orders table door_spec_json column added.");
+    }
+  } catch (migErr) {
+    console.error("[SQLite Migration Error: orders door columns]", migErr);
   }
 
   ensureDefaultAccounts(db);
@@ -558,6 +574,13 @@ export function getInventoryFromDB(): {
   for (const o of ordRows) {
     const matId = String(o.material_id);
     if (!ordersByMat[matId]) ordersByMat[matId] = [];
+    const rawJobType = o.job_type ? String(o.job_type) : undefined;
+    let doorSpec = undefined;
+    if (o.door_spec_json) {
+      try {
+        doorSpec = JSON.parse(String(o.door_spec_json));
+      } catch {}
+    }
     ordersByMat[matId].push({
       id: String(o.id),
       orderNumber: String(o.order_number),
@@ -569,6 +592,8 @@ export function getInventoryFromDB(): {
       imageUrl: o.image_url ? String(o.image_url) : undefined,
       createdAt: o.created_at ? Number(o.created_at) : undefined,
       finalizedAt: o.updated_at ? String(o.updated_at) : undefined,
+      jobType: (rawJobType === "door" ? "door" : "generic") as "generic" | "door",
+      doorSpec,
     });
   }
 
@@ -701,12 +726,13 @@ export function saveInventoryToDB(
       const upsertOrd = db.prepare(`
         INSERT INTO orders (
           id, material_id, order_number, client, quantity, date, notes, status, image_url, created_at, updated_at,
-          is_deleted, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+          job_type, door_spec_json, is_deleted, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
         ON CONFLICT(id) DO UPDATE SET
           material_id = excluded.material_id, order_number = excluded.order_number, client = excluded.client,
           quantity = excluded.quantity, date = excluded.date, notes = excluded.notes, status = excluded.status,
           image_url = excluded.image_url, created_at = excluded.created_at, updated_at = excluded.updated_at,
+          job_type = excluded.job_type, door_spec_json = excluded.door_spec_json,
           is_deleted = 0, deleted_at = NULL
       `);
 
@@ -743,7 +769,9 @@ export function saveInventoryToDB(
               ord.status || "reserved",
               ord.imageUrl || null,
               ord.createdAt ? String(ord.createdAt) : String(Date.now()),
-              ord.finalizedAt || null
+              ord.finalizedAt || null,
+              ord.jobType || (ord.doorSpec ? "door" : "generic"),
+              ord.doorSpec ? JSON.stringify(ord.doorSpec) : null
             );
           }
         }
@@ -1115,11 +1143,12 @@ export function getDropdownPresetsFromDB(): DropdownPresets {
       'Project / Contractor (پڕۆژە)',
       'Set (تاقم)',
       'Cash (نەقد)',
-      'Debt / Credit (قەرز)',
+      'Debt (قەرز)',
+      'Credit (کڕێدیت)',
     ],
     savedSellers: [],
     savedBanks: [],
-    savedPaymentTypes: ['Cash (نەقد)', 'Debt / Credit (قەرز)', 'Installment (قیست)', 'Bank Transfer (حەواڵە)'],
+    savedPaymentTypes: ['کاش (Cash)', 'قەرز (Customer Debt)', 'ڕەسیدی کڕیار / پێشەکی (Store Credit)', 'حەواڵە / بانک (Bank / Transfer)'],
     savedCategories: [],
     savedLocations: [],
     savedClients: [],
@@ -1139,7 +1168,23 @@ export function getDropdownPresetsFromDB(): DropdownPresets {
       savedSellingTypes: Array.isArray(parsed.savedSellingTypes) && parsed.savedSellingTypes.length > 0 ? parsed.savedSellingTypes : defaultPresets.savedSellingTypes,
       savedSellers: filterExamples(parsed.savedSellers),
       savedBanks: filterExamples(parsed.savedBanks),
-      savedPaymentTypes: Array.isArray(parsed.savedPaymentTypes) && parsed.savedPaymentTypes.length > 0 ? parsed.savedPaymentTypes : defaultPresets.savedPaymentTypes,
+      savedPaymentTypes: (() => {
+        const list = Array.isArray(parsed.savedPaymentTypes) && parsed.savedPaymentTypes.length > 0 ? parsed.savedPaymentTypes : defaultPresets.savedPaymentTypes;
+        const out: string[] = [];
+        list.forEach((item: unknown) => {
+          if (typeof item === 'string') {
+            if (item.includes('Debt / Credit') || item.includes('Debt/Credit')) {
+              if (!out.includes('Debt (قەرز)')) out.push('Debt (قەرز)');
+              if (!out.includes('Credit (کڕێدیت)')) out.push('Credit (کڕێدیت)');
+            } else {
+              if (!out.includes(item)) out.push(item);
+            }
+          }
+        });
+        if (!out.includes('Debt (قەرز)')) out.push('Debt (قەرز)');
+        if (!out.includes('Credit (کڕێدیت)')) out.push('Credit (کڕێدیت)');
+        return out;
+      })(),
       savedCategories: filterExamples(parsed.savedCategories),
       savedLocations: filterExamples(parsed.savedLocations),
       savedClients: Array.isArray(parsed.savedClients) ? parsed.savedClients : [],

@@ -474,6 +474,126 @@ function WarehouseApp() {
   ) => {
     const isKu = language === 'ku';
     const isSingle = forcePageBreak || !queueTotal || queueTotal === 1 || (queueTotal % 2 === 1 && queueIndex === queueTotal);
+    const isDoor = ord.jobType === 'door' || !!ord.doorSpec;
+    const spec = ord.doorSpec;
+
+    if (isDoor && spec) {
+      const heightCm = (spec.doorHeight / 10).toFixed(0);
+      const widthCm = (spec.doorWidth / 10).toFixed(0);
+      const frameCm = (spec.frameDepth / 10).toFixed(0);
+      const handingKu = spec.openingDirection === 'left' ? 'دەستە چەپ (Left)' : 'دەستە ڕاست (Right)';
+
+      return (
+        <div
+          key={ord.id}
+          className={`border-4 border-slate-900 rounded-2xl bg-white text-slate-900 font-sans w-full max-w-none shadow-none print-card ${
+            isSingle ? 'p-8 sm:p-9 print-card-single' : 'p-4 sm:p-5 print-card-multi'
+          } ${
+            forcePageBreak ? '[page-break-after:always] [break-after:page]' : '[page-break-after:auto] [break-after:auto]'
+          } [page-break-inside:avoid] [break-inside:avoid]`}
+        >
+          {/* Header clearly shows: پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) */}
+          <div className={`border-b-4 border-slate-900 ${isSingle ? 'pb-5 mb-5' : 'pb-2.5 mb-3'} flex items-start justify-between gap-4`}>
+            <div>
+              <div className="inline-block px-3 py-1 bg-slate-900 text-white text-xs font-mono font-black uppercase tracking-wider mb-1.5 rounded-sm">
+                پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+              </div>
+              <h1 className={`${isSingle ? 'text-2xl sm:text-3xl' : 'text-base'} font-black tracking-tight text-slate-900 uppercase`}>
+                Bako&apos;s Master System • سلێمانی
+              </h1>
+              <div className={`${isSingle ? 'text-xs mt-1' : 'text-[11px] mt-0.5'} font-bold text-slate-600 uppercase tracking-wider`}>
+                کارگەی دروستکردنی دەرگا • Custom Door Workshop Division
+              </div>
+            </div>
+            <div className="text-end shrink-0">
+              <div className={`font-mono ${isSingle ? 'text-base px-4 py-1.5' : 'text-xs px-2 py-0.5'} font-black text-slate-900 bg-slate-100 rounded-lg border-2 border-slate-900`}>
+                REF #{ord.orderNumber}
+              </div>
+              <div dir="ltr" className={`${isSingle ? 'text-xs pt-2' : 'text-[10px] pt-1'} font-mono text-slate-500 text-end font-bold`}>
+                {currentDateTime || formatDateTime()}
+              </div>
+            </div>
+          </div>
+
+          {/* Customer & Quantity Bar */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="p-4 bg-slate-50 border-2 border-slate-900 rounded-xl space-y-1">
+              <div className="text-[10px] font-black uppercase text-slate-500">ناوی کڕیار / خاوەن پڕۆژە</div>
+              <div className="text-xl font-black text-slate-900">{ord.client}</div>
+              <div className="text-xs text-slate-600">مۆدێل: <strong>{spec.doorModel || mat.name}</strong></div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-2 border-slate-900 rounded-xl space-y-1 text-right">
+              <div className="text-[10px] font-black uppercase text-slate-500">ژمارەی دەرگا</div>
+              <div className="text-3xl font-black text-emerald-800 font-mono">{ord.quantity} دانە</div>
+              <div className="text-xs font-bold uppercase text-slate-600">
+                {ord.status === 'finalized' ? 'تەواوکراو' : 'لە کاردایە (حجز)'}
+              </div>
+            </div>
+          </div>
+
+          {/* Floor Carpenters Essential Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="p-3 bg-slate-100 border-2 border-slate-900 rounded-xl text-center">
+              <div className="text-[10px] font-black uppercase text-slate-600">قەبارەی دەرگا (Door Size)</div>
+              <div className="text-2xl font-black font-mono text-slate-900 my-1">{heightCm} × {widthCm} cm</div>
+              <div className="text-[10px] text-slate-500 font-mono">({spec.doorHeight} × {spec.doorWidth} mm)</div>
+            </div>
+
+            <div className="p-3 bg-slate-100 border-2 border-slate-900 rounded-xl text-center">
+              <div className="text-[10px] font-black uppercase text-slate-600">چوارچێوە (Frame)</div>
+              <div className="text-2xl font-black font-mono text-slate-900 my-1">{frameCm} cm</div>
+              <div className="text-[10px] text-slate-500 font-mono">({spec.frameDepth} mm قووڵی)</div>
+            </div>
+
+            <div className="p-3 bg-slate-900 text-white border-2 border-slate-900 rounded-xl text-center">
+              <div className="text-[10px] font-black uppercase text-slate-300">ئاڕاستەی قوفڵ (Handing)</div>
+              <div className="text-lg font-black my-1 text-white">{handingKu}</div>
+              <div className="text-[10px] text-slate-400">بەپێی وەستانی دەرەوە</div>
+            </div>
+
+            <div className="p-3 bg-slate-100 border-2 border-slate-900 rounded-xl text-center">
+              <div className="text-[10px] font-black uppercase text-slate-600">جۆری دەرگا (Door Type)</div>
+              <div className="text-sm font-black text-slate-900 my-1">
+                {spec.doorType === 'waterproof_wc' ? 'گەرماو / دژە ئاو' : spec.doorType === 'entrance' ? 'دەرگای سەرەکی' : 'ژوور'}
+              </div>
+              <div className="text-[10px] text-slate-500">تاج: {spec.casingIncluded ? 'هەیە' : 'نییە'} • دەسک: {spec.hardwareIncluded ? 'هەیە' : 'نییە'}</div>
+            </div>
+          </div>
+
+          {/* Material / Skin */}
+          <div className="p-3 bg-slate-50 border-2 border-slate-900 rounded-xl mb-4 text-xs font-mono">
+            <span className="font-bold text-slate-500 me-2">جۆری تەختە (Material / Skin):</span>
+            <span className="font-black bg-white px-2 py-0.5 rounded border border-slate-300 me-2">#{mat.code}</span>
+            <span className="font-black text-slate-900 me-2">{mat.name}</span>
+            <span className="text-slate-600 font-semibold">(FunderMax • {mat.type} • {mat.dimensions.thickness}mm)</span>
+          </div>
+
+          {/* Notes */}
+          {ord.notes && (
+            <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-xl mb-4 text-xs">
+              <div className="text-[10px] font-black uppercase text-slate-500 mb-1">ڕێنمایی و تێبینی دارتاشی:</div>
+              <div className="text-slate-800 whitespace-pre-wrap font-mono">{ord.notes}</div>
+            </div>
+          )}
+
+          {/* CNC / Sketch Preview */}
+          {ord.imageUrl && (
+            <div className="p-3 border-2 border-slate-900 rounded-xl mb-4 text-center">
+              <div className="text-[10px] font-black uppercase text-slate-600 mb-2">وێنەی نەخش و دیزاینی CNC دەرگا</div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ord.imageUrl} alt="CNC Pattern" className="max-h-56 mx-auto object-contain border border-slate-300" />
+            </div>
+          )}
+
+          <div dir="ltr" className={`${isSingle ? 'mt-6 pt-4 text-xs' : 'mt-4 pt-2.5 text-[11px]'} border-t border-slate-300 flex items-center justify-between text-slate-500 font-medium select-none`}>
+            <div>کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) — Version {APP_VERSION_NUMBER}</div>
+            <div className="font-mono font-bold">Contact: 07705488654</div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         key={ord.id}

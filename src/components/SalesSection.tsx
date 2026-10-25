@@ -26,9 +26,11 @@ import {
   UserCheck,
   SlidersHorizontal,
   BarChart3,
-  MessageCircle
+  MessageCircle,
+  Mail
 } from 'lucide-react';
 import { CurrencyCode, PanelTransaction, InvoiceItem, ExchangeRates } from '../types/inventory';
+import { openWhatsAppReceipt, openEmailReceipt } from '@/lib/receiptFormatter';
 import PrintInvoiceModal from './PrintInvoiceModal';
 import MathBreakdownModal from './MathBreakdownModal';
 import { SearchableDropdown } from './SearchableDropdown';
@@ -82,6 +84,7 @@ export const SalesSection: React.FC = () => {
 
   // Local UI state
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [receiptShareLang, setReceiptShareLang] = useState<'ku' | 'en'>('ku');
   const [salesSearch, setSalesSearch] = useState('');
   const [salesSellerFilter, setSalesSellerFilter] = useState<string>('all');
   const [salesPaymentMethodFilter, setSalesPaymentMethodFilter] = useState<string>('all');
@@ -241,6 +244,42 @@ export const SalesSection: React.FC = () => {
     }));
   };
 
+  // Distinct Payment Methods handler with checkout behavior
+  const handlePaymentMethodSelect = (method: string) => {
+    const isDebt = method.includes('قەرز') || method.includes('Debt');
+    const isStoreCredit = method.includes('ڕەسیدی کڕیار') || method.includes('Store Credit');
+    const isCash = method.includes('کاش') || method.includes('Cash');
+    const isBank = method.includes('بانک') || method.includes('Bank') || method.includes('حەواڵە');
+
+    setPosDraft((prev) => {
+      let nextPaid = prev.amountPaidNow;
+      if (isDebt) {
+        // Deferred payment terms: assign to debt by setting cash collected to 0
+        nextPaid = 0;
+      } else if (isStoreCredit || isCash || isBank) {
+        // If switching to Cash or Store Credit, default to full amount if currently 0
+        if (nextPaid === 0 || nextPaid === '') {
+          nextPaid = totalAfterDiscount;
+        }
+      }
+      return {
+        ...prev,
+        paymentType: method,
+        amountPaidNow: nextPaid,
+      };
+    });
+
+    if (isStoreCredit && !posDraft.seller.trim()) {
+      requestAlert({
+        title: isKu ? 'ڕەسیدی کڕیار' : 'Store Credit',
+        message: isKu
+          ? 'تکایە ناوی کڕیار دیاریبکە بۆ لێدەرکردنی بڕی پارەکە لە ڕەسیدی پێشەکی کڕیار.'
+          : 'Please select a customer account to deduct from their prepaid store credit balance.',
+        type: 'info',
+      });
+    }
+  };
+
   // Save Transaction
   const handleSaveInvoice = (andPrint = false) => {
     let finalItems = [...posDraft.items];
@@ -258,6 +297,17 @@ export const SalesSection: React.FC = () => {
         bank: posDraft.bank.trim() ? autoCapitalizeFirstLetter(posDraft.bank.trim()) : undefined,
         paymentType: posDraft.paymentType.trim() ? autoCapitalizeFirstLetter(posDraft.paymentType.trim()) : undefined,
       });
+    }
+
+    if ((posDraft.paymentType.includes('ڕەسیدی کڕیار') || posDraft.paymentType.includes('Store Credit')) && !posDraft.seller.trim()) {
+      requestAlert({
+        title: isKu ? 'دیاریکردنی کڕیار پێویستە' : 'Customer Account Required',
+        message: isKu
+          ? 'بۆ بەکارهێنانی ڕەسیدی کڕیار، پێویستە ناوی کڕیار لە بەشی سەرەوە دیاریبکەیت بۆ لێدەرکردنی پارەکە.'
+          : 'Please select a customer account to validate and deduct from their store credit balance.',
+        type: 'warning',
+      });
+      return;
     }
 
     if (finalItems.length === 0) {
@@ -428,6 +478,39 @@ ${itemsList}
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     if (typeof window !== 'undefined') {
       window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleEmailShare = (tx: PanelTransaction) => {
+    const txCur = tx.currency || tx.chargedCurrency || 'USD';
+    const invoiceNum = tx.code || `INV-${tx.id}`;
+    const dateFormatted = tx.timestamp ? new Date(tx.timestamp).toLocaleDateString() : new Date().toLocaleDateString();
+    const itemsList = (tx.items && tx.items.length > 0)
+      ? tx.items.map((it, idx) => `  ${idx + 1}. ${it.product || it.type || 'ماددە'} (${it.quantity}x @ ${formatMoney(it.price, txCur)}) = ${formatMoney(it.total, txCur)}`).join('\n')
+      : `  1. ${tx.material || tx.panelType || 'ماددە'} (${tx.quantity}x @ ${formatMoney(tx.sellingAmount, txCur)})`;
+    const invoiceTotal = tx.totalAfterDiscount !== undefined ? tx.totalAfterDiscount : tx.sellingAmount;
+    const totalDebt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
+    const clientName = (tx as any).client || tx.seller || 'کڕیاری گشتی';
+
+    const body =
+`کۆمپانیای شاسوار ئەحمەد شاسوار
+وەسڵی فرۆشتن: #${invoiceNum}
+بەروار: ${dateFormatted}
+کڕیار: ${clientName}
+-----------------------------
+ماددەکان:
+${itemsList}
+-----------------------------
+کۆی گشتی: ${formatMoney(invoiceTotal, txCur)}
+پارەی دراو: ${formatMoney(tx.amountPaidNow || 0, txCur)}
+قەرزی ماوە: ${formatMoney(totalDebt, txCur)}
+-----------------------------
+سوپاس بۆ مامەڵەکردنتان لەگەڵ کۆمپانیای شاسوار ئەحمەد شاسوار`;
+
+    const subject = `وەسڵی فرۆشتن: #${invoiceNum} - کۆمپانیای شاسوار ئەحمەد شاسوار`;
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    if (typeof window !== 'undefined') {
+      window.location.href = mailtoUrl;
     }
   };
 
@@ -981,6 +1064,32 @@ ${itemsList}
               allowDelete={!isViewer}
               clearable={true}
             />
+            {/* Distinct Selectable Payment Methods */}
+            <div className="pt-2 flex flex-wrap items-center gap-1.5">
+              {[
+                { label: isKu ? 'کاش' : 'Cash', value: 'کاش (Cash)', hint: isKu ? 'نەقد' : 'Standard Cash' },
+                { label: isKu ? 'قەرز' : 'Debt Sale', value: 'قەرز (Customer Debt)', hint: isKu ? 'قەرزی کڕیار' : 'Deferred terms' },
+                { label: isKu ? 'ڕەسیدی کڕیار' : 'Store Credit', value: 'ڕەسیدی کڕیار / پێشەکی (Store Credit)', hint: isKu ? 'پێشەکی' : 'Prepaid balance' },
+                { label: isKu ? 'حەواڵە / بانک' : 'Bank Transfer', value: 'حەواڵە / بانک (Bank / Transfer)', hint: isKu ? 'بانک' : 'FIB / Wire' },
+              ].map((pill) => {
+                const isSelected = posDraft.paymentType === pill.value || (pill.value.includes('کاش') && posDraft.paymentType === 'Cash (نەقد)');
+                return (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    onClick={() => handlePaymentMethodSelect(isSelected ? '' : pill.value)}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      isSelected
+                        ? 'bg-sky-600 border-sky-700 text-white shadow-xs scale-[1.02]'
+                        : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
+                    }`}
+                    title={pill.hint}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -1545,6 +1654,37 @@ ${itemsList}
                 <span>{isKu ? 'سڕینەوەی فلتەر' : 'Clear Filters'}</span>
               </button>
             )}
+
+            {/* Receipt Sharing Language Toggle (Kurdish / English) */}
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-0.5 h-8 text-xs shrink-0 ms-auto">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 px-1 hidden sm:inline">
+                {isKu ? 'زمانی ناردن:' : 'Share:'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setReceiptShareLang('ku')}
+                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  receiptShareLang === 'ku'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Send Receipts in Kurdish (کوردی)"
+              >
+                کوردی
+              </button>
+              <button
+                type="button"
+                onClick={() => setReceiptShareLang('en')}
+                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  receiptShareLang === 'en'
+                    ? 'bg-sky-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Send Receipts in English (ئینگلیزی)"
+              >
+                EN
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1631,14 +1771,49 @@ ${itemsList}
                             >
                               <Printer className="w-4 h-4" />
                             </button>
+                            <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] font-mono font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setReceiptShareLang('ku')}
+                                className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                                  receiptShareLang === 'ku'
+                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                                }`}
+                                title="Share in Kurdish"
+                              >
+                                کو
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setReceiptShareLang('en')}
+                                className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                                  receiptShareLang === 'en'
+                                    ? 'bg-sky-600 text-white shadow-2xs'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                                }`}
+                                title="Share in English"
+                              >
+                                EN
+                              </button>
+                            </div>
                             <button
                               type="button"
                               onClick={() => handleWhatsAppShare(tx)}
                               className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                              title={isKu ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
+                              title={receiptShareLang === 'ku' ? 'ناردن بۆ وەتسئەپ (کوردی)' : 'Send WhatsApp (English)'}
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
-                              <span className="hidden lg:inline">{isKu ? 'وەتسئەپ' : 'WhatsApp'}</span>
+                              <span className="hidden lg:inline">{receiptShareLang === 'ku' ? 'وەتسئەپ' : 'WhatsApp'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEmailShare(tx)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                              title={receiptShareLang === 'ku' ? 'ناردن بە ئیمەیڵ (کوردی)' : 'Send Email (English)'}
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              <span className="hidden lg:inline">{receiptShareLang === 'ku' ? 'ئیمەیڵ' : 'Email'}</span>
                             </button>
                             <button
                               type="button"
@@ -1841,14 +2016,49 @@ ${itemsList}
                       <Printer className="w-4 h-4" />
                       <span>Print</span>
                     </button>
+                    <div className="min-h-[48px] px-1 bg-slate-100 dark:bg-slate-750 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-0.5 text-xs font-mono font-bold shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setReceiptShareLang('ku')}
+                        className={`h-[40px] px-2 rounded-xl transition cursor-pointer ${
+                          receiptShareLang === 'ku'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                        title="Kurdish Receipt"
+                      >
+                        کو
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptShareLang('en')}
+                        className={`h-[40px] px-2 rounded-xl transition cursor-pointer ${
+                          receiptShareLang === 'en'
+                            ? 'bg-sky-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                        title="English Receipt"
+                      >
+                        EN
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleWhatsAppShare(tx)}
-                      className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
-                      title={isKu ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
+                      className="min-h-[48px] px-3 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      title={receiptShareLang === 'ku' ? 'ناردن بۆ وەتسئەپ (کوردی)' : 'Send WhatsApp (English)'}
                     >
                       <MessageCircle className="w-4 h-4" />
-                      <span>{isKu ? 'وەتسئەپ' : 'WhatsApp'}</span>
+                      <span>{receiptShareLang === 'ku' ? 'وەتسئەپ' : 'WhatsApp'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleEmailShare(tx)}
+                      className="min-h-[48px] px-3 py-2.5 rounded-2xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      title={receiptShareLang === 'ku' ? 'ناردن بە ئیمەیڵ (کوردی)' : 'Send Email (English)'}
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>{receiptShareLang === 'ku' ? 'ئیمەیڵ' : 'Email'}</span>
                     </button>
                     <button
                       type="button"

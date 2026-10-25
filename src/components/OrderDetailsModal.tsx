@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Clock,
   Share2,
+  DoorClosed,
 } from "lucide-react";
 
 interface OrderDetailsModalProps {
@@ -47,15 +48,39 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
   const { order, material } = data;
   const isFinalized = order.status === "finalized";
+  const isDoor = order.jobType === "door" || !!order.doorSpec;
+  const spec = order.doorSpec;
 
   const handlePrintSlip = () => {
     printCuttingSlip(order, material);
   };
 
   const handleWhatsAppShareCutting = () => {
-    const formattedDim = material.dimensions?.formatted || `${material.dimensions?.length || 2440} × ${material.dimensions?.width || 1220} × ${material.dimensions?.thickness || 18} mm`;
-    const text = `*پسوولەی بڕینی تەختە / Cutting Slip*
-*داواکاری:* ${order.orderNumber}
+    let text = "";
+    if (isDoor && spec) {
+      const heightCm = (spec.doorHeight / 10).toFixed(0);
+      const widthCm = (spec.doorWidth / 10).toFixed(0);
+      const frameCm = (spec.frameDepth / 10).toFixed(0);
+      text = `*پەڕەی دروستکردنی دەرگا / Door Production Slip*
+*کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)*
+*داواکاری:* #${order.orderNumber}
+*کڕیار:* ${order.client}
+*ژمارەی دەرگا:* ${order.quantity} دانە
+*قەبارەی دەرگا:* ${heightCm} × ${widthCm} سم (${spec.doorHeight} × ${spec.doorWidth} mm)
+*چوارچێوە / دیوار:* ${frameCm} سم (${spec.frameDepth} mm)
+*ئاڕاستەی کردنەوە:* ${spec.openingDirection === "left" ? "دەستە چەپ" : "دەستە ڕاست"}
+*جۆری دەرگا:* ${spec.doorType === "waterproof_wc" ? "گەرماو / دژە ئاو" : spec.doorType === "entrance" ? "دەرگای سەرەکی" : "ژوور"}
+*مۆدێل:* ${spec.doorModel || material.name}
+*تەختە:* ${material.name} (#${material.code || ""})
+*تاج و کەتیبە:* ${spec.casingIncluded ? "هەیە" : "نییە"}
+*قوفڵ و دەسک:* ${spec.hardwareIncluded ? "هەیە" : "نییە"}
+*بەروار:* ${order.date}
+${order.notes ? `*تێبینی دارتاش:* ${order.notes}\n` : ""}
+سوپاس بۆ مامەڵەکردنتان - کۆمپانیای شاسوار ئەحمەد شاسوار`;
+    } else {
+      const formattedDim = material.dimensions?.formatted || `${material.dimensions?.length || 2440} × ${material.dimensions?.width || 1220} × ${material.dimensions?.thickness || 18} mm`;
+      text = `*پسوولەی بڕینی تەختە / Cutting Slip*
+*داواکاری:* #${order.orderNumber}
 *کڕیار:* ${order.client}
 *تەختە:* ${material.name} (${material.code || ''})
 *قەبارە:* ${formattedDim}
@@ -65,6 +90,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 ${order.notes ? `*تێبینی:* ${order.notes}\n` : ''}
 کۆمپانیای شاسوار ئەحمەد شاسوار
 Bako's Master System`;
+    }
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
@@ -147,6 +173,75 @@ Bako's Master System`;
               </div>
             </div>
           </div>
+
+          {/* Specialized Door Specification Card (Sulaymaniyah Custom Door) */}
+          {isDoor && spec && (
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100/40 dark:from-emerald-950/30 dark:to-slate-800 border border-emerald-500/30 space-y-3">
+              <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                  <DoorClosed className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>تایبەتمەندی دەرگا (کۆمپانیای شاسوار ئەحمەد شاسوار)</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 px-2 py-0.5 rounded">
+                  سلێمانی
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="text-[10px] font-bold text-slate-500">قەبارەی دەرگا</div>
+                  <div className="font-mono font-black text-sm text-slate-900 dark:text-white mt-0.5">
+                    {(spec.doorHeight / 10).toFixed(0)} × {(spec.doorWidth / 10).toFixed(0)} سم
+                  </div>
+                  <div className="text-[9px] font-mono text-slate-400">
+                    {spec.doorHeight} × {spec.doorWidth} mm
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="text-[10px] font-bold text-slate-500">چوارچێوە / دیوار</div>
+                  <div className="font-mono font-black text-sm text-slate-900 dark:text-white mt-0.5">
+                    {(spec.frameDepth / 10).toFixed(0)} سم
+                  </div>
+                  <div className="text-[9px] font-mono text-slate-400">
+                    {spec.frameDepth} mm
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="text-[10px] font-bold text-slate-500">ئاڕاستەی کردنەوە</div>
+                  <div className="font-bold text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+                    {spec.openingDirection === "left" ? "دەستە چەپ" : "دەستە ڕاست"}
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="text-[10px] font-bold text-slate-500">جۆری دەرگا</div>
+                  <div className="font-bold text-xs text-slate-900 dark:text-white mt-1">
+                    {spec.doorType === "waterproof_wc" ? "گەرماو (دژە ئاو)" : spec.doorType === "entrance" ? "سەرەکی" : "ژوور"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">تاج و کەتیبە:</span>
+                  <strong className="text-slate-900 dark:text-white">{spec.casingIncluded ? "هەیە ✅" : "نییە ❌"}</strong>
+                </div>
+                <div className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">قوفڵ و دەسک:</span>
+                  <strong className="text-slate-900 dark:text-white">{spec.hardwareIncluded ? "هەیە ✅" : "نییە ❌"}</strong>
+                </div>
+              </div>
+
+              {spec.doorModel && (
+                <div className="text-xs text-slate-700 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="font-bold text-slate-500 me-1">ناوی مۆدێل / نەخش:</span>
+                  <strong className="text-slate-900 dark:text-white">{spec.doorModel}</strong>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Assigned Panel & Quantity Taken from Stock */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-slate-50/50 dark:from-emerald-950/20 dark:to-slate-800/60 border border-emerald-500/20 dark:border-emerald-500/30 space-y-3">

@@ -9,11 +9,283 @@ import { useInventory } from '@/context/InventoryContext';
 // ============================================================================
 // TEMPLATE 1: WOOD PANELS CUTTING SLIP (A4 PORTRAIT)
 // ============================================================================
+export const DoorProductionCuttingSlip: React.FC<{
+  order: OrderAllocation;
+  material: PanelMaterial;
+  language: 'en' | 'ku';
+}> = ({ order, material, language }) => {
+  const isKu = language === 'ku';
+  const spec = order.doorSpec || {
+    doorHeight: 2100,
+    doorWidth: 900,
+    frameDepth: 150,
+    openingDirection: 'right' as const,
+    doorModel: material.name,
+    doorType: 'interior' as const,
+    casingIncluded: true,
+    hardwareIncluded: false,
+  };
+
+  const heightCm = (spec.doorHeight / 10).toFixed(0);
+  const widthCm = (spec.doorWidth / 10).toFixed(0);
+  const frameCm = (spec.frameDepth / 10).toFixed(0);
+
+  const handingTextKu = spec.openingDirection === 'left' ? 'دەستە چەپ (Left Hand)' : 'دەستە ڕاست (Right Hand)';
+
+  const doorTypeLabel = spec.doorType === 'waterproof_wc'
+    ? (isKu ? 'گەرماو / دژە ئاو (Waterproof WC)' : 'Waterproof WC / Bathroom')
+    : spec.doorType === 'entrance'
+    ? (isKu ? 'دەرگای سەرەکی (Main Entrance)' : 'Main Entrance Door')
+    : (isKu ? 'ژوور (Interior Room)' : 'Standard Interior Room');
+
+  const orderDate = order.date
+    ? new Date(order.date).toLocaleDateString(isKu ? 'ku' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    : new Date().toLocaleDateString();
+
+  return (
+    <div className="w-full max-w-[210mm] mx-auto p-8 sm:p-10 bg-white text-black font-sans text-xs select-text print:p-6 print:m-0 print:max-w-none">
+      {/* 1. Header clearly shows: پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) */}
+      <div className="border-b-4 border-black pb-4 mb-5 flex items-start justify-between">
+        <div>
+          <div className="inline-block px-3 py-1 bg-black text-white text-[11px] font-mono font-black uppercase tracking-widest mb-1.5 rounded-xs">
+            پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-black">
+            Bako&apos;s Master System • Sulaymaniyah
+          </h1>
+          <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wide mt-0.5">
+            {isKu ? 'بەشی دروستکردنی دەرگای تایبەت • هێڵی کارگەی سلێمانی' : 'Sulaymaniyah Custom Door Production Workflow & Division'}
+          </div>
+        </div>
+
+        <div className="text-right font-mono">
+          <div className="text-base font-black px-3.5 py-1.5 border-2 border-black inline-block bg-gray-100">
+            REF #{order.orderNumber}
+          </div>
+          <div className="text-xs text-gray-700 mt-1 font-bold">{orderDate}</div>
+          <div className="text-[10px] font-black uppercase text-gray-900 mt-0.5">
+            کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+          </div>
+        </div>
+      </div>
+
+      {/* Customer & Door Quantity Summary */}
+      <div className="grid grid-cols-2 gap-4 mb-5 p-4 border-2 border-black bg-gray-50/80">
+        <div>
+          <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
+            {isKu ? 'ناوی کڕیار / خاوەن پڕۆژە' : 'Client / Project Entity'}
+          </span>
+          <div className="text-xl font-black text-black mt-0.5">{order.client}</div>
+          <div className="text-xs text-gray-700 mt-1">
+            مۆدێل و دیزاین: <strong className="text-black font-bold">{spec.doorModel || material.name}</strong>
+          </div>
+        </div>
+
+        <div className="text-right">
+          <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
+            {isKu ? 'ژمارەی دەرگای داواکراو' : 'Total Doors To Manufacture'}
+          </span>
+          <div className="text-3xl font-black font-mono text-black mt-0.5">
+            {order.quantity} <span className="text-sm font-normal">دانە (pcs)</span>
+          </div>
+          <div className="text-[11px] font-bold uppercase text-gray-800 mt-1">
+            دۆخ: {order.status === 'finalized' ? 'تەواوکراوە (FINALIZED)' : 'لە کاردایە (IN WORKSHOP)'}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Large High-Visibility Badges for Floor Carpenters */}
+      <div className="mb-6">
+        <div className="text-[11px] font-black uppercase tracking-wider mb-2 flex justify-between items-center border-b border-black pb-1">
+          <span>ڕێنمایی و ئەندازەی دارتاشی کارگە (FLOOR CARPENTER ESSENTIAL BADGES)</span>
+          <span className="text-[10px] font-mono font-bold text-gray-600">SULAYMANIYAH-DOOR-SPEC</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Badge 1: قەبارەی دەرگا (Door Size) */}
+          <div className="border-2 border-black p-3 bg-gray-100/70 text-center flex flex-col justify-between">
+            <span className="text-[10px] font-black uppercase text-gray-600 block">
+              قەبارەی دەرگا (Door Size)
+            </span>
+            <div className="my-1.5">
+              <div className="text-2xl font-black font-mono tracking-tight text-black">
+                {heightCm} × {widthCm} <span className="text-xs font-bold">cm</span>
+              </div>
+              <div className="text-[10px] font-mono text-gray-600 font-bold">
+                ({spec.doorHeight} × {spec.doorWidth} mm)
+              </div>
+            </div>
+            <span className="text-[9px] font-bold text-gray-500">بەرزی × پانی پاکی دەرگا</span>
+          </div>
+
+          {/* Badge 2: چوارچێوە / قووڵی دیوار (Frame Depth) */}
+          <div className="border-2 border-black p-3 bg-gray-100/70 text-center flex flex-col justify-between">
+            <span className="text-[10px] font-black uppercase text-gray-600 block">
+              چوارچێوە (Frame Depth)
+            </span>
+            <div className="my-1.5">
+              <div className="text-2xl font-black font-mono tracking-tight text-black">
+                {frameCm} <span className="text-xs font-bold">cm</span>
+              </div>
+              <div className="text-[10px] font-mono text-gray-600 font-bold">
+                ({spec.frameDepth} mm قووڵی)
+              </div>
+            </div>
+            <span className="text-[9px] font-bold text-gray-500">قووڵی چوارچێوە و دیوار</span>
+          </div>
+
+          {/* Badge 3: ئاڕاستەی قوفڵ (Hinge/Lock Handing) */}
+          <div className="border-2 border-black p-3 bg-black text-white text-center flex flex-col justify-between">
+            <span className="text-[10px] font-black uppercase text-gray-300 block">
+              ئاڕاستەی قوفڵ (Handing)
+            </span>
+            <div className="my-1.5">
+              <div className="text-lg font-black tracking-tight text-white uppercase">
+                {handingTextKu}
+              </div>
+              <div className="text-[11px] font-mono text-gray-300 font-bold uppercase">
+                {spec.openingDirection === 'left' ? 'LEFT HAND' : 'RIGHT HAND'}
+              </div>
+            </div>
+            <span className="text-[9px] font-bold text-gray-400">دەستەوانەی کردنەوە</span>
+          </div>
+
+          {/* Badge 4: جۆری دەرگا (Door Type) */}
+          <div className="border-2 border-black p-3 bg-gray-100/70 text-center flex flex-col justify-between">
+            <span className="text-[10px] font-black uppercase text-gray-600 block">
+              جۆری دەرگا (Door Type)
+            </span>
+            <div className="my-1.5">
+              <div className="text-sm font-black text-black">
+                {doorTypeLabel}
+              </div>
+            </div>
+            <span className="text-[9px] font-bold text-gray-500">
+              {spec.doorType === 'waterproof_wc' ? 'پێکهاتەی دژە شێ' : 'تەختەی ستاندارد'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Material & Skin Specification Table */}
+      <div className="mb-6">
+        <div className="text-[11px] font-black uppercase tracking-wider mb-1.5">
+          جۆری تەختە و ڕووکەشی FunderMax (MATERIAL &amp; HARDWARE SPECS)
+        </div>
+        <table className="w-full border-collapse border-2 border-black text-xs">
+          <thead>
+            <tr className="bg-gray-100 border-b-2 border-black text-black font-black uppercase text-[10px]">
+              <th className="p-2 border-r border-black text-left">جۆری تەختە (Material/Skin)</th>
+              <th className="p-2 border-r border-black text-center">کۆدی پەنەل</th>
+              <th className="p-2 border-r border-black text-center">تاج و کەتیبە (Casing)</th>
+              <th className="p-2 border-r border-black text-center">قوفڵ و دەسک (Hardware)</th>
+              <th className="p-2 text-center">ئەستووری (Thickness)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-black font-medium">
+              <td className="p-2.5 border-r border-black font-bold text-black">
+                {material.name}
+                <div className="text-[10px] text-gray-600 font-mono">FunderMax Core / Code: {material.code} • {material.type}</div>
+              </td>
+              <td className="p-2.5 border-r border-black text-center font-mono font-black text-black">
+                #{material.code}
+              </td>
+              <td className="p-2.5 border-r border-black text-center font-bold">
+                {spec.casingIncluded ? '✅ هەیە (Included)' : '❌ نییە (None)'}
+              </td>
+              <td className="p-2.5 border-r border-black text-center font-bold">
+                {spec.hardwareIncluded ? '✅ هەیە (Included)' : '❌ نییە (None)'}
+              </td>
+              <td className="p-2.5 text-center font-mono font-black text-black">
+                {material.dimensions.thickness} mm
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Workshop Notes / Instructions */}
+      {order.notes && (
+        <div className="mb-5 p-3.5 border-2 border-black bg-gray-50/50" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+          <div className="text-[10px] font-black uppercase tracking-wider text-gray-800 mb-1">
+            ڕێنمایی و تێبینییەکانی وەستاکار بۆ دارتاش و CNC:
+          </div>
+          <p className="text-xs text-gray-900 font-mono leading-relaxed whitespace-pre-wrap">{order.notes}</p>
+        </div>
+      )}
+
+      {/* Attached Photo / Sketch Preview Box for Groove / CNC Pattern */}
+      {order.imageUrl && (
+        <div className="mb-6 p-4 border-2 border-black text-center" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+          <div className="text-[11px] font-black uppercase tracking-wider text-black mb-2 flex items-center justify-between">
+            <span>وێنەی دیزاین و نەخشی CNC دەرگا (GROOVE / PATTERN PREVIEW)</span>
+            <span className="text-[10px] font-mono text-gray-600">CARPENTERS: VERIFY PATTERN &amp; GROOVE DEPTH</span>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={order.imageUrl}
+            alt="Door CNC Pattern Design"
+            className="max-h-72 max-w-full mx-auto object-contain border border-gray-400 filter contrast-125"
+          />
+        </div>
+      )}
+
+      {/* Floor Carpenters & Workshop Sign-Off Box */}
+      <div className="mt-8 pt-4 border-t-2 border-black" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="text-[10px] font-black uppercase tracking-widest text-gray-600 mb-3 text-center">
+          واژۆی دارتاش، کارپێکەری CNC و پشکنەری کارگە (SULAYMANIYAH WORKSHOP SIGN-OFF)
+        </div>
+
+        <div className="grid grid-cols-3 gap-6 text-center text-xs">
+          <div className="border border-black p-3 min-h-[90px] flex flex-col justify-between">
+            <span className="font-bold text-[10px] uppercase text-gray-800">
+              دارتاشی چوارچێوە و دەرگا
+            </span>
+            <div className="border-b border-dotted border-black my-4" />
+            <span className="text-[9px] text-gray-500 font-mono">Sign &amp; Date</span>
+          </div>
+
+          <div className="border border-black p-3 min-h-[90px] flex flex-col justify-between">
+            <span className="font-bold text-[10px] uppercase text-gray-800">
+              کارپێکەری مەکینەی CNC
+            </span>
+            <div className="border-b border-dotted border-black my-4" />
+            <span className="text-[9px] text-gray-500 font-mono">Sign &amp; Date</span>
+          </div>
+
+          <div className="border border-black p-3 min-h-[90px] flex flex-col justify-between">
+            <span className="font-bold text-[10px] uppercase text-gray-800">
+              پشکنەری کوالێتی و ڕادەستکردن
+            </span>
+            <div className="border-b border-dotted border-black my-4" />
+            <span className="text-[9px] text-gray-500 font-mono">Sign &amp; Date</span>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-gray-300 flex items-center justify-between text-[10px] font-mono text-gray-600 select-none">
+          <div>کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) • هێڵی دروستکردنی دەرگا</div>
+          <div>Bako&apos;s Master System • v{APP_VERSION_NUMBER}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const WoodPanelsCuttingSlip: React.FC<{
   order: OrderAllocation;
   material: PanelMaterial;
   language: 'en' | 'ku';
 }> = ({ order, material, language }) => {
+  // If this order is a custom door job, automatically route to the specialized Sulaymaniyah Door Slip
+  if (order.jobType === 'door' || !!order.doorSpec) {
+    return <DoorProductionCuttingSlip order={order} material={material} language={language} />;
+  }
+
   const isKu = language === 'ku';
   const orderDate = order.date
     ? new Date(order.date).toLocaleDateString(isKu ? 'ku' : 'en-US', {

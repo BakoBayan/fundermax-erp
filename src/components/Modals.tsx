@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { useInventory } from "../context/InventoryContext";
 import { PanelMaterial, OrderAllocation } from "../types/inventory";
+import { DoorOrderSpec, DoorOpeningDirection, DoorTypeCategory } from "../types/doors";
 import { SearchableDropdown } from "./SearchableDropdown";
-import { X, Image as ImageIcon, Trash2, ZoomIn } from "lucide-react";
+import { X, Image as ImageIcon, Trash2, ZoomIn, DoorClosed, Compass, Camera, Check } from "lucide-react";
 import { autoCapitalizeFirstLetter } from "../utils/text";
 
 // ==========================================
@@ -382,6 +383,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const [jobType, setJobType] = useState<"generic" | "door">("generic");
+  // Custom Door Order Specs
+  const [doorHeight, setDoorHeight] = useState<string>("2100");
+  const [doorWidth, setDoorWidth] = useState<string>("900");
+  const [frameDepth, setFrameDepth] = useState<string>("150");
+  const [openingDirection, setOpeningDirection] = useState<DoorOpeningDirection>("right");
+  const [doorModel, setDoorModel] = useState<string>("");
+  const [doorType, setDoorType] = useState<DoorTypeCategory>("interior");
+  const [casingIncluded, setCasingIncluded] = useState<boolean>(true);
+  const [hardwareIncluded, setHardwareIncluded] = useState<boolean>(false);
+
   const existingClients = Array.from(
     new Set(materials.flatMap((m) => (m.activeOrders || []).map((o) => o.client)).filter(Boolean))
   );
@@ -414,6 +426,28 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setQuantity(String(orderToEdit.order.quantity));
       setNotes(orderToEdit.order.notes || "");
       setImageUrl(orderToEdit.order.imageUrl);
+      const isDoor = orderToEdit.order.jobType === "door" || !!orderToEdit.order.doorSpec;
+      setJobType(isDoor ? "door" : "generic");
+      if (orderToEdit.order.doorSpec) {
+        const spec = orderToEdit.order.doorSpec;
+        setDoorHeight(String(spec.doorHeight || 2100));
+        setDoorWidth(String(spec.doorWidth || 900));
+        setFrameDepth(String(spec.frameDepth || 150));
+        setOpeningDirection(spec.openingDirection || "right");
+        setDoorModel(spec.doorModel || "");
+        setDoorType(spec.doorType || "interior");
+        setCasingIncluded(spec.casingIncluded !== false);
+        setHardwareIncluded(!!spec.hardwareIncluded);
+      } else {
+        setDoorHeight("2100");
+        setDoorWidth("900");
+        setFrameDepth("150");
+        setOpeningDirection("right");
+        setDoorModel("");
+        setDoorType("interior");
+        setCasingIncluded(true);
+        setHardwareIncluded(false);
+      }
     } else {
       if (preselectedMaterialId) {
         setSelectedMatId(preselectedMaterialId);
@@ -421,9 +455,18 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         setSelectedMatId(materials[0].id);
       }
       setClient("");
-      setQuantity("");
+      setQuantity("1");
       setNotes("");
       setImageUrl(undefined);
+      setJobType("generic");
+      setDoorHeight("2100");
+      setDoorWidth("900");
+      setFrameDepth("150");
+      setOpeningDirection("right");
+      setDoorModel("");
+      setDoorType("interior");
+      setCasingIncluded(true);
+      setHardwareIncluded(false);
     }
     setErrorMsg("");
   }, [isOpen, orderToEdit, preselectedMaterialId, materials]);
@@ -466,12 +509,30 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     const cleanClient = autoCapitalizeFirstLetter(client.trim());
     const cleanNotes = notes ? autoCapitalizeFirstLetter(notes.trim()) : "";
 
+    let doorSpec: DoorOrderSpec | undefined = undefined;
+    if (jobType === "door") {
+      doorSpec = {
+        doorHeight: parseFloat(doorHeight) || 2100,
+        doorWidth: parseFloat(doorWidth) || 900,
+        frameDepth: parseFloat(frameDepth) || 150,
+        openingDirection,
+        doorModel: doorModel.trim() || currentMaterial.name,
+        doorType,
+        casingIncluded,
+        hardwareIncluded,
+        unit: "mm",
+        notes: cleanNotes,
+      };
+    }
+
     if (orderToEdit) {
       editOrder(orderToEdit.materialId, orderToEdit.order.id, {
         client: cleanClient,
         quantity: qtyNum,
         notes: cleanNotes,
         imageUrl,
+        jobType,
+        doorSpec,
       });
     } else {
       const result = allocateOrder(currentMaterial.id, {
@@ -479,6 +540,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         quantity: qtyNum,
         notes: cleanNotes,
         imageUrl,
+        jobType,
+        doorSpec,
       });
 
       if (!result.success) {
@@ -497,16 +560,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-0 sm:my-6 max-h-[85dvh] sm:max-h-none flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
+        className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl max-w-xl w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-0 sm:my-6 max-h-[92dvh] sm:max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
       >
         {/* Mobile Pull Pill Indicator */}
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
 
         {/* Header */}
-        <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between mt-1 sm:mt-0">
-          <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">
-            {orderToEdit ? t.edit : t.addOrder}
-          </h3>
+        <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between mt-1 sm:mt-0 shrink-0">
+          <div className="flex items-center gap-2">
+            {jobType === "door" ? <DoorClosed className="w-5 h-5 text-emerald-200" /> : null}
+            <h3 className="font-bold text-base sm:text-lg">
+              {orderToEdit
+                ? (jobType === "door" ? "دەستکاری داواکاری دەرگا" : t.edit)
+                : (jobType === "door" ? "داواکاری نوێی دروستکردنی دەرگا" : t.addOrder)}
+            </h3>
+          </div>
           <button
             onClick={onClose}
             className="p-1.5 text-emerald-100 hover:text-white rounded-lg hover:bg-emerald-800 transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
@@ -515,57 +583,87 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </button>
         </div>
 
+        {/* 1-Click Toggle: Generic Sheet Cutting vs Custom Door Production */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-700 shrink-0">
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/70 dark:bg-slate-750 rounded-xl border border-slate-300 dark:border-slate-650">
+            <button
+              type="button"
+              onClick={() => setJobType("generic")}
+              className={`py-2 px-2.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                jobType === "generic"
+                  ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs border border-slate-300/60 dark:border-slate-650"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <span>بڕینی تەختەی ئاسایی (Generic Cuts)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setJobType("door")}
+              className={`py-2 px-2.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                jobType === "door"
+                  ? "bg-emerald-700 text-white shadow-xs font-black"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <DoorClosed className="w-4 h-4 shrink-0" />
+              <span>دروستکردنی دەرگا (Custom Door)</span>
+            </button>
+          </div>
+        </div>
+
         {/* Form: Stable typing */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3 text-xs sm:text-sm overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 text-xs sm:text-sm overflow-y-auto flex-1">
           {errorMsg && (
             <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 text-xs font-bold">
               {errorMsg}
             </div>
           )}
 
-          {/* Material Select */}
-          <div>
-            <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-              {t.materials} *
-            </label>
-            {orderToEdit ? (
-              <div className="w-full h-9 px-3 flex items-center bg-slate-100 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-500 font-medium text-xs sm:text-sm">
-                {currentMaterial ? `${currentMaterial.code} — ${currentMaterial.name}` : selectedMatId}
-              </div>
-            ) : (
-              <SearchableDropdown
-                options={materialOptions}
-                value={selectedMatOption}
-                onChange={handleSelectMaterial}
-                placeholder="Search / select panel material..."
-                compact={true}
-                allowDelete={false}
-              />
-            )}
-          </div>
+          {/* Material Select & Client Name */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
+                {jobType === "door" ? "تەختە و ڕووکەشی دەرگا (Material)" : t.materials} *
+              </label>
+              {orderToEdit ? (
+                <div className="w-full h-9 px-3 flex items-center bg-slate-100 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-500 font-medium text-xs sm:text-sm">
+                  {currentMaterial ? `${currentMaterial.code} — ${currentMaterial.name}` : selectedMatId}
+                </div>
+              ) : (
+                <SearchableDropdown
+                  options={materialOptions}
+                  value={selectedMatOption}
+                  onChange={handleSelectMaterial}
+                  placeholder="Select panel / skin..."
+                  compact={true}
+                  allowDelete={false}
+                />
+              )}
+            </div>
 
-          {/* Client Name */}
-          <div>
-            <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-              {t.client} *
-            </label>
-            <SearchableDropdown
-              options={savedClientsList}
-              value={client}
-              onChange={setClient}
-              onAddNew={(v) => addToDropdownPresets('savedClients', v)}
-              onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
-              placeholder="Search or enter client name..."
-              compact={true}
-              allowDelete={!isViewer}
-            />
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
+                {t.client} *
+              </label>
+              <SearchableDropdown
+                options={savedClientsList}
+                value={client}
+                onChange={setClient}
+                onAddNew={(v) => addToDropdownPresets('savedClients', v)}
+                onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
+                placeholder="Client / Project name..."
+                compact={true}
+                allowDelete={!isViewer}
+              />
+            </div>
           </div>
 
           {/* Quantity */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-slate-700 dark:text-slate-200 font-semibold">
-                {t.quantity} ({t.panelUnit}) *
+                {jobType === "door" ? "ژمارەی دەرگا (Door Quantity)" : `${t.quantity} (${t.panelUnit})`} *
               </label>
               <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
                 {t.available}: {maxAvailable}
@@ -574,26 +672,234 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             <input
               type="number"
               inputMode="decimal"
-              pattern="[0-9]*"
+              pattern="[0-9]*[.,]?[0-9]*"
               required
               min="1"
               max={maxAvailable}
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              placeholder="0"
+              placeholder="1"
               className="w-full h-10 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
-          {/* Image Attachment (Photos/Blueprints) */}
+          {/* ============================================================== */}
+          {/* SPECIALIZED SULAYMANIYAH CUSTOM DOOR WORKFLOW SECTION          */}
+          {/* ============================================================== */}
+          {jobType === "door" && (
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 space-y-3.5">
+              <div className="flex items-center justify-between border-b border-emerald-200 dark:border-emerald-800/50 pb-2">
+                <span className="font-bold text-xs sm:text-sm text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                  <DoorClosed className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                  <span>تایبەتمەندی و ئەندازەی دروستکردنی دەرگا</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md">
+                  سلێمانی
+                </span>
+              </div>
+
+              {/* Door Dimensions & Frame Depth */}
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
+                  ئەندازەی دەرگا و قووڵی چوارچێوە (Door &amp; Frame Dimensions) *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="block text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1">
+                      بەرزی (Height mm)
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.,]?[0-9]*"
+                      required
+                      value={doorHeight}
+                      onChange={(e) => setDoorHeight(e.target.value)}
+                      placeholder="2100"
+                      className="w-full h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <span className="block text-[10px] text-center text-slate-400 mt-0.5 font-mono">
+                      {(parseFloat(doorHeight) || 0) > 0 ? `${(parseFloat(doorHeight) / 10).toFixed(0)} cm` : "210 cm"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1">
+                      پانی (Width mm)
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.,]?[0-9]*"
+                      required
+                      value={doorWidth}
+                      onChange={(e) => setDoorWidth(e.target.value)}
+                      placeholder="900"
+                      className="w-full h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <span className="block text-[10px] text-center text-slate-400 mt-0.5 font-mono">
+                      {(parseFloat(doorWidth) || 0) > 0 ? `${(parseFloat(doorWidth) / 10).toFixed(0)} cm` : "90 cm"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1">
+                      قووڵی دیوار/چوارچێوە
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.,]?[0-9]*"
+                      required
+                      value={frameDepth}
+                      onChange={(e) => setFrameDepth(e.target.value)}
+                      placeholder="150"
+                      className="w-full h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <span className="block text-[10px] text-center text-slate-400 mt-0.5 font-mono">
+                      {(parseFloat(frameDepth) || 0) > 0 ? `${(parseFloat(frameDepth) / 10).toFixed(0)} cm` : "15 cm"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick Frame Depth Preset Pills */}
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="text-[10px] font-bold text-slate-500">پێوانەی خێرا:</span>
+                  {[
+                    { label: "10 سم (100mm)", val: "100" },
+                    { label: "15 سم (150mm)", val: "150" },
+                    { label: "20 سم (200mm)", val: "200" },
+                    { label: "25 سم (250mm)", val: "250" },
+                  ].map((chip) => (
+                    <button
+                      key={chip.val}
+                      type="button"
+                      onClick={() => setFrameDepth(chip.val)}
+                      className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                        frameDepth === chip.val
+                          ? "bg-emerald-700 text-white border-emerald-700 font-bold"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opening Direction (Right / Left Handing) */}
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
+                  ئاڕاستەی کردنەوە / قوفڵ (Hinge &amp; Opening Direction) *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpeningDirection("right")}
+                    className={`py-2 px-3 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      openingDirection === "right"
+                        ? "bg-emerald-700 text-white border-emerald-700 shadow-xs font-black ring-2 ring-emerald-500/30"
+                        : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    <span>دەستە ڕاست (Right Hand)</span>
+                    {openingDirection === "right" && <Check className="w-4 h-4" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOpeningDirection("left")}
+                    className={`py-2 px-3 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      openingDirection === "left"
+                        ? "bg-emerald-700 text-white border-emerald-700 shadow-xs font-black ring-2 ring-emerald-500/30"
+                        : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    <span>دەستە چەپ (Left Hand)</span>
+                    {openingDirection === "left" && <Check className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Door Type Category */}
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
+                  جۆری دەرگا (Door Type Category) *
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: "interior" as DoorTypeCategory, label: "ژوور (Interior)" },
+                    { id: "waterproof_wc" as DoorTypeCategory, label: "گەرماو / دژە ئاو" },
+                    { id: "entrance" as DoorTypeCategory, label: "سەرەکی (Entrance)" },
+                  ].map((dt) => (
+                    <button
+                      key={dt.id}
+                      type="button"
+                      onClick={() => setDoorType(dt.id)}
+                      className={`py-1.5 px-2 rounded-xl border text-[11px] sm:text-xs font-bold text-center transition-all cursor-pointer ${
+                        doorType === dt.id
+                          ? "bg-emerald-700 text-white border-emerald-700 shadow-xs font-black"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {dt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Door Model & CNC Pattern */}
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
+                  ناوی مۆدێل / نەخشی CNC (Model &amp; Pattern Design)
+                </label>
+                <input
+                  type="text"
+                  value={doorModel}
+                  onChange={(e) => setDoorModel(e.target.value)}
+                  placeholder="e.g. FunderMax Oak Modern, CNC Pattern A-12..."
+                  className="w-full h-9 px-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Hardware & Casing Toggles */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={casingIncluded}
+                    onChange={(e) => setCasingIncluded(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-700"
+                  />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    تاج و کەتیبە (Casing)
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hardwareIncluded}
+                    onChange={(e) => setHardwareIncluded(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-700"
+                  />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    قوفڵ و دەسک (Hardware)
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Design Sketch / Photo Attachment */}
           <div>
             <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-              {t.image}
+              {jobType === "door" ? "کامێرا / وێنەی دیزاین و نەخشی دەرگا (Sketch / CNC Photo)" : t.image}
             </label>
             <div className="flex items-center gap-2">
-              <label className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-650 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors">
-                <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{t.attachImage}</span>
+              <label className="cursor-pointer flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-650 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors">
+                <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>{jobType === "door" ? "وێنە بگرە یان دیزاین هەڵبژێرە" : t.attachImage}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -608,10 +914,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     onClick={() =>
                       setZoomedImage({
                         url: imageUrl,
-                        title: `${client || "Order"} Attachment`,
+                        title: `${client || (jobType === "door" ? "Door Design" : "Order")} Attachment`,
                       })
                     }
-                    className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 cursor-pointer group shadow-2xs"
+                    className="relative w-9 h-9 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 cursor-pointer group shadow-2xs"
                     title={t.zoom}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -621,16 +927,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                     />
                     <div className="absolute inset-0 bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ZoomIn className="w-3 h-3 text-white" />
+                      <ZoomIn className="w-3.5 h-3.5 text-white" />
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setImageUrl(undefined)}
-                    className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40"
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40"
                     title={t.removeImage}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               )}
@@ -640,31 +946,32 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           {/* Notes */}
           <div>
             <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-              {t.notes}
+              {jobType === "door" ? "تێبینی و ڕێنمایی بۆ دارتاش / وەستاکار" : t.notes}
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="..."
+              placeholder={jobType === "door" ? "تێبینی لەسەر قوفڵ، گێڕ، ڕەنگی کەتیبە..." : "..."}
               className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
-          {/* Action Buttons: Oversized tap targets */}
+          {/* Action Buttons */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[48px] px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
+              className="min-h-[46px] px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              className="min-h-[48px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm cursor-pointer"
+              className="min-h-[46px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm cursor-pointer flex items-center gap-1.5"
             >
-              {t.save}
+              {jobType === "door" && <DoorClosed className="w-4 h-4" />}
+              <span>{orderToEdit ? t.save : (jobType === "door" ? "تۆمارکردنی داواکاری دەرگا" : t.save)}</span>
             </button>
           </div>
         </form>

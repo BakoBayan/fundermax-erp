@@ -24,7 +24,8 @@ import {
   PosDraftState,
   InvoiceItem,
   PrintJob,
-  InboundShipment
+  InboundShipment,
+  DoorOrderSpec
 } from "../types/inventory";
 import { getTranslation, translations } from "../utils/i18n";
 import { ConfirmDialogOptions } from "../components/ConfirmModal";
@@ -124,12 +125,21 @@ interface InventoryContextType {
       quantity: number;
       notes?: string;
       imageUrl?: string;
+      jobType?: "generic" | "door";
+      doorSpec?: DoorOrderSpec;
     }
   ) => { success: boolean; message: string };
   editOrder: (
     materialId: string,
     orderId: string,
-    updates: Partial<{ client: string; quantity: number; notes: string; imageUrl?: string }>
+    updates: Partial<{
+      client: string;
+      quantity: number;
+      notes: string;
+      imageUrl?: string;
+      jobType?: "generic" | "door";
+      doorSpec?: DoorOrderSpec;
+    }>
   ) => void;
   finalizeOrder: (materialId: string, orderId: string) => void;
   deleteOrder: (materialId: string, orderId: string) => void;
@@ -797,11 +807,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         'Project / Contractor (پڕۆژە)',
         'Set (تاقم)',
         'Cash (نەقد)',
-        'Debt / Credit (قەرز)'
+        'Debt (قەرز)',
+        'Credit (کڕێدیت)'
       ],
       savedSellers: [],
       savedBanks: [],
-      savedPaymentTypes: ['Cash (نەقد)', 'Debt / Credit (قەرز)', 'Installment (قیست)', 'Bank Transfer (حەواڵە)'],
+      savedPaymentTypes: ['کاش (Cash)', 'قەرز (Customer Debt)', 'ڕەسیدی کڕیار / پێشەکی (Store Credit)', 'حەواڵە / بانک (Bank / Transfer)'],
       savedCategories: [],
       savedLocations: [],
       savedClients: []
@@ -831,7 +842,23 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         savedSellingTypes: Array.isArray(parsed.savedSellingTypes) && parsed.savedSellingTypes.length > 0 ? parsed.savedSellingTypes : fallback.savedSellingTypes,
         savedSellers: filterExamples(parsed.savedSellers),
         savedBanks: filterExamples(parsed.savedBanks),
-        savedPaymentTypes: Array.isArray(parsed.savedPaymentTypes) && parsed.savedPaymentTypes.length > 0 ? parsed.savedPaymentTypes : fallback.savedPaymentTypes,
+        savedPaymentTypes: (() => {
+          const list = Array.isArray(parsed.savedPaymentTypes) && parsed.savedPaymentTypes.length > 0 ? parsed.savedPaymentTypes : fallback.savedPaymentTypes;
+          const out: string[] = [];
+          list.forEach((item: unknown) => {
+            if (typeof item === 'string') {
+              if (item.includes('Debt / Credit') || item.includes('Debt/Credit')) {
+                if (!out.includes('Debt (قەرز)')) out.push('Debt (قەرز)');
+                if (!out.includes('Credit (کڕێدیت)')) out.push('Credit (کڕێدیت)');
+              } else {
+                if (!out.includes(item)) out.push(item);
+              }
+            }
+          });
+          if (!out.includes('Debt (قەرز)')) out.push('Debt (قەرز)');
+          if (!out.includes('Credit (کڕێدیت)')) out.push('Credit (کڕێدیت)');
+          return out;
+        })(),
         savedCategories: filterExamples(parsed.savedCategories),
         savedLocations: filterExamples(parsed.savedLocations),
         savedClients: Array.isArray(parsed.savedClients) ? parsed.savedClients : [],
@@ -1745,6 +1772,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         quantity: number;
         notes?: string;
         imageUrl?: string;
+        jobType?: "generic" | "door";
+        doorSpec?: DoorOrderSpec;
       }
     ) => {
       const mat = materials.find((m) => m.id === materialId);
@@ -1769,6 +1798,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         imageUrl: order.imageUrl,
         status: "reserved",
         createdAt: Date.now(),
+        jobType: order.jobType || (order.doorSpec ? "door" : "generic"),
+        doorSpec: order.doorSpec,
       };
 
       const updated = materials.map((m) => {
@@ -1801,7 +1832,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     (
       materialId: string,
       orderId: string,
-      updates: Partial<{ client: string; quantity: number; notes: string; imageUrl?: string }>
+      updates: Partial<{
+        client: string;
+        quantity: number;
+        notes: string;
+        imageUrl?: string;
+        jobType?: "generic" | "door";
+        doorSpec?: DoorOrderSpec;
+      }>
     ) => {
       const updated = materials.map((m) => {
         if (m.id !== materialId) return m;
@@ -1813,6 +1851,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             quantity: updates.quantity !== undefined ? Math.max(1, updates.quantity) : ord.quantity,
             notes: updates.notes !== undefined ? autoCapitalizeFirstLetter(updates.notes) : ord.notes,
             imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : ord.imageUrl,
+            jobType: updates.jobType !== undefined ? updates.jobType : ord.jobType,
+            doorSpec: updates.doorSpec !== undefined ? updates.doorSpec : ord.doorSpec,
           };
         });
 

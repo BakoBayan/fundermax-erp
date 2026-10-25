@@ -22,9 +22,11 @@ import {
   EyeOff,
   AlertTriangle,
   Minimize2,
-  Share2
+  Share2,
+  Mail
 } from 'lucide-react';
 import { PanelTransaction } from '@/types/inventory';
+import { openWhatsAppReceipt, openEmailReceipt } from '@/lib/receiptFormatter';
 import { useInventory } from '../context/InventoryContext';
 
 export interface PrintableImageItem {
@@ -57,6 +59,7 @@ export default function PrintInvoiceModal({
   // 1. Initial image list with optional attachment toggle
   const [images, setImages] = useState<PrintableImageItem[]>([]);
   const [isImageDrawerOpen, setIsImageDrawerOpen] = useState(false);
+  const [shareLang, setShareLang] = useState<'ku' | 'en'>('ku');
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -218,30 +221,14 @@ export default function PrintInvoiceModal({
 
   const handleWhatsAppShare = () => {
     if (!tx) return;
-    const itemsText = tx.items && tx.items.length > 0
-      ? tx.items.map(it => `• ${it.product || it.type} (${it.quantity}) - ${formatMoney(it.price * it.quantity, tx.currency || tx.chargedCurrency)}`).join('\n')
-      : `• ${tx.material || tx.panelType} (${tx.quantity} ${tx.unit || ''}) - ${formatMoney(tx.sellingAmount, tx.currency || tx.chargedCurrency)}`;
-    
-    const text = `*وەسڵی فرۆشتن / Sales Invoice*
-*کۆد:* ${tx.code || tx.id.slice(-4)}
-*کڕیار:* ${tx.seller || 'کڕیاری بەڕێز'}
-*بەروار:* ${invoiceDateStr}
-
-*کاڵاکان:*
-${itemsText}
-
-*کۆی گشتی:* ${formatMoney(tx.totalAfterDiscount || tx.sellingAmount, tx.currency || tx.chargedCurrency)}
-*پارەی دراو:* ${formatMoney(tx.amountPaidNow || 0, tx.currency || tx.chargedCurrency)}
-*قەرزی ماوە:* ${formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, tx.currency || tx.chargedCurrency)}
-
-کۆمپانیای شاسوار ئەحمەد شاسوار
-Bako's Master System`;
-
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    openWhatsAppReceipt(tx, formatMoney, shareLang);
   };
 
-  // Upload an additional unrelated image
+  const handleEmailShare = () => {
+    if (!tx) return;
+    openEmailReceipt(tx, formatMoney, shareLang);
+  };
+
   const handleUploadCustomImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -425,6 +412,34 @@ Bako's Master System`;
               </span>
             </button>
 
+            {/* 2-Segment Tactile Language Toggle: کوردی / English */}
+            <div className="flex items-center p-0.5 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-white shrink-0">
+              <button
+                type="button"
+                onClick={() => setShareLang('ku')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                  shareLang === 'ku'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Kurdish Receipt (زمانی کوردی)"
+              >
+                کوردی
+              </button>
+              <button
+                type="button"
+                onClick={() => setShareLang('en')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                  shareLang === 'en'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="English Receipt (زمانی ئینگلیزی)"
+              >
+                English
+              </button>
+            </div>
+
             {/* WhatsApp 1-Tap Sharing */}
             <button
               type="button"
@@ -433,7 +448,18 @@ Bako's Master System`;
               title="Send via WhatsApp (ناردن بۆ وەتسئەپ)"
             >
               <Share2 className="w-4 h-4" />
-              <span>{lang === 'en' ? 'WhatsApp' : 'ناردن بۆ وەتسئەپ'}</span>
+              <span>{lang === 'en' ? 'WhatsApp' : 'وەتسئەپ'}</span>
+            </button>
+
+            {/* Email / Gmail 1-Tap Sharing */}
+            <button
+              type="button"
+              onClick={handleEmailShare}
+              className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+              title="Send via Email (ناردن بە ئیمەیڵ)"
+            >
+              <Mail className="w-4 h-4" />
+              <span>{lang === 'en' ? 'Email' : 'ئیمەیڵ'}</span>
             </button>
 
             {/* Print Button */}

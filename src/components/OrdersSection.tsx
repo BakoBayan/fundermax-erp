@@ -20,6 +20,7 @@ import {
   Printer,
   Download,
   X,
+  DoorClosed,
 } from "lucide-react";
 import { exportOrdersToCSV } from "../utils/export";
 
@@ -65,6 +66,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
     printCuttingSlip,
   } = useInventory();
 
+  const [jobTypeFilter, setJobTypeFilter] = useState<"all" | "generic" | "door">("all");
   const [orderSearch, setOrderSearch] = useState("");
   const [panelTypeFilter, setPanelTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "reserved" | "finalized">("all");
@@ -114,6 +116,13 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
   // Filter and sort orders
   const filteredOrders = useMemo(() => {
     const result = allOrdersList.filter(({ order, material }) => {
+      if (jobTypeFilter === "door" && order.jobType !== "door" && !order.doorSpec) {
+        return false;
+      }
+      if (jobTypeFilter === "generic" && (order.jobType === "door" || !!order.doorSpec)) {
+        return false;
+      }
+
       if (orderSearch) {
         const q = orderSearch.toLowerCase();
         const clientMatch = order.client.toLowerCase().includes(q);
@@ -121,12 +130,14 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
         const panelCodeMatch = material.code.toLowerCase().includes(q);
         const panelNameMatch = material.name.toLowerCase().includes(q);
         const notesMatch = (order.notes || "").toLowerCase().includes(q);
+        const doorModelMatch = (order.doorSpec?.doorModel || "").toLowerCase().includes(q);
         if (
           !clientMatch &&
           !orderNumMatch &&
           !panelCodeMatch &&
           !panelNameMatch &&
-          !notesMatch
+          !notesMatch &&
+          !doorModelMatch
         )
           return false;
       }
@@ -239,6 +250,44 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
               <span>{t.addOrder}</span>
             </button>
           )}
+
+          {/* 1-Click Workshop Job Type Selector: Generic vs Custom Door */}
+          <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-0.5 text-xs font-semibold shrink-0 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setJobTypeFilter("all")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                jobTypeFilter === "all"
+                  ? "bg-slate-900 dark:bg-slate-700 text-white font-bold"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              هەموو ({allOrdersList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setJobTypeFilter("generic")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                jobTypeFilter === "generic"
+                  ? "bg-emerald-700 text-white font-bold"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              بڕینی ئاسایی
+            </button>
+            <button
+              type="button"
+              onClick={() => setJobTypeFilter("door")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                jobTypeFilter === "door"
+                  ? "bg-emerald-700 text-white font-bold"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <DoorClosed className="w-3.5 h-3.5" />
+              <span>دروستکردنی دەرگا</span>
+            </button>
+          </div>
 
           {/* Search Input with Instant Clear and Hotkey Indicator */}
           <div className="relative flex-1 min-w-[160px]">
@@ -459,9 +508,20 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
 
                     {/* Order Number */}
                     <td className="py-2 px-3 text-center">
-                      <span className="font-mono font-bold text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700">
-                        {order.orderNumber}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="font-mono font-bold text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700">
+                          {order.orderNumber}
+                        </span>
+                        {(order.jobType === "door" || !!order.doorSpec) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] border border-emerald-300 dark:border-emerald-800 whitespace-nowrap">
+                            <DoorClosed className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span>
+                              دەرگا {order.doorSpec ? `${(order.doorSpec.doorHeight / 10).toFixed(0)}×${(order.doorSpec.doorWidth / 10).toFixed(0)}` : ""}
+                              {order.doorSpec ? ` (${order.doorSpec.openingDirection === "left" ? "چەپ" : "ڕاست"})` : ""}
+                            </span>
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Client Name */}
@@ -690,8 +750,19 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                       <div className="font-black text-slate-900 dark:text-white text-sm truncate">
                         {order.client}
                       </div>
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        {order.orderNumber}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          {order.orderNumber}
+                        </span>
+                        {(order.jobType === "door" || !!order.doorSpec) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] border border-emerald-300 dark:border-emerald-800">
+                            <DoorClosed className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>
+                              دەرگا {order.doorSpec ? `${(order.doorSpec.doorHeight / 10).toFixed(0)}×${(order.doorSpec.doorWidth / 10).toFixed(0)}` : ""}
+                              {order.doorSpec ? ` (${order.doorSpec.openingDirection === "left" ? "چەپ" : "ڕاست"})` : ""}
+                            </span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

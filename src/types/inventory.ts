@@ -1,3 +1,6 @@
+import { DoorOrderSpec } from "./doors";
+export type { DoorOrderSpec } from "./doors";
+
 export interface OrderAllocation {
   id: string;
   orderNumber: string;
@@ -9,6 +12,8 @@ export interface OrderAllocation {
   imageUrl?: string; // Attached order image / blueprint / sketch / photo
   status?: "reserved" | "finalized"; // "reserved" = active pending work; "finalized" = completed, panels permanently consumed
   finalizedAt?: string;
+  jobType?: "generic" | "door"; // "generic" = standard panel cutting; "door" = custom door manufacturing
+  doorSpec?: DoorOrderSpec; // Specialized Door Order specifications
 }
 
 export interface PanelMaterial {
@@ -232,6 +237,15 @@ export interface DropdownPresets {
   savedLocations?: string[];
   savedClients?: string[];
 }
+
+export const STANDARD_PAYMENT_METHODS = [
+  'کاش (Cash)',
+  'قەرز (Customer Debt)',
+  'ڕەسیدی کڕیار / پێشەکی (Store Credit)',
+  'حەواڵە / بانک (Bank / Transfer)',
+] as const;
+
+export type StandardPaymentMethod = typeof STANDARD_PAYMENT_METHODS[number];
 
 export type PlatformModule = 'hub' | 'panels' | 'orders' | 'sales' | 'goods' | 'shipping' | 'audit' | 'profit';
 

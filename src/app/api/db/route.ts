@@ -72,11 +72,12 @@ const defaultStore: ServerStore = {
     'Project / Contractor (پڕۆژە)',
     'Set (تاقم)',
     'Cash (نەقد)',
-    'Debt / Credit (قەرز)'
+    'Debt (قەرز)',
+    'Credit (کڕێدیت)'
   ],
   savedSellers: [],
   savedBanks: [],
-  savedPaymentTypes: ['Cash (نەقد)', 'Debt / Credit (قەرز)', 'Installment (قیست)', 'Bank Transfer (حەواڵە)'],
+  savedPaymentTypes: ['کاش (Cash)', 'قەرز (Customer Debt)', 'ڕەسیدی کڕیار / پێشەکی (Store Credit)', 'حەواڵە / بانک (Bank / Transfer)'],
   exchangeRates: {
     USD_IQD: 153000,
     EUR_IQD: 165000,
