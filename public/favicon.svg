@@ -1,0 +1,14 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded Emerald Background matching site logo -->
+  <rect width="100" height="100" rx="26" fill="#047857"/>
+  <rect x="2" y="2" width="96" height="96" rx="24" stroke="#059669" stroke-width="2"/>
+  
+  <!-- Layer 1: Isometric Top Diamond Panel -->
+  <path d="M50 19 L82.5 35 L50 51.25 L17.5 35 Z" stroke="#ffffff" stroke-width="6.5" stroke-linejoin="round" stroke-linecap="round"/>
+  
+  <!-- Layer 2: Middle Isometric Layer Rim -->
+  <path d="M17.5 50 L50 66.25 L82.5 50" stroke="#ffffff" stroke-width="6.5" stroke-linejoin="round" stroke-linecap="round"/>
+  
+  <!-- Layer 3: Bottom Isometric Layer Rim -->
+  <path d="M17.5 65 L50 81.25 L82.5 65" stroke="#ffffff" stroke-width="6.5" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

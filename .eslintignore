@@ -1,0 +1,8 @@
+node_modules/
+.next/
+core/
+engine/
+infrastructure/
+packages/
+platform/
+services/

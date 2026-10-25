@@ -1,0 +1,38 @@
+========================================================================
+    BAKO'S PANEL MANAGER — WORKSTATION CLIENT FOR OTHER COMPUTERS
+========================================================================
+
+This client app allows other computers (office, warehouse floor, etc.)
+to connect to Bako's Panel Manager server running on the main computer.
+
+They will NOT run their own server — all data is centralized and synced
+live with the main database!
+
+------------------------------------------------------------------------
+HOW TO SET UP ON ANY OTHER COMPUTER:
+------------------------------------------------------------------------
+1. Copy this entire folder ("Bako Client for Other PCs") to:
+   - A USB flash drive, OR
+   - Send it via local network sharing / WhatsApp / Telegram / Email.
+
+2. On the other computer:
+   - Paste the folder anywhere (e.g. on their Desktop).
+   - Double-click: "Bako's Panel Client.exe"
+
+3. That's it!
+   The app will automatically open in a dedicated desktop window
+   connected to the main server at:
+   http://192.168.1.33:3000
+
+------------------------------------------------------------------------
+TROUBLESHOOTING & NETWORK TIPS:
+------------------------------------------------------------------------
+- Both computers must be connected to the same Wi-Fi / office network.
+- The main computer must have "Bako's Panel Server" running.
+- If the server IP changes in the future, the client app will display
+  an "Auto-Detect" button to find the new IP automatically, or you can
+  type the new IP shown in the server window.
+- You can also right-click "Bako's Panel Client.exe" and choose:
+  "Send to -> Desktop (create shortcut)" for quick access!
+
+========================================================================

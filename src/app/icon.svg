@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Brand Squircle Container -->
+  <rect width="48" height="48" rx="14" fill="#090d16" stroke="#1e293b" stroke-width="1.2" />
+  <rect x="2" y="2" width="44" height="44" rx="12" fill="none" stroke="#10b981" stroke-opacity="0.22" stroke-width="1" />
+  
+  <!-- Master Hex-Cube "B" in Lucide Vector Stroke Style -->
+  <g transform="translate(6, 6) scale(1.5)" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Top Isometric Diamond: Precision Wood Panels & Dimensions -->
+    <path d="m12 2.5 7 4-7 4-7-4 7-4Z" />
+    <!-- Center Structural Axis -->
+    <path d="M12 10.5V21" />
+    <!-- Left Facet: Modular Warehouse Inventory & Stacking Slices -->
+    <path d="M5 6.5V17l7 4" />
+    <path d="m5 12 7 4" />
+    <!-- Right Facet: Distinct Bako 'B' Monogram Lobes -->
+    <path d="M12 10.5h4a2.75 2.75 0 0 1 0 5.5H12" />
+    <path d="M12 16h4.5a2.5 2.5 0 0 1 0 5H12" />
+  </g>
+</svg>
