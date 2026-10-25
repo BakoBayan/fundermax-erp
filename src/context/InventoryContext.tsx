@@ -10,6 +10,7 @@ import {
   UserAccount,
   UserRole,
   UserModulePermissions,
+  RolePresetName,
   ActivityLogEntry,
   BackupSnapshot,
   CurrencyCode,
@@ -251,49 +252,126 @@ const STORAGE_USERS = "bako_user_accounts_v1";
 const STORAGE_SESSION = "bako_user_session_v1";
 const STORAGE_OFFLINE_QUEUE = "bako_offline_queue_v1";
 
-export const DEFAULT_ADMIN_PERMISSIONS: UserModulePermissions = {
-  panels: true,
-  orders: true,
-  sales: true,
-  goods: true,
-  shipping: true,
-  audit: true,
-  canDelete: true,
-  canExport: true,
+export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
+  "Super Admin": {
+    panels: true,
+    orders: true,
+    sales: true,
+    goods: true,
+    shipping: true,
+    audit: true,
+    canDelete: true,
+    canExport: true,
+    canViewSales: true,
+    canCreateSales: true,
+    canEditSales: true,
+    canDeleteSales: true,
+    canOverridePrice: true,
+    canViewPanels: true,
+    canCreatePanels: true,
+    canEditPanels: true,
+    canDeletePanels: true,
+    canViewWarehouse: true,
+    canManageShipments: true,
+    canManageStock: true,
+    canAccessAdmin: true,
+    canExportBackups: true,
+  },
+  "Accountant": {
+    panels: true,
+    orders: false,
+    sales: true,
+    goods: true,
+    shipping: false,
+    audit: false,
+    canDelete: false,
+    canExport: true,
+    canViewSales: true,
+    canCreateSales: true,
+    canEditSales: true,
+    canDeleteSales: false,
+    canOverridePrice: true,
+    canViewPanels: true,
+    canCreatePanels: false,
+    canEditPanels: false,
+    canDeletePanels: false,
+    canViewWarehouse: true,
+    canManageShipments: false,
+    canManageStock: false,
+    canAccessAdmin: false,
+    canExportBackups: true,
+  },
+  "Workshop Floor": {
+    panels: true,
+    orders: true,
+    sales: false,
+    goods: true,
+    shipping: false,
+    audit: false,
+    canDelete: false,
+    canExport: false,
+    canViewSales: false,
+    canCreateSales: false,
+    canEditSales: false,
+    canDeleteSales: false,
+    canOverridePrice: false,
+    canViewPanels: true,
+    canCreatePanels: true,
+    canEditPanels: true,
+    canDeletePanels: false,
+    canViewWarehouse: true,
+    canManageShipments: false,
+    canManageStock: true,
+    canAccessAdmin: false,
+    canExportBackups: false,
+  },
+  "Read-Only Operator": {
+    panels: true,
+    orders: false,
+    sales: true,
+    goods: true,
+    shipping: false,
+    audit: false,
+    canDelete: false,
+    canExport: false,
+    canViewSales: true,
+    canCreateSales: false,
+    canEditSales: false,
+    canDeleteSales: false,
+    canOverridePrice: false,
+    canViewPanels: true,
+    canCreatePanels: false,
+    canEditPanels: false,
+    canDeletePanels: false,
+    canViewWarehouse: true,
+    canManageShipments: false,
+    canManageStock: false,
+    canAccessAdmin: false,
+    canExportBackups: false,
+  },
 };
 
+export const DEFAULT_ADMIN_PERMISSIONS: UserModulePermissions = ROLE_PRESETS["Super Admin"];
 export const DEFAULT_MANAGER_PERMISSIONS: UserModulePermissions = {
-  panels: true,
+  ...ROLE_PRESETS["Accountant"],
   orders: true,
-  sales: true,
-  goods: true,
   shipping: true,
-  audit: false,
-  canDelete: true,
-  canExport: true,
+  canManageShipments: true,
+  canManageStock: true,
+  canCreatePanels: true,
+  canEditPanels: true,
+  canDeletePanels: false,
 };
-
 export const DEFAULT_STAFF_PERMISSIONS: UserModulePermissions = {
-  panels: true,
-  orders: true,
+  ...ROLE_PRESETS["Workshop Floor"],
   sales: true,
-  goods: true,
-  shipping: false,
-  audit: false,
-  canDelete: false,
-  canExport: true,
+  canViewSales: true,
+  canCreateSales: true,
+  canEditSales: false,
+  canDeleteSales: false,
+  canOverridePrice: false,
 };
-
-export const DEFAULT_VIEWER_PERMISSIONS: UserModulePermissions = {
-  panels: true,
-  orders: false,
-  sales: false,
-  goods: true,
-  shipping: false,
-  audit: false,
-  canDelete: false,
-  canExport: false,
-};
+export const DEFAULT_VIEWER_PERMISSIONS: UserModulePermissions = ROLE_PRESETS["Read-Only Operator"];
 
 export function resolveUserPermissions(user: Partial<UserAccount> | null): UserModulePermissions {
   if (!user) return DEFAULT_VIEWER_PERMISSIONS;
@@ -304,7 +382,29 @@ export function resolveUserPermissions(user: Partial<UserAccount> | null): UserM
   if (user.role === "Manager") base = DEFAULT_MANAGER_PERMISSIONS;
   else if (user.role === "Viewer") base = DEFAULT_VIEWER_PERMISSIONS;
 
-  return { ...base, ...(user.permissions || {}) };
+  const raw = (user.permissions || {}) as Record<string, any>;
+  return {
+    ...base,
+    ...raw,
+    // Ensure granular flags fallback to safe defaults if legacy record didn't have them
+    canViewSales: raw.canViewSales ?? (raw.sales !== undefined ? !!raw.sales : base.canViewSales),
+    canCreateSales: raw.canCreateSales ?? (user.role === 'Viewer' ? false : base.canCreateSales),
+    canEditSales: raw.canEditSales ?? (user.role === 'Viewer' ? false : base.canEditSales),
+    canDeleteSales: raw.canDeleteSales ?? (user.role === 'Viewer' ? false : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeleteSales)),
+    canOverridePrice: raw.canOverridePrice ?? (user.role === 'Viewer' ? false : base.canOverridePrice),
+
+    canViewPanels: raw.canViewPanels ?? (raw.panels !== undefined ? !!raw.panels : base.canViewPanels),
+    canCreatePanels: raw.canCreatePanels ?? (user.role === 'Viewer' ? false : base.canCreatePanels),
+    canEditPanels: raw.canEditPanels ?? (user.role === 'Viewer' ? false : base.canEditPanels),
+    canDeletePanels: raw.canDeletePanels ?? (user.role === 'Viewer' ? false : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeletePanels)),
+
+    canViewWarehouse: raw.canViewWarehouse ?? (raw.goods !== undefined ? !!raw.goods : base.canViewWarehouse),
+    canManageShipments: raw.canManageShipments ?? (raw.shipping !== undefined ? !!raw.shipping : base.canManageShipments),
+    canManageStock: raw.canManageStock ?? base.canManageStock,
+
+    canAccessAdmin: raw.canAccessAdmin ?? (raw.audit !== undefined ? !!raw.audit : base.canAccessAdmin),
+    canExportBackups: raw.canExportBackups ?? (raw.canExport !== undefined ? !!raw.canExport : base.canExportBackups),
+  };
 }
 
 const INITIAL_USERS: UserAccount[] = [
@@ -797,7 +897,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const res = await fetch("/api/sync", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-name": currentUser?.username || "System",
+            "x-user-role": currentUser?.role || "Staff",
+            "x-user-permissions": JSON.stringify(userPermissions),
+          },
           body: JSON.stringify(payload),
         });
 
@@ -817,7 +922,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setSyncStatus("offline");
       }
     },
-    []
+    [currentUser, userPermissions]
   );
 
   // Pull server sync with real-time SQLite WAL health verification

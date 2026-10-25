@@ -1149,7 +1149,7 @@ export const VisualChartsModal: React.FC = () => {
             }`}
           >
             <Package className="w-4 h-4" />
-            <span>{isKu ? 'کەلوپەل و قەراغ (PVC)' : 'Warehouse Hardware'}</span>
+            <span>{isKu ? 'کەلوپەل و پێداویستی کۆگا' : 'Warehouse Hardware & Fittings'}</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
               {products.length}
             </span>
@@ -1194,7 +1194,7 @@ export const VisualChartsModal: React.FC = () => {
                     : activeTab === 'sales'
                     ? 'Sales POS, Finance & Debt Ledger'
                     : activeTab === 'goods'
-                    ? 'Warehouse Hardware & PVC Edging'
+                    ? 'Warehouse Hardware & Fittings'
                     : 'Shipping & Logistics Fleet'}
                 </span>
               </p>
@@ -1651,7 +1651,7 @@ export const VisualChartsModal: React.FC = () => {
                     <span>{isKu ? 'کەلوپەل بەپێی پۆلێن (Categories)' : 'Inventory Volume by Category'}</span>
                   </h3>
                   <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'قەراغی PVC، پێداویستی، دەسک، چەکمەجە و هتد' : 'Stock unit volume distributed across PVC Edging, Hinges, Screws, and Hardware'}
+                    {isKu ? 'پێداویستی، دەسک، چەکمەجە، جومگە و هتد' : 'Stock unit volume distributed across Hinges, Slides, Screws, and Hardware Fittings'}
                   </p>
                   <SvgGroupedBarChart data={goodsAnalytics.catBars} height={200} isKu={isKu} />
                 </div>
@@ -2012,9 +2012,9 @@ export const VisualChartsModal: React.FC = () => {
                     <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                       <td className="p-2.5 font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <Package className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Warehouse Hardware & PVC</span>
+                        <span>Warehouse Hardware & Fittings</span>
                       </td>
-                      <td className="p-2.5 text-slate-500">Banding, Joinery, Slides, Hinges</td>
+                      <td className="p-2.5 text-slate-500">Fasteners, Joinery, Slides, Hinges</td>
                       <td className="p-2.5 text-center font-mono font-bold">
                         {products.reduce((acc, p) => acc + p.currentStock, 0).toLocaleString()}
                       </td>

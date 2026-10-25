@@ -1,27 +1,134 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import {
+  getDB,
   createDatabaseBackup,
   listDatabaseBackups,
   restoreDatabaseBackup,
   deleteDatabaseBackup,
   saveInventoryToDB,
+  executeScheduledBackup,
+  listSnapshots,
+  getLatestSnapshot,
+  detectExternalDrives,
+  copySnapshotToDirectory,
+  getBackupDir,
+  isValidSnapshotName,
+  writeAuditLog,
 } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get("action");
+    const downloadFile = searchParams.get("download");
+
+    // Direct physical snapshot download
+    if (downloadFile) {
+      if (!isValidSnapshotName(downloadFile)) {
+        return NextResponse.json({ success: false, error: "Invalid snapshot filename" }, { status: 400 });
+      }
+      const filePath = path.join(getBackupDir(), downloadFile);
+      if (!fs.existsSync(filePath)) {
+        return NextResponse.json({ success: false, error: "Snapshot file not found" }, { status: 404 });
+      }
+      const fileBuffer = fs.readFileSync(filePath);
+      return new NextResponse(fileBuffer, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/x-sqlite3",
+          "Content-Disposition": `attachment; filename="${downloadFile}"`,
+          "Content-Length": String(fileBuffer.length),
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
+
+    if (action === "detect_usb") {
+      const drives = detectExternalDrives();
+      return NextResponse.json({ success: true, drives });
+    }
+
+    if (action === "snapshots") {
+      const snapshots = listSnapshots();
+      return NextResponse.json({ success: true, snapshots });
+    }
+
     const backups = listDatabaseBackups();
-    return NextResponse.json({ success: true, backups });
+    const snapshots = listSnapshots();
+    const drives = detectExternalDrives();
+
+    return NextResponse.json({
+      success: true,
+      backups,
+      snapshots,
+      drives,
+    });
   } catch (error) {
     console.error("[API GET /api/backup Error]", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const action = body.action || "create";
 
+    // 1-Click SQLite WAL snapshot via VACUUM INTO ?
+    if (action === "create_snapshot" || action === "snapshot") {
+      const db = getDB();
+      const snapshot = await executeScheduledBackup(db);
+      writeAuditLog(db, "BACKUP_CREATED", {
+        type: "sqlite_vacuum",
+        snapshot: snapshot.name,
+        sizeBytes: snapshot.sizeBytes,
+      });
+      return NextResponse.json({ success: true, snapshot });
+    }
+
+    // 1-Click Physical Backup to USB Drive
+    if (action === "export_usb") {
+      const db = getDB();
+      let snapshot = getLatestSnapshot();
+      if (!snapshot) {
+        snapshot = await executeScheduledBackup(db);
+      }
+
+      let targetDir = body.targetDir;
+      if (!targetDir) {
+        const detected = detectExternalDrives();
+        if (detected.length > 0) {
+          targetDir = detected[0];
+        } else {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "No external USB drive detected. Please insert a USB flash drive or specify a target directory path.",
+            },
+            { status: 404 }
+          );
+        }
+      }
+
+      const destPath = copySnapshotToDirectory(snapshot, targetDir);
+      writeAuditLog(db, "BACKUP_EXPORTED_USB", {
+        snapshot: snapshot.name,
+        targetDir,
+        destination: destPath,
+        sizeBytes: snapshot.sizeBytes,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Physical backup snapshot exported successfully to USB: ${destPath}`,
+        destination: destPath,
+        snapshot,
+      });
+    }
+
+    // Legacy JSON Backups Support
     if (action === "create") {
       const type = body.type || "manual";
       const label = body.label;
@@ -50,7 +157,6 @@ export async function POST(req: Request) {
     }
 
     if (action === "wipe") {
-      // Factory reset: wipe active inventory
       saveInventoryToDB([], ["HPL"]);
       return NextResponse.json({ success: true, message: "Database wiped cleanly." });
     }

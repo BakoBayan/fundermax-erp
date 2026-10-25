@@ -174,8 +174,8 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
       {/* Top Filter & Action Bar: Modern, Responsive & Non-Bland */}
       <div className="p-2.5 sm:px-5 bg-slate-50/90 dark:bg-slate-850/90 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 select-none no-print">
         <div className="flex items-center gap-2 flex-1 max-w-3xl flex-wrap">
-          {/* Primary + Panel Button: Hidden for Viewers */}
-          {!isViewer && (
+          {/* Primary + Panel Button: Hidden unless canCreatePanels */}
+          {userPermissions.canCreatePanels && (
             <button
               onClick={() => onOpenMaterialModal(null)}
               className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 rounded-xl font-bold shadow-2xs active:scale-95 transition-all shrink-0"
@@ -633,8 +633,8 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                         );
                       })()}
 
-                      {/* Edit Panel: Hidden for Viewers */}
-                      {!isViewer && (
+                      {/* Edit Panel: Rendered strictly if canEditPanels */}
+                      {userPermissions.canEditPanels && (
                         <button
                           onClick={() => onOpenMaterialModal(mat)}
                           className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-2xs transition-all active:scale-95"
@@ -644,8 +644,8 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                         </button>
                       )}
 
-                      {/* Delete Panel with On-Site Modal (Managers & Admins only) */}
-                      {canDeleteMaterial && (
+                      {/* Delete Panel with On-Site Modal: Rendered strictly if canDeletePanels */}
+                      {canDeleteMaterial && userPermissions.canDeletePanels && (
                         <button
                           onClick={() => {
                             requestConfirm({

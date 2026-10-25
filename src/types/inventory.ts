@@ -38,15 +38,37 @@ export type ThemeMode = "light" | "dark";
 
 export type UserRole = "Admin" | "Manager" | "Staff" | "Viewer";
 
+export type RolePresetName = "Super Admin" | "Accountant" | "Workshop Floor" | "Read-Only Operator";
+
 export interface UserModulePermissions {
+  // Legacy module access flags
   panels: boolean;      // Wood Panels Manager
   orders: boolean;      // Order Allocations & Workshop Cutting
   sales: boolean;       // Sales POS, Billing & Invoicing
   goods: boolean;       // Warehouse Goods & Inventory
   shipping: boolean;    // Logistics & Shipments
   audit: boolean;       // Database Backups & Audit Trail
-  canDelete?: boolean;  // Permission to delete records
-  canExport?: boolean;  // Permission to export reports & CSVs
+  canDelete?: boolean;  // Legacy delete
+  canExport?: boolean;  // Legacy export
+
+  // Granular v1.5 CRUD Matrix:
+  canViewSales: boolean;
+  canCreateSales: boolean;
+  canEditSales: boolean;
+  canDeleteSales: boolean;
+  canOverridePrice: boolean;
+
+  canViewPanels: boolean;
+  canCreatePanels: boolean;
+  canEditPanels: boolean;
+  canDeletePanels: boolean;
+
+  canViewWarehouse: boolean;
+  canManageShipments: boolean;
+  canManageStock: boolean;
+
+  canAccessAdmin: boolean;
+  canExportBackups: boolean;
 }
 
 export interface UserAccount {
@@ -147,6 +169,13 @@ export interface PanelTransaction {
   status: 'completed' | 'partial' | 'debt';
   lastUpdated: string;
   items?: InvoiceItem[];
+  // v1.5 Immutable Multi-Currency & Soft Delete
+  chargedAmount?: number;
+  chargedCurrency?: CurrencyCode;
+  exchangeRateApplied?: number;
+  baseUsdEquivalent?: number;
+  isDeleted?: 0 | 1;
+  deletedAt?: string | null;
 }
 
 export interface Product {

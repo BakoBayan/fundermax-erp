@@ -33,6 +33,7 @@ import MathBreakdownModal from './MathBreakdownModal';
 import { SearchableDropdown } from './SearchableDropdown';
 import DropdownManagerModal from './DropdownManagerModal';
 import { exportTransactionsToCSV } from '../utils/export';
+import { roundMoney, buildMoneySnapshot } from '../lib/money';
 import { autoCapitalizeFirstLetter } from '../utils/text';
 
 export const SalesSection: React.FC = () => {
@@ -279,6 +280,29 @@ export const SalesSection: React.FC = () => {
     const txStatus: 'completed' | 'partial' | 'debt' =
       orderOwed <= 0 ? 'completed' : orderPaid > 0 ? 'partial' : 'debt';
 
+    if (editingTxId) {
+      if (!userPermissions.canEditSales) {
+        alert(isKu ? 'دەسەڵاتی دەستکاریکردنی ئەم پسوولەیەت نییە' : 'You do not have permission to edit sales invoices.');
+        return;
+      }
+    } else {
+      if (!userPermissions.canCreateSales) {
+        alert(isKu ? 'دەسەڵاتی دروستکردنی پسوولەی نوێت نییە' : 'You do not have permission to create sales invoices.');
+        return;
+      }
+    }
+
+    const cur = posDraft.activeCurrency;
+    const roundedSelling = roundMoney(orderTotalAmount, cur);
+    const roundedDiscount = roundMoney(orderDiscount, cur);
+    const roundedNet = roundMoney(finalNet, cur);
+    const roundedPaid = roundMoney(orderPaid, cur);
+    const roundedOwed = roundMoney(orderOwed, cur);
+    const roundedOldDebt = roundMoney(orderOldDebt, cur);
+    const roundedCombinedDebt = roundMoney(orderCombinedDebt, cur);
+
+    const moneySnap = buildMoneySnapshot(roundedNet, cur, exchangeRates);
+
     const txPayload: PanelTransaction = {
       id: editingTxId || `tx-${Date.now()}`,
       code: posDraft.invoiceCode.trim() ? autoCapitalizeFirstLetter(posDraft.invoiceCode.trim()) : undefined,
@@ -291,22 +315,22 @@ export const SalesSection: React.FC = () => {
       seller: posDraft.seller.trim() ? autoCapitalizeFirstLetter(posDraft.seller.trim()) : undefined,
       bank: posDraft.bank.trim() ? autoCapitalizeFirstLetter(posDraft.bank.trim()) : undefined,
       paymentType: posDraft.paymentType.trim() ? autoCapitalizeFirstLetter(posDraft.paymentType.trim()) : undefined,
-      currency: posDraft.activeCurrency,
+      currency: cur,
       currencyRate:
-        posDraft.activeCurrency === 'IQD'
+        cur === 'IQD'
           ? exchangeRates.usdToIqd
-          : posDraft.activeCurrency === 'EUR'
+          : cur === 'EUR'
           ? exchangeRates.eurToUsd
           : 1,
-      sellingAmount: orderTotalAmount,
-      costPrice: orderTotalAmount,
-      discountDollars: orderDiscount,
+      sellingAmount: roundedSelling,
+      costPrice: roundedSelling,
+      discountDollars: roundedDiscount,
       discountPercentage: typeof posDraft.discountPercentage === 'number' ? posDraft.discountPercentage : 0,
-      totalAfterDiscount: finalNet,
-      amountPaidNow: orderPaid,
-      amountOwed: orderOwed,
-      oldUnpaidDebt: orderOldDebt,
-      combinedTotalDebt: orderCombinedDebt,
+      totalAfterDiscount: roundedNet,
+      amountPaidNow: roundedPaid,
+      amountOwed: roundedOwed,
+      oldUnpaidDebt: roundedOldDebt,
+      combinedTotalDebt: roundedCombinedDebt,
       grossProfit: 0,
       profitMargin: 0,
       notes: posDraft.notes ? autoCapitalizeFirstLetter(posDraft.notes) : '',
@@ -314,6 +338,10 @@ export const SalesSection: React.FC = () => {
       status: txStatus,
       lastUpdated: new Date().toISOString(),
       items: finalItems,
+      chargedAmount: moneySnap.chargedAmount,
+      chargedCurrency: moneySnap.chargedCurrency,
+      exchangeRateApplied: moneySnap.exchangeRateApplied,
+      baseUsdEquivalent: moneySnap.baseUsdEquivalent,
     };
 
     if (editingTxId) {
@@ -972,7 +1000,9 @@ export const SalesSection: React.FC = () => {
                 value={posDraft.rowPrice}
                 onChange={(e) => setPosDraft({ ...posDraft, rowPrice: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                 placeholder="0.00"
-                className="w-full min-h-[34px] px-3 py-1 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+                readOnly={!userPermissions.canOverridePrice && !userPermissions.canCreateSales}
+                disabled={!userPermissions.canOverridePrice && !userPermissions.canCreateSales}
+                className="w-full min-h-[34px] px-3 py-1 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono disabled:opacity-60"
               />
             </div>
 
@@ -1165,21 +1195,25 @@ export const SalesSection: React.FC = () => {
             >
               {t.clearForm}
             </button>
-            <button
-              type="button"
-              onClick={() => handleSaveInvoice(true)}
-              className="px-4 py-2 text-xs font-bold rounded-xl bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-200 hover:bg-sky-200 transition-colors cursor-pointer"
-            >
-              <Printer className="w-4 h-4 inline mr-1" />
-              Save & Print
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSaveInvoice(false)}
-              className="px-5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 active:scale-98 transition-all cursor-pointer"
-            >
-              {t.saveInvoice}
-            </button>
+            {((editingTxId && userPermissions.canEditSales) || (!editingTxId && userPermissions.canCreateSales)) && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleSaveInvoice(true)}
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-200 hover:bg-sky-200 transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 inline mr-1" />
+                  Save & Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveInvoice(false)}
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 active:scale-98 transition-all cursor-pointer"
+                >
+                  {t.saveInvoice}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1434,29 +1468,29 @@ export const SalesSection: React.FC = () => {
                             >
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             </button>
-                            {canModify && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditTx(tx)}
-                                  className="p-1.5 text-slate-500 hover:text-amber-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                                  title="Edit Invoice"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (confirm(isKu ? 'ئەم پسوولەیە بسڕدرێتەوە؟' : 'Delete this invoice?')) {
-                                      deleteTransaction(tx.id);
-                                    }
-                                  }}
-                                  className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                                  title="Delete Invoice"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
+                            {userPermissions.canEditSales && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditTx(tx)}
+                                className="p-1.5 text-slate-500 hover:text-amber-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                                title="Edit Invoice"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {userPermissions.canDeleteSales && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(isKu ? 'ئەم پسوولەیە بسڕدرێتەوە؟' : 'Delete this invoice?')) {
+                                    deleteTransaction(tx.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                                title="Delete Invoice"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         </td>

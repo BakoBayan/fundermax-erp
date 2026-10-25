@@ -226,8 +226,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
       {/* Orders Filter & Action Toolbar */}
       <div className="p-2.5 sm:px-5 bg-slate-50/90 dark:bg-slate-850/90 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 select-none no-print">
         <div className="flex items-center gap-2 flex-1 max-w-4xl flex-wrap">
-          {/* Create New Order Button (Hidden for Viewers) */}
-          {!isViewer && (
+          {/* Create New Order Button (Strictly unmounted unless canCreatePanels) */}
+          {userPermissions.canCreatePanels && (
             <button
               onClick={() => onOpenOrderModal()}
               disabled={materials.length === 0}
@@ -621,8 +621,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                           );
                         })()}
 
-                        {/* Edit Order */}
-                        {!isViewer && (
+                        {/* Edit Order: Strictly unmounted unless canEditPanels */}
+                        {userPermissions.canEditPanels && (
                           <button
                             onClick={() => onOpenOrderModal(material.id, { materialId: material.id, order })}
                             className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-2xs transition-all active:scale-95"
@@ -632,8 +632,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                           </button>
                         )}
 
-                        {/* Delete Order with On-Site Modal */}
-                        {canDeleteMaterial && (
+                        {/* Delete Order with On-Site Modal: Strictly unmounted unless canDeletePanels */}
+                        {canDeleteMaterial && userPermissions.canDeletePanels && (
                           <button
                             onClick={() => {
                               const confirmMsg = isFinalized
@@ -843,8 +843,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                       );
                     })()}
 
-                    {/* Edit */}
-                    {!isViewer && (
+                    {/* Edit: Strictly unmounted unless canEditPanels */}
+                    {userPermissions.canEditPanels && (
                       <button
                         onClick={() => onOpenOrderModal(material.id, { materialId: material.id, order })}
                         className="p-2 rounded-xl bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs active:scale-95"
@@ -854,8 +854,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                       </button>
                     )}
 
-                    {/* Delete */}
-                    {canDeleteMaterial && (
+                    {/* Delete: Strictly unmounted unless canDeletePanels */}
+                    {canDeleteMaterial && userPermissions.canDeletePanels && (
                           <button
                             onClick={() => {
                               const confirmMsg = isFinalized

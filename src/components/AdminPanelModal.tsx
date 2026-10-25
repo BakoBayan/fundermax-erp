@@ -2,10 +2,11 @@
 
 import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useEffect } from 'react';
-import { useInventory, resolveUserPermissions, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS, DEFAULT_VIEWER_PERMISSIONS } from '@/context/InventoryContext';
-import { CurrencyCode, PanelTransaction, UserModulePermissions, UserRole } from '@/types/inventory';
+import { useInventory, resolveUserPermissions, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS, DEFAULT_VIEWER_PERMISSIONS, ROLE_PRESETS } from '@/context/InventoryContext';
+import { CurrencyCode, PanelTransaction, UserModulePermissions, UserRole, RolePresetName } from '@/types/inventory';
 import {
   X,
+  Usb,
   Smartphone,
   Monitor,
   Wifi,
@@ -193,17 +194,64 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Backup states & 3-month retention info
   const [backupCount, setBackupCount] = useState<number | null>(null);
+  const [walSnapshots, setWalSnapshots] = useState<Array<{ name: string; path: string; sizeBytes: number; createdAt: string }>>([]);
+  const [usbDrives, setUsbDrives] = useState<string[]>([]);
+  const [exportingUsb, setExportingUsb] = useState(false);
+  const [detectingUsb, setDetectingUsb] = useState(false);
+  const [expandedDivisions, setExpandedDivisions] = useState<{ [key: string]: boolean }>({
+    panels: true,
+    sales: true,
+    warehouse: false,
+    admin: false,
+  });
+  const toggleDivision = (div: string) => {
+    setExpandedDivisions((prev) => ({ ...prev, [div]: !prev[div] }));
+  };
   const [creatingBackup, setCreatingBackup] = useState(false);
 
   const fetchBackupsInfo = () => {
-    fetch('/api/db?action=backups')
-      .then(res => res.json())
-      .then(data => {
-        if (data && typeof data.count === 'number') {
-          setBackupCount(data.count);
+    fetch('/api/backup')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.success) {
+          if (Array.isArray(data.snapshots)) {
+            setWalSnapshots(data.snapshots);
+            setBackupCount(data.snapshots.length);
+          } else if (Array.isArray(data.backups)) {
+            setBackupCount(data.backups.length);
+          }
+          if (Array.isArray(data.drives)) {
+            setUsbDrives(data.drives);
+          }
         }
       })
       .catch(() => {});
+  };
+
+  const handleExportUsb = async (targetDir?: string) => {
+    setExportingUsb(true);
+    try {
+      const res = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'export_usb', targetDir }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        onToast(
+          lang === 'en'
+            ? `Physical backup exported to ${data.destination}!`
+            : `باکئەپ بە سەرکەوتوویی نێردرا بۆ USB: ${data.destination}`
+        );
+        fetchBackupsInfo();
+      } else {
+        onToast(data?.error || 'Failed to export backup to USB');
+      }
+    } catch (err: any) {
+      onToast(err?.message || 'Error exporting to USB');
+    } finally {
+      setExportingUsb(false);
+    }
   };
 
   useEffect(() => {
@@ -539,10 +587,32 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 transition active:scale-95 shadow-sm cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${creatingBackup ? 'animate-spin' : ''}`} />
-                    <span>{lang === 'en' ? 'Create Instant Snapshot' : 'دروستکردنی باکئەپی ئێستا'}</span>
+                    <span>{lang === 'en' ? 'Create Instant WAL Snapshot' : 'دروستکردنی باکئەپی ئێستا'}</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExportUsb(usbDrives[0])}
+                    disabled={exportingUsb}
+                    className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 transition active:scale-95 shadow-sm cursor-pointer"
+                  >
+                    <Usb className={`w-4 h-4 ${exportingUsb ? 'animate-spin' : ''}`} />
+                    <span>{lang === 'en' ? 'Export Physical Backup to USB' : 'ناردنی باکئەپی فیزیکی بۆ USB'}</span>
+                  </button>
+
+                  {walSnapshots.length > 0 && (
+                    <a
+                      href={`/api/backup?download=${encodeURIComponent(walSnapshots[0].name)}`}
+                      download
+                      className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-2 transition active:scale-95 cursor-pointer no-underline"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{lang === 'en' ? `Download Snapshot (${(walSnapshots[0].sizeBytes / 1024).toFixed(0)} KB)` : 'داگرتنی فایلی داتابەیس'}</span>
+                    </a>
+                  )}
+
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    Retention: 90 Days • Auto-pruning Active
+                    {usbDrives.length > 0 ? `USB Detected: ${usbDrives.join(', ')}` : 'Rolling Retention: Last 14 Snapshots'}
                   </span>
                 </div>
               </div>
@@ -1039,246 +1109,342 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 1-Click Quick Presets */}
+                  {/* 1-Click Role Presets */}
                   <div>
-                    <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      {lang === 'en' ? 'Quick Permission Presets:' : 'دەسەڵاتی ئامادەکراو بە یەک کلیک:'}
-                    </span>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setActiveUserPerms(DEFAULT_ADMIN_PERMISSIONS)}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold transition-all active:scale-95 cursor-pointer"
-                      >
-                        👑 {lang === 'en' ? 'Full Master Access' : 'دەسەڵاتی تەواو (هەموو بەشەکان)'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveUserPerms({
-                          panels: false,
-                          orders: true,
-                          sales: true,
-                          goods: true,
-                          shipping: false,
-                          audit: false,
-                          canDelete: false,
-                          canExport: true,
-                        })}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-500 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold transition-all active:scale-95 cursor-pointer"
-                      >
-                        💼 {lang === 'en' ? 'Sales Representative' : 'فرۆشیار (POS و پسوولە)'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveUserPerms({
-                          panels: true,
-                          orders: true,
-                          sales: false,
-                          goods: true,
-                          shipping: true,
-                          audit: false,
-                          canDelete: true,
-                          canExport: true,
-                        })}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-500 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold transition-all active:scale-95 cursor-pointer"
-                      >
-                        📦 {lang === 'en' ? 'Warehouse & Workshop' : 'کۆگا و بڕینی تەختەکان'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveUserPerms(DEFAULT_VIEWER_PERMISSIONS)}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-purple-500 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold transition-all active:scale-95 cursor-pointer"
-                      >
-                        👁️ {lang === 'en' ? 'Read-Only Viewer' : 'تەنها بینین (بێ دەستکاری)'}
-                      </button>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        {lang === 'en' ? 'Standard Role Presets (1-Click Apply):' : 'ڕۆڵی ئامادەکراو (بە یەک کلیک):'}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {lang === 'en' ? 'Select a preset or customize granular toggles below' : 'ڕۆڵێک هەڵبژێرە یان دەسەڵاتەکان دیاریبکە'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {(['Super Admin', 'Accountant', 'Workshop Floor', 'Read-Only Operator'] as RolePresetName[]).map((presetName) => {
+                        const icons: Record<RolePresetName, string> = {
+                          'Super Admin': '👑',
+                          'Accountant': '📊',
+                          'Workshop Floor': '🪵',
+                          'Read-Only Operator': '👁️',
+                        };
+                        const descriptions: Record<RolePresetName, string> = {
+                          'Super Admin': lang === 'en' ? 'Full unrestricted access to all 4 divisions' : 'دەسەڵاتی تەواوی هەموو بەشەکان',
+                          'Accountant': lang === 'en' ? 'POS billing, customer debts & price override' : 'فرۆشتن، قەرز و دەستکاری نرخ',
+                          'Workshop Floor': lang === 'en' ? 'Panel cutting, order queues & stock intake' : 'بڕینی تەختە و داواکارییەکان',
+                          'Read-Only Operator': lang === 'en' ? 'View-only access, zero edits/deletes' : 'تەنها بینین، بێ سڕینەوە و دەستکاری',
+                        };
+
+                        return (
+                          <button
+                            key={presetName}
+                            type="button"
+                            onClick={() => {
+                              setActiveUserPerms(ROLE_PRESETS[presetName]);
+                              onToast(
+                                lang === 'en'
+                                  ? `Applied "${presetName}" preset!`
+                                  : `ڕۆڵی "${presetName}" دیاریکرا!`
+                              );
+                            }}
+                            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700/80 hover:border-sky-500 bg-white/70 dark:bg-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-left flex flex-col justify-between cursor-pointer group active:scale-98 shadow-2xs"
+                          >
+                            <div>
+                              <div className="flex items-center gap-1.5 font-black text-xs text-slate-900 dark:text-white mb-1">
+                                <span className="text-base">{icons[presetName]}</span>
+                                <span>{presetName}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight">
+                                {descriptions[presetName]}
+                              </p>
+                            </div>
+                            <span className="mt-2 text-[9px] font-bold text-sky-600 dark:text-sky-400 group-hover:underline">
+                              {lang === 'en' ? 'Apply Preset →' : 'جێبەجێکردن ←'}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Major Modules Permission Cards Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-2">
-                    {[
-                      {
-                        key: 'panels',
-                        title: lang === 'en' ? 'Wood Panels Manager' : 'بەڕێوەبەری تەختەکان',
-                        desc: lang === 'en' ? 'Access wood panels inventory, custom dimension cutting, sheet sizing and stock levels.' : 'کۆگای تەختەکان، بڕین و ئەندازەکردن، و چاودێری ڕێژەی کۆگا.',
-                        icon: Layers,
-                        color: 'text-emerald-500',
-                        bg: 'bg-emerald-500/10',
-                      },
-                      {
-                        key: 'sales',
-                        title: lang === 'en' ? 'Sales POS & Invoicing' : 'سیستەمی فرۆشتن و پسوولە',
-                        desc: lang === 'en' ? 'Access POS register, create multi-currency invoices, manage customer debt ledger and printable receipts.' : 'فرۆشتنی نەقد و قەرز، ژمێریاری دراوەکان، تۆماری قەرزاری کڕیاران و پسوولە.',
-                        icon: ReceiptText,
-                        color: 'text-sky-500',
-                        bg: 'bg-sky-500/10',
-                      },
-                      {
-                        key: 'orders',
-                        title: lang === 'en' ? 'Order Allocations' : 'داواکارییەکانی کڕیاران',
-                        desc: lang === 'en' ? 'Manage customer panel reservations, cutting queues, blueprint attachments and order status.' : 'داواکارییەکانی بڕینی تەختە بۆ کڕیاران، وێنە و نەخشەی کارەکان.',
-                        icon: PackageCheck,
-                        color: 'text-teal-500',
-                        bg: 'bg-teal-500/10',
-                      },
-                      {
-                        key: 'goods',
-                        title: lang === 'en' ? 'Warehouse Finished Goods' : 'کۆگای کەلوپەل و مەخزەن',
-                        desc: lang === 'en' ? 'Access hardware products, edge banding, accessories, prices and low stock alert lanes.' : 'کەلوپەل و بەرهەمە تەواوکراوەکان، نرخی کڕین و فرۆشتن، و زۆنی ئاگاداری کەمی.',
-                        icon: Boxes,
-                        color: 'text-amber-500',
-                        bg: 'bg-amber-500/10',
-                      },
-                      {
-                        key: 'shipping',
-                        title: lang === 'en' ? 'Logistics & Shipments' : 'گەیاندن و بارکردن',
-                        desc: lang === 'en' ? 'Track supplier deliveries, inbound shipments, tracking numbers and logistics history.' : 'چاودێری بارە نوێیەکان، کۆدی گەیشتنی کەلوپەل و مێژووی گەیاندن.',
-                        icon: Truck,
-                        color: 'text-indigo-500',
-                        bg: 'bg-indigo-500/10',
-                      },
-                      {
-                        key: 'audit',
-                        title: lang === 'en' ? 'Database & Audit Trail' : 'داتابەیس و چاودێری سیستەم',
-                        desc: lang === 'en' ? 'Access SQLite backups, WAL status, system diagnostic logs, and export raw data.' : 'تۆماری چاودێری و باکئەپی داتابەیس (بە شێوەی بنەڕەتی تەنها بۆ ئەدمینە).',
-                        icon: Database,
-                        color: 'text-purple-500',
-                        bg: 'bg-purple-500/10',
-                      },
-                    ].map((mod) => {
-                      const Icon = mod.icon;
-                      const isAllowed = !!(activeUserPerms as any)[mod.key];
-
-                      return (
-                        <div
-                          key={mod.key}
-                          onClick={() => {
-                            setActiveUserPerms((prev) => ({
-                              ...prev,
-                              [mod.key]: !prev[mod.key as keyof UserModulePermissions],
-                            }));
-                          }}
-                          className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 ${
-                            isAllowed
-                              ? 'border-emerald-500/60 bg-white dark:bg-slate-800 shadow-2xs'
-                              : 'border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/40 opacity-75'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className={`w-9 h-9 rounded-xl ${mod.bg} ${mod.color} flex items-center justify-center shrink-0 mt-0.5`}>
-                              <Icon className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h5 className="font-black text-xs text-slate-900 dark:text-white">
-                                  {mod.title}
-                                </h5>
-                                {isAllowed ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                                    {lang === 'en' ? 'ALLOWED' : 'ڕێگەپێدراو'}
-                                  </span>
-                                ) : (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-slate-200 dark:bg-slate-700 text-slate-500">
-                                    {lang === 'en' ? 'LOCKED' : 'قەدەغە'}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                                {mod.desc}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Toggle Switch */}
-                          <div className={`w-11 h-6 rounded-full transition-colors p-1 shrink-0 ${
-                            isAllowed ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}>
-                            <div className={`w-4 h-4 rounded-full bg-white shadow-md transition-transform ${
-                              isAllowed ? (lang === 'ku' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
-                            }`} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Granular Action Capability Switches */}
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5">
-                      {lang === 'en' ? 'Granular Action Authority:' : 'دەسەڵاتە هەستیارەکانی تر:'}
+                  {/* Accordion Cards Per Division */}
+                  <div className="space-y-3 pt-2">
+                    <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      {lang === 'en' ? 'Granular CRUD Permissions Matrix (Per Division):' : 'خشتەی وردی دەسەڵاتەکان بەپێی بەشەکان:'}
                     </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Delete Records */}
+
+                    {/* DIVISION 01: WOOD PANELS & WORKSHOP */}
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 overflow-hidden shadow-xs">
                       <div
-                        onClick={() => {
-                          setActiveUserPerms((prev) => ({
-                            ...prev,
-                            canDelete: !prev.canDelete,
-                          }));
-                        }}
-                        className={`p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 ${
-                          activeUserPerms.canDelete
-                            ? 'border-rose-400/60 bg-white dark:bg-slate-800 shadow-2xs'
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/40 opacity-75'
-                        }`}
+                        onClick={() => toggleDivision('panels')}
+                        className="p-3.5 sm:px-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors select-none"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-                            <Trash2 className="w-4 h-4" />
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <Layers className="w-4 h-4" />
                           </div>
                           <div>
-                            <span className="font-bold text-xs text-slate-900 dark:text-white block">
-                              {lang === 'en' ? 'Record Deletion Permission' : 'دەسەڵاتی سڕینەوەی داتا'}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {lang === 'en' ? 'Allow deleting stock materials, orders or sales' : 'سڕینەوەی تەختەکان، فرۆشتنەکان و داواکارییەکان'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-black text-xs text-slate-900 dark:text-white">
+                                {lang === 'en' ? 'Division 01: Wood Panels & Workshop Cutting' : 'بەشی یەکەم: کۆگای تەختە و کارگەی بڕین'}
+                              </h5>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono">
+                                {[activeUserPerms.canViewPanels, activeUserPerms.canCreatePanels, activeUserPerms.canEditPanels, activeUserPerms.canDeletePanels].filter(Boolean).length}/4
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {lang === 'en' ? 'Panel sheet sizing, custom cutting orders, and workshop reservations.' : 'ئەندازەکردن، بڕینی داواکارییەکان، و پاشەکەوتی تەختە.'}
+                            </p>
                           </div>
                         </div>
-                        <div className={`w-10 h-5 rounded-full transition-colors p-0.5 shrink-0 ${
-                          activeUserPerms.canDelete ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}>
-                          <div className={`w-4 h-4 rounded-full bg-white shadow-md transition-transform ${
-                            activeUserPerms.canDelete ? (lang === 'ku' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
-                          }`} />
+                        <div className="text-slate-400 font-bold text-sm">
+                          {expandedDivisions.panels ? '▲' : '▼'}
                         </div>
                       </div>
 
-                      {/* Export CSV / Reports */}
+                      {expandedDivisions.panels && (
+                        <div className="p-4 pt-1 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {[
+                            { key: 'canViewPanels', label: 'View Wood Panels', desc: 'Browse catalog, active orders & stock counts' },
+                            { key: 'canCreatePanels', label: 'Create Panels & Orders', desc: 'Add new material codes and log cutting reservations' },
+                            { key: 'canEditPanels', label: 'Edit Panels & Allocations', desc: 'Modify dimensions, pricing, and order progress' },
+                            { key: 'canDeletePanels', label: 'Delete Panels & Orders', desc: 'Permanently archive panel or order entries' },
+                          ].map((item) => {
+                            const val = !!activeUserPerms[item.key as keyof UserModulePermissions];
+                            return (
+                              <label
+                                key={item.key}
+                                className="flex items-start gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={val}
+                                  onChange={() =>
+                                    setActiveUserPerms((prev) => ({
+                                      ...prev,
+                                      [item.key]: !prev[item.key as keyof UserModulePermissions],
+                                    }))
+                                  }
+                                  className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                                />
+                                <div>
+                                  <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                                    {item.label}
+                                  </span>
+                                  <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                    {item.desc}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* DIVISION 02: SALES POS & BILLING */}
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 overflow-hidden shadow-xs">
                       <div
-                        onClick={() => {
-                          setActiveUserPerms((prev) => ({
-                            ...prev,
-                            canExport: !prev.canExport,
-                          }));
-                        }}
-                        className={`p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 ${
-                          activeUserPerms.canExport
-                            ? 'border-emerald-400/60 bg-white dark:bg-slate-800 shadow-2xs'
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/40 opacity-75'
-                        }`}
+                        onClick={() => toggleDivision('sales')}
+                        className="p-3.5 sm:px-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors select-none"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                            <Download className="w-4 h-4" />
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                            <ReceiptText className="w-4 h-4" />
                           </div>
                           <div>
-                            <span className="font-bold text-xs text-slate-900 dark:text-white block">
-                              {lang === 'en' ? 'Export CSV & Reports' : 'داگرتنی ئێکسڵ و ڕاپۆرت'}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {lang === 'en' ? 'Allow downloading CSV spreadsheets' : 'ڕێگەدان بە دابەزاندنی فایلەکانی ئێکسڵ'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-black text-xs text-slate-900 dark:text-white">
+                                {lang === 'en' ? 'Division 02: Sales POS, Invoices & Debt Ledger' : 'بەشی دووەم: سیستەمی فرۆشتن، پسوولە و قەرز'}
+                              </h5>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 font-mono">
+                                {[activeUserPerms.canViewSales, activeUserPerms.canCreateSales, activeUserPerms.canEditSales, activeUserPerms.canDeleteSales, activeUserPerms.canOverridePrice].filter(Boolean).length}/5
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {lang === 'en' ? 'Checkout cash register, multi-currency invoices, debt collection and price overrides.' : 'تۆماری فرۆشتن، قەرزی کڕیاران و پسوولەی فەرمی.'}
+                            </p>
                           </div>
                         </div>
-                        <div className={`w-10 h-5 rounded-full transition-colors p-0.5 shrink-0 ${
-                          activeUserPerms.canExport ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}>
-                          <div className={`w-4 h-4 rounded-full bg-white shadow-md transition-transform ${
-                            activeUserPerms.canExport ? (lang === 'ku' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
-                          }`} />
+                        <div className="text-slate-400 font-bold text-sm">
+                          {expandedDivisions.sales ? '▲' : '▼'}
                         </div>
                       </div>
+
+                      {expandedDivisions.sales && (
+                        <div className="p-4 pt-1 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {[
+                            { key: 'canViewSales', label: 'View Sales History', desc: 'Inspect customer invoices, debt ledger and totals' },
+                            { key: 'canCreateSales', label: 'Create New Invoices', desc: 'Process checkout sales and generate print slips' },
+                            { key: 'canEditSales', label: 'Edit Invoices', desc: 'Modify existing finalized sales invoices' },
+                            { key: 'canDeleteSales', label: 'Delete Invoices', desc: 'Archive sales invoices and reverse debt entries' },
+                            { key: 'canOverridePrice', label: 'Manual Price Override', desc: 'Modify item unit price or discount at checkout' },
+                          ].map((item) => {
+                            const val = !!activeUserPerms[item.key as keyof UserModulePermissions];
+                            return (
+                              <label
+                                key={item.key}
+                                className="flex items-start gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={val}
+                                  onChange={() =>
+                                    setActiveUserPerms((prev) => ({
+                                      ...prev,
+                                      [item.key]: !prev[item.key as keyof UserModulePermissions],
+                                    }))
+                                  }
+                                  className="mt-1 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300"
+                                />
+                                <div>
+                                  <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                                    {item.label}
+                                  </span>
+                                  <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                    {item.desc}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* DIVISION 03: WAREHOUSE & LOGISTICS */}
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 overflow-hidden shadow-xs">
+                      <div
+                        onClick={() => toggleDivision('warehouse')}
+                        className="p-3.5 sm:px-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <Boxes className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-black text-xs text-slate-900 dark:text-white">
+                                {lang === 'en' ? 'Division 03: Warehouse Hardware & Logistics' : 'بەشی سێیەم: مەخزەنی کەلوپەل و گەیاندن'}
+                              </h5>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono">
+                                {[activeUserPerms.canViewWarehouse, activeUserPerms.canManageStock, activeUserPerms.canManageShipments].filter(Boolean).length}/3
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {lang === 'en' ? 'Finished fittings, hardware stock levels, and supplier shipment tracking.' : 'کەلوپەلی کۆگا، چاودێری ڕێژە و بارەکانی دەرەوە.'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-slate-400 font-bold text-sm">
+                          {expandedDivisions.warehouse ? '▲' : '▼'}
+                        </div>
+                      </div>
+
+                      {expandedDivisions.warehouse && (
+                        <div className="p-4 pt-1 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {[
+                            { key: 'canViewWarehouse', label: 'View Warehouse Inventory', desc: 'Browse hardware fittings, accessories, and stock levels' },
+                            { key: 'canManageStock', label: 'Manage Stock & Reorders', desc: 'Update inventory counts, locations, and low-stock alerts' },
+                            { key: 'canManageShipments', label: 'Manage Shipments & Logistics', desc: 'Track carrier deliveries and receive inbound freight' },
+                          ].map((item) => {
+                            const val = !!activeUserPerms[item.key as keyof UserModulePermissions];
+                            return (
+                              <label
+                                key={item.key}
+                                className="flex items-start gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={val}
+                                  onChange={() =>
+                                    setActiveUserPerms((prev) => ({
+                                      ...prev,
+                                      [item.key]: !prev[item.key as keyof UserModulePermissions],
+                                    }))
+                                  }
+                                  className="mt-1 w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                                />
+                                <div>
+                                  <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                                    {item.label}
+                                  </span>
+                                  <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                    {item.desc}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* DIVISION 04: SYSTEM ADMIN & AUDIT */}
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 overflow-hidden shadow-xs">
+                      <div
+                        onClick={() => toggleDivision('admin')}
+                        className="p-3.5 sm:px-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                            <Database className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-black text-xs text-slate-900 dark:text-white">
+                                {lang === 'en' ? 'Division 04: System Administration & Physical Backups' : 'بەشی چوارەم: بەڕێوەبەرایەتی سیستەم و باکئەپ'}
+                              </h5>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-mono">
+                                {[activeUserPerms.canAccessAdmin, activeUserPerms.canExportBackups].filter(Boolean).length}/2
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {lang === 'en' ? 'Administrative security controls, audit logs, and physical offline backups.' : 'دەسەڵاتی بەڕێوەبەر، تۆماری چاودێری و پاراستنی باکئەپ.'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-slate-400 font-bold text-sm">
+                          {expandedDivisions.admin ? '▲' : '▼'}
+                        </div>
+                      </div>
+
+                      {expandedDivisions.admin && (
+                        <div className="p-4 pt-1 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {[
+                            { key: 'canAccessAdmin', label: 'Admin Console Access', desc: 'Inspect audit trail, modify user accounts and view diagnostics' },
+                            { key: 'canExportBackups', label: 'Export Physical Backups & CSV', desc: 'Trigger crash-safe USB backups and download full spreadsheets' },
+                          ].map((item) => {
+                            const val = !!activeUserPerms[item.key as keyof UserModulePermissions];
+                            return (
+                              <label
+                                key={item.key}
+                                className="flex items-start gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={val}
+                                  onChange={() =>
+                                    setActiveUserPerms((prev) => ({
+                                      ...prev,
+                                      [item.key]: !prev[item.key as keyof UserModulePermissions],
+                                    }))
+                                  }
+                                  className="mt-1 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300"
+                                />
+                                <div>
+                                  <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                                    {item.label}
+                                  </span>
+                                  <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                    {item.desc}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 

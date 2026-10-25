@@ -14,10 +14,45 @@ import {
   Shipment,
   ExchangeRates,
   DropdownPresets,
-  InvoiceItem
+  InvoiceItem,
+  CurrencyCode
 } from "../types/inventory";
 import { DEFAULT_EXCHANGE_RATES } from "./currency";
 import { autoCapitalizeFirstLetter } from "../utils/text";
+import {
+  runSchemaMigrations,
+  writeAuditLog,
+  softDeleteMissing,
+  restoreSoftDeleted,
+  purgeSoftDeleted,
+  listSoftDeleted,
+  verifyAuditChain,
+  withActor,
+  currentActor,
+  runInTransaction,
+  type SoftTable
+} from "./dbSafety";
+import {
+  roundMoney,
+  toMinorUnits,
+  fromMinorUnits,
+  baseUsdFromRate,
+  legacyRatePerUsd,
+  buildMoneySnapshot,
+  isCurrencyCode
+} from "./money";
+import {
+  executeScheduledBackup,
+  listSnapshots,
+  getLatestSnapshot,
+  copySnapshotToDirectory,
+  detectExternalDrives,
+  startBackupScheduler,
+  getBackupDir,
+  isValidSnapshotName,
+  type SnapshotInfo
+} from "./backup";
+
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "warehouse.db");
@@ -241,6 +276,8 @@ export function getDB(): DatabaseSync {
   }
 
   ensureDefaultAccounts(db);
+  runSchemaMigrations(db);
+  startBackupScheduler(getDB);
 
   globalForDB.sqliteDB = db;
   return db;
@@ -485,11 +522,11 @@ export function getInventoryFromDB(): {
   const db = getDB();
 
   const matRows = db.prepare(`
-    SELECT * FROM materials ORDER BY CAST(code AS INTEGER) ASC, name ASC
+    SELECT * FROM materials WHERE is_deleted = 0 ORDER BY CAST(code AS INTEGER) ASC, name ASC
   `).all() as Record<string, unknown>[];
 
   const ordRows = db.prepare(`
-    SELECT * FROM orders ORDER BY date DESC, created_at DESC
+    SELECT * FROM orders WHERE is_deleted = 0 ORDER BY date DESC, created_at DESC
   `).all() as Record<string, unknown>[];
 
   const typeRows = db.prepare(`
@@ -578,6 +615,14 @@ export function getInventoryFromDB(): {
   return { materials, customTypes, users, lastUpdated };
 }
 
+function buildUpsertSql(table: string, columns: readonly string[]): string {
+  const allCols = ["id", ...columns];
+  const placeholders = allCols.map(() => "?").join(", ");
+  const updates = columns.map((c) => `${c} = excluded.${c}`).join(", ");
+  return `INSERT INTO ${table} (${allCols.join(", ")}, is_deleted, deleted_at) VALUES (${placeholders}, 0, NULL)
+    ON CONFLICT(id) DO UPDATE SET ${updates}, is_deleted = 0, deleted_at = NULL`;
+}
+
 export function saveInventoryToDB(
   materials: PanelMaterial[],
   customTypes: string[],
@@ -586,96 +631,138 @@ export function saveInventoryToDB(
   const db = getDB();
   const nowTime = Date.now();
 
-  db.exec("BEGIN IMMEDIATE;");
   try {
-    db.exec("DELETE FROM orders;");
-    db.exec("DELETE FROM materials;");
-    db.exec("DELETE FROM custom_types;");
+    runInTransaction(db, () => {
+      const nowIso = new Date().toISOString();
+      const incomingMatIds = new Set<string>(materials.map((m) => m.id));
+      const incomingOrdIds = new Set<string>();
+      for (const mat of materials) {
+        for (const ord of mat.activeOrders ?? []) incomingOrdIds.add(ord.id);
+      }
 
-    const insertMat = db.prepare(`
-      INSERT INTO materials (
-        id, code, name, type, length, width, thickness, unit, formatted_dimensions,
-        total_stock, allocated_stock, available_stock, notes, image_url, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+      // Panels that disappeared from the list: soft delete the panel and its orders. Never DELETE.
+      const liveMats = db.prepare(`SELECT * FROM materials WHERE is_deleted = 0`).all() as Record<string, unknown>[];
+      for (const m of liveMats) {
+        const id = String(m.id);
+        if (incomingMatIds.has(id)) continue;
+        const archivedOrders = db
+          .prepare(`UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE material_id = ? AND is_deleted = 0`)
+          .run(nowIso, id);
+        db.prepare(`UPDATE materials SET is_deleted = 1, deleted_at = ? WHERE id = ?`).run(nowIso, id);
+        writeAuditLog(db, "MATERIAL_DELETED", {
+          table: "materials",
+          id,
+          before: {
+            code: m.code,
+            name: m.name,
+            type: m.type,
+            total_stock: m.total_stock,
+            allocated_stock: m.allocated_stock,
+            available_stock: m.available_stock,
+          },
+          after: { is_deleted: 1, deleted_at: nowIso },
+          ordersArchivedWithPanel: Number(archivedOrders.changes),
+        });
+      }
 
-    const insertOrd = db.prepare(`
-      INSERT INTO orders (
-        id, material_id, order_number, client, quantity, date, notes, status, image_url, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+      const upsertMat = db.prepare(`
+        INSERT INTO materials (
+          id, code, name, type, length, width, thickness, unit, formatted_dimensions,
+          total_stock, allocated_stock, available_stock, notes, image_url, created_at, updated_at,
+          is_deleted, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+        ON CONFLICT(id) DO UPDATE SET
+          code = excluded.code, name = excluded.name, type = excluded.type, length = excluded.length,
+          width = excluded.width, thickness = excluded.thickness, unit = excluded.unit,
+          formatted_dimensions = excluded.formatted_dimensions, total_stock = excluded.total_stock,
+          allocated_stock = excluded.allocated_stock, available_stock = excluded.available_stock,
+          notes = excluded.notes, image_url = excluded.image_url, created_at = excluded.created_at,
+          updated_at = excluded.updated_at, is_deleted = 0, deleted_at = NULL
+      `);
 
-    const insertType = db.prepare(`INSERT OR IGNORE INTO custom_types (name) VALUES (?)`);
+      const upsertOrd = db.prepare(`
+        INSERT INTO orders (
+          id, material_id, order_number, client, quantity, date, notes, status, image_url, created_at, updated_at,
+          is_deleted, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+        ON CONFLICT(id) DO UPDATE SET
+          material_id = excluded.material_id, order_number = excluded.order_number, client = excluded.client,
+          quantity = excluded.quantity, date = excluded.date, notes = excluded.notes, status = excluded.status,
+          image_url = excluded.image_url, created_at = excluded.created_at, updated_at = excluded.updated_at,
+          is_deleted = 0, deleted_at = NULL
+      `);
 
-    for (const mat of materials) {
-      insertMat.run(
-        mat.id,
-        autoCapitalizeFirstLetter(mat.code),
-        autoCapitalizeFirstLetter(mat.name),
-        autoCapitalizeFirstLetter(mat.type || "HPL"),
-        mat.dimensions?.length ?? 0,
-        mat.dimensions?.width ?? 0,
-        mat.dimensions?.thickness ?? 0,
-        "mm",
-        mat.dimensions?.formatted ?? "",
-        mat.totalStock ?? 0,
-        mat.allocatedStock ?? 0,
-        mat.availableStock ?? 0,
-        mat.notes ? autoCapitalizeFirstLetter(mat.notes) : "",
-        mat.imageUrl || null,
-        mat.createdAt ? String(mat.createdAt) : String(Date.now()),
-        mat.updatedAt || new Date().toISOString()
-      );
+      for (const mat of materials) {
+        upsertMat.run(
+          mat.id,
+          autoCapitalizeFirstLetter(mat.code),
+          autoCapitalizeFirstLetter(mat.name),
+          autoCapitalizeFirstLetter(mat.type || "HPL"),
+          mat.dimensions?.length ?? 0,
+          mat.dimensions?.width ?? 0,
+          mat.dimensions?.thickness ?? 0,
+          "mm",
+          mat.dimensions?.formatted ?? "",
+          mat.totalStock ?? 0,
+          mat.allocatedStock ?? 0,
+          mat.availableStock ?? 0,
+          mat.notes ? autoCapitalizeFirstLetter(mat.notes) : "",
+          mat.imageUrl || null,
+          mat.createdAt ? String(mat.createdAt) : String(Date.now()),
+          mat.updatedAt || new Date().toISOString()
+        );
 
-      if (Array.isArray(mat.activeOrders)) {
-        for (const ord of mat.activeOrders) {
-          insertOrd.run(
-            ord.id,
-            mat.id,
-            ord.orderNumber,
-            autoCapitalizeFirstLetter(ord.client),
-            ord.quantity ?? 1,
-            ord.date,
-            ord.notes ? autoCapitalizeFirstLetter(ord.notes) : "",
-            ord.status || "reserved",
-            ord.imageUrl || null,
-            ord.createdAt ? String(ord.createdAt) : String(Date.now()),
-            ord.finalizedAt || null
-          );
+        if (Array.isArray(mat.activeOrders)) {
+          for (const ord of mat.activeOrders) {
+            upsertOrd.run(
+              ord.id,
+              mat.id,
+              ord.orderNumber,
+              autoCapitalizeFirstLetter(ord.client),
+              ord.quantity ?? 1,
+              ord.date,
+              ord.notes ? autoCapitalizeFirstLetter(ord.notes) : "",
+              ord.status || "reserved",
+              ord.imageUrl || null,
+              ord.createdAt ? String(ord.createdAt) : String(Date.now()),
+              ord.finalizedAt || null
+            );
+          }
         }
       }
-    }
 
-    for (const t of customTypes) {
-      if (typeof t === "string" && t.trim()) {
-        insertType.run(autoCapitalizeFirstLetter(t.trim()));
+      // Orders removed from an existing panel: soft delete with audit log
+      const liveOrders = db.prepare(`SELECT * FROM orders WHERE is_deleted = 0`).all() as Record<string, unknown>[];
+      for (const o of liveOrders) {
+        const id = String(o.id);
+        if (incomingOrdIds.has(id)) continue;
+        db.prepare(`UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`).run(nowIso, id);
+        writeAuditLog(db, "ORDER_DELETED", {
+          table: "orders",
+          id,
+          orderNumber: o.order_number,
+          client: o.client,
+          quantity: o.quantity,
+          materialId: o.material_id,
+          before: { status: o.status, date: o.date },
+          after: { is_deleted: 1, deleted_at: nowIso },
+        });
       }
-    }
 
-    if (Array.isArray(users) && users.length > 0) {
-      db.exec("DELETE FROM user_accounts;");
-      const insertUser = db.prepare(`
-        INSERT INTO user_accounts (username, display_name, role, password_hash, created_at, last_login_at, permissions_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      const nowStr = new Date().toISOString();
-      for (const u of users) {
-        insertUser.run(
-          u.username,
-          autoCapitalizeFirstLetter(u.displayName),
-          u.role,
-          u.password || "",
-          u.createdAt ? new Date(u.createdAt).toISOString() : nowStr,
-          nowStr,
-          u.permissions ? JSON.stringify(u.permissions) : null
-        );
+      const insertType = db.prepare(`INSERT OR IGNORE INTO custom_types (name) VALUES (?)`);
+      for (const t of customTypes) {
+        if (typeof t === "string" && t.trim()) {
+          insertType.run(autoCapitalizeFirstLetter(t.trim()));
+        }
       }
-    }
 
-    const updateMeta = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)`);
-    updateMeta.run(String(nowTime));
+      if (Array.isArray(users) && users.length > 0) {
+        saveUsersToDB(users);
+      }
 
-    db.exec("COMMIT;");
+      const updateMeta = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)`);
+      updateMeta.run(String(nowTime));
+    });
 
     try {
       fs.writeFileSync(LEGACY_JSON_PATH, JSON.stringify({ materials, customTypes, users, lastUpdated: nowTime }, null, 2), "utf8");
@@ -683,19 +770,14 @@ export function saveInventoryToDB(
 
     return { success: true, lastUpdated: nowTime };
   } catch (err) {
-    db.exec("ROLLBACK;");
     console.error("[SQLite Save Error]", err);
     throw err;
   }
 }
 
-// ==========================================
-// TRANSACTIONS (SALES INVOICES) CRUD
-// ==========================================
-
 export function getTransactionsFromDB(): PanelTransaction[] {
   const db = getDB();
-  const rows = db.prepare(`SELECT * FROM transactions ORDER BY timestamp DESC`).all() as Record<string, unknown>[];
+  const rows = db.prepare(`SELECT * FROM transactions WHERE is_deleted = 0 ORDER BY timestamp DESC`).all() as Record<string, unknown>[];
 
   return rows.map((r) => {
     let images: string[] = [];
@@ -737,85 +819,154 @@ export function getTransactionsFromDB(): PanelTransaction[] {
       items,
       status: (r.status || "completed") as any,
       lastUpdated: String(r.last_updated || r.timestamp),
+      chargedAmount: r.charged_amount === null || r.charged_amount === undefined ? undefined : Number(r.charged_amount),
+      chargedCurrency: isCurrencyCode(r.charged_currency) ? r.charged_currency : undefined,
+      exchangeRateApplied:
+        r.exchange_rate_applied === null || r.exchange_rate_applied === undefined ? undefined : Number(r.exchange_rate_applied),
+      baseUsdEquivalent:
+        r.base_usd_equivalent === null || r.base_usd_equivalent === undefined ? undefined : Number(r.base_usd_equivalent),
     };
   });
 }
 
+const TX_COLUMNS = [
+  "code", "timestamp", "panel_type", "material", "quantity", "unit", "selling_type", "seller", "bank", "payment_type",
+  "currency", "currency_rate", "selling_amount", "cost_price", "discount_dollars", "discount_percentage",
+  "total_after_discount", "amount_paid_now", "amount_owed", "old_unpaid_debt", "combined_total_debt",
+  "gross_profit", "profit_margin", "notes", "images_json", "items_json", "status", "last_updated",
+  "charged_amount", "charged_currency", "exchange_rate_applied", "base_usd_equivalent",
+] as const;
+
+
 export function saveTransactionsToDB(transactions: PanelTransaction[]): void {
   const db = getDB();
-  db.exec("BEGIN IMMEDIATE;");
   try {
-    db.exec("DELETE FROM transactions;");
-    const insertTx = db.prepare(`
-      INSERT INTO transactions (
-        id, code, timestamp, panel_type, material, quantity, unit, selling_type, seller, bank, payment_type,
-        currency, currency_rate, selling_amount, cost_price, discount_dollars, discount_percentage,
-        total_after_discount, amount_paid_now, amount_owed, old_unpaid_debt, combined_total_debt,
-        gross_profit, profit_margin, notes, images_json, items_json, status, last_updated
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    runInTransaction(db, () => {
+      const existingRows = db.prepare(`SELECT * FROM transactions`).all() as Record<string, unknown>[];
+      const existingById = new Map<string, Record<string, unknown>>();
+      for (const r of existingRows) existingById.set(String(r.id), r);
 
-    for (const tx of transactions) {
-      const sanitizedItems = Array.isArray(tx.items)
-        ? tx.items.map((it) => ({
-            ...it,
-            code: it.code ? autoCapitalizeFirstLetter(it.code) : it.code,
-            product: it.product ? autoCapitalizeFirstLetter(it.product) : it.product,
-            type: it.type ? autoCapitalizeFirstLetter(it.type) : it.type,
-            sellingType: it.sellingType ? autoCapitalizeFirstLetter(it.sellingType) : it.sellingType,
-            seller: it.seller ? autoCapitalizeFirstLetter(it.seller) : it.seller,
-            bank: it.bank ? autoCapitalizeFirstLetter(it.bank) : it.bank,
-            paymentType: it.paymentType ? autoCapitalizeFirstLetter(it.paymentType) : it.paymentType,
-          }))
-        : [];
+      const upsertTx = db.prepare(buildUpsertSql("transactions", TX_COLUMNS));
+      const incomingIds = new Set<string>();
 
-      insertTx.run(
-        tx.id,
-        tx.code ? autoCapitalizeFirstLetter(tx.code) : "",
-        tx.timestamp || new Date().toISOString(),
-        tx.panelType ? autoCapitalizeFirstLetter(tx.panelType) : "",
-        tx.material ? autoCapitalizeFirstLetter(tx.material) : "",
-        tx.quantity || 1,
-        tx.unit || "sheets",
-        tx.sellingType ? autoCapitalizeFirstLetter(tx.sellingType) : "",
-        tx.seller ? autoCapitalizeFirstLetter(tx.seller) : "",
-        tx.bank ? autoCapitalizeFirstLetter(tx.bank) : "",
-        tx.paymentType ? autoCapitalizeFirstLetter(tx.paymentType) : "",
-        tx.currency || "USD",
-        tx.currencyRate || 1,
-        tx.sellingAmount || 0,
-        tx.costPrice || 0,
-        tx.discountDollars || 0,
-        tx.discountPercentage || 0,
-        tx.totalAfterDiscount || 0,
-        tx.amountPaidNow || 0,
-        tx.amountOwed || 0,
-        tx.oldUnpaidDebt || 0,
-        tx.combinedTotalDebt || 0,
-        tx.grossProfit || 0,
-        tx.profitMargin || 0,
-        tx.notes ? autoCapitalizeFirstLetter(tx.notes) : "",
-        JSON.stringify(tx.images || []),
-        JSON.stringify(sanitizedItems),
-        tx.status || "completed",
-        tx.lastUpdated || new Date().toISOString()
-      );
-    }
-    db.exec("COMMIT;");
+      for (const tx of transactions) {
+        incomingIds.add(tx.id);
+        const cur: CurrencyCode = isCurrencyCode(tx.currency) ? tx.currency : "USD";
+        const m = (n: number | undefined): number => roundMoney(Number(n) || 0, cur);
+
+        const sanitizedItems = Array.isArray(tx.items)
+          ? tx.items.map((it) => ({
+              ...it,
+              price: m(it.price),
+              total: m(it.total),
+              code: it.code ? autoCapitalizeFirstLetter(it.code) : it.code,
+              product: it.product ? autoCapitalizeFirstLetter(it.product) : it.product,
+              type: it.type ? autoCapitalizeFirstLetter(it.type) : it.type,
+              sellingType: it.sellingType ? autoCapitalizeFirstLetter(it.sellingType) : it.sellingType,
+              seller: it.seller ? autoCapitalizeFirstLetter(it.seller) : it.seller,
+              bank: it.bank ? autoCapitalizeFirstLetter(it.bank) : it.bank,
+              paymentType: it.paymentType ? autoCapitalizeFirstLetter(it.paymentType) : it.paymentType,
+            }))
+          : [];
+
+        const sellingAmount = m(tx.sellingAmount);
+        const discountDollars = m(tx.discountDollars);
+        const totalAfterDiscount = m(tx.totalAfterDiscount);
+
+        // Immutable multi-currency snapshot. The rate stored when the invoice was first charged
+        // always wins, so later market-rate changes or edits never rewrite history.
+        const existing = existingById.get(tx.id);
+        const priorRate =
+          existing && existing.charged_currency === cur && Number(existing.exchange_rate_applied) > 0
+            ? Number(existing.exchange_rate_applied)
+            : undefined;
+        const clientRate =
+          tx.chargedCurrency === cur && tx.exchangeRateApplied && tx.exchangeRateApplied > 0
+            ? tx.exchangeRateApplied
+            : undefined;
+        const rate = priorRate ?? clientRate ?? legacyRatePerUsd(cur, tx.currencyRate);
+        const chargedAmount = totalAfterDiscount;
+        const baseUsd = baseUsdFromRate(chargedAmount, cur, rate);
+
+        // PRICE_OVERRIDE: an existing live invoice whose price-defining values changed.
+        if (existing && Number(existing.is_deleted) === 0) {
+          let beforeItems: InvoiceItem[] = [];
+          try {
+            beforeItems = existing.items_json ? JSON.parse(String(existing.items_json)) : [];
+          } catch {}
+          const sig = (items: InvoiceItem[]) =>
+            JSON.stringify(items.map((i) => [i.product, roundMoney(Number(i.price) || 0, cur), i.quantity]));
+          const beforeTotals = {
+            sellingAmount: roundMoney(Number(existing.selling_amount) || 0, cur),
+            discountDollars: roundMoney(Number(existing.discount_dollars) || 0, cur),
+            totalAfterDiscount: roundMoney(Number(existing.total_after_discount) || 0, cur),
+          };
+          const afterTotals = { sellingAmount, discountDollars, totalAfterDiscount };
+          if (
+            JSON.stringify(beforeTotals) !== JSON.stringify(afterTotals) ||
+            sig(beforeItems) !== sig(sanitizedItems)
+          ) {
+            writeAuditLog(db, "PRICE_OVERRIDE", {
+              table: "transactions",
+              id: tx.id,
+              code: tx.code || null,
+              currency: cur,
+              before: { ...beforeTotals, items: beforeItems.map((i) => ({ product: i.product, price: i.price, quantity: i.quantity })) },
+              after: { ...afterTotals, items: sanitizedItems.map((i) => ({ product: i.product, price: i.price, quantity: i.quantity })) },
+            });
+          }
+        }
+
+        upsertTx.run(
+          tx.id,
+          tx.code ? autoCapitalizeFirstLetter(tx.code) : "",
+          tx.timestamp || new Date().toISOString(),
+          tx.panelType ? autoCapitalizeFirstLetter(tx.panelType) : "",
+          tx.material ? autoCapitalizeFirstLetter(tx.material) : "",
+          tx.quantity || 1,
+          tx.unit || "sheets",
+          tx.sellingType ? autoCapitalizeFirstLetter(tx.sellingType) : "",
+          tx.seller ? autoCapitalizeFirstLetter(tx.seller) : "",
+          tx.bank ? autoCapitalizeFirstLetter(tx.bank) : "",
+          tx.paymentType ? autoCapitalizeFirstLetter(tx.paymentType) : "",
+          cur,
+          tx.currencyRate || 1,
+          sellingAmount,
+          m(tx.costPrice),
+          discountDollars,
+          tx.discountPercentage || 0,
+          totalAfterDiscount,
+          m(tx.amountPaidNow),
+          m(tx.amountOwed),
+          m(tx.oldUnpaidDebt),
+          m(tx.combinedTotalDebt),
+          m(tx.grossProfit),
+          tx.profitMargin || 0,
+          tx.notes ? autoCapitalizeFirstLetter(tx.notes) : "",
+          JSON.stringify(tx.images || []),
+          JSON.stringify(sanitizedItems),
+          tx.status || "completed",
+          tx.lastUpdated || new Date().toISOString(),
+          chargedAmount,
+          cur,
+          rate,
+          baseUsd
+        );
+      }
+
+      softDeleteMissing(db, "transactions", incomingIds, "INVOICE_DELETED");
+    });
   } catch (err) {
-    db.exec("ROLLBACK;");
     console.error("[saveTransactionsToDB Error]", err);
     throw err;
   }
 }
 
-// ==========================================
-// PRODUCTS (WAREHOUSE GOODS) CRUD
-// ==========================================
+
 
 export function getProductsFromDB(): Product[] {
   const db = getDB();
-  const rows = db.prepare(`SELECT * FROM products ORDER BY name ASC`).all() as Record<string, unknown>[];
+  const rows = db.prepare(`SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC`).all() as Record<string, unknown>[];
   return rows.map((r) => ({
     id: String(r.id),
     sku: String(r.sku || ""),
@@ -831,18 +982,18 @@ export function getProductsFromDB(): Product[] {
   }));
 }
 
+const PRODUCT_COLUMNS = [
+  "sku", "name", "category", "current_stock", "min_stock", "location", "price", "image_url", "lane", "last_updated",
+] as const;
+
 export function saveProductsToDB(products: Product[]): void {
   const db = getDB();
-  db.exec("BEGIN IMMEDIATE;");
-  try {
-    db.exec("DELETE FROM products;");
-    const insertProd = db.prepare(`
-      INSERT INTO products (
-        id, sku, name, category, current_stock, min_stock, location, price, image_url, lane, last_updated
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  runInTransaction(db, () => {
+    const upsert = db.prepare(buildUpsertSql("products", PRODUCT_COLUMNS));
+    const incomingIds = new Set<string>();
     for (const p of products) {
-      insertProd.run(
+      incomingIds.add(p.id);
+      upsert.run(
         p.id,
         p.sku ? autoCapitalizeFirstLetter(p.sku) : "",
         autoCapitalizeFirstLetter(p.name || ""),
@@ -856,11 +1007,8 @@ export function saveProductsToDB(products: Product[]): void {
         p.lastUpdated || new Date().toISOString()
       );
     }
-    db.exec("COMMIT;");
-  } catch (err) {
-    db.exec("ROLLBACK;");
-    throw err;
-  }
+    softDeleteMissing(db, "products", incomingIds, "PRODUCT_DELETED");
+  });
 }
 
 // ==========================================
@@ -869,7 +1017,7 @@ export function saveProductsToDB(products: Product[]): void {
 
 export function getShipmentsFromDB(): Shipment[] {
   const db = getDB();
-  const rows = db.prepare(`SELECT * FROM shipments ORDER BY created_at DESC`).all() as Record<string, unknown>[];
+  const rows = db.prepare(`SELECT * FROM shipments WHERE is_deleted = 0 ORDER BY created_at DESC`).all() as Record<string, unknown>[];
   return rows.map((r) => ({
     id: String(r.id),
     trackingCode: String(r.tracking_code || ""),
@@ -881,18 +1029,16 @@ export function getShipmentsFromDB(): Shipment[] {
   }));
 }
 
+const SHIPMENT_COLUMNS = ["tracking_code", "destination", "item_summary", "quantity", "status", "created_at"] as const;
+
 export function saveShipmentsToDB(shipments: Shipment[]): void {
   const db = getDB();
-  db.exec("BEGIN IMMEDIATE;");
-  try {
-    db.exec("DELETE FROM shipments;");
-    const insertShip = db.prepare(`
-      INSERT INTO shipments (
-        id, tracking_code, destination, item_summary, quantity, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+  runInTransaction(db, () => {
+    const upsert = db.prepare(buildUpsertSql("shipments", SHIPMENT_COLUMNS));
+    const incomingIds = new Set<string>();
     for (const s of shipments) {
-      insertShip.run(
+      incomingIds.add(s.id);
+      upsert.run(
         s.id,
         s.trackingCode ? autoCapitalizeFirstLetter(s.trackingCode) : "",
         s.destination ? autoCapitalizeFirstLetter(s.destination) : "",
@@ -902,12 +1048,10 @@ export function saveShipmentsToDB(shipments: Shipment[]): void {
         s.createdAt || new Date().toISOString()
       );
     }
-    db.exec("COMMIT;");
-  } catch (err) {
-    db.exec("ROLLBACK;");
-    throw err;
-  }
+    softDeleteMissing(db, "shipments", incomingIds, "SHIPMENT_DELETED");
+  });
 }
+
 
 // ==========================================
 // EXCHANGE RATES & DROPDOWN PRESETS
@@ -1043,16 +1187,21 @@ export function getUnifiedDataFromDB(): UnifiedDatabasePayload {
 
 export function saveUsersToDB(users: UserAccount[]): void {
   const db = getDB();
-  db.exec("BEGIN IMMEDIATE;");
-  try {
-    db.exec("DELETE FROM user_accounts;");
-    const insertUser = db.prepare(`
+  runInTransaction(db, () => {
+    const upsertUser = db.prepare(`
       INSERT INTO user_accounts (username, display_name, role, password_hash, created_at, last_login_at, permissions_json)
       VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(username) DO UPDATE SET
+        display_name = excluded.display_name,
+        role = excluded.role,
+        password_hash = excluded.password_hash,
+        permissions_json = excluded.permissions_json
     `);
     const nowStr = new Date().toISOString();
+    const incomingUsernames = new Set<string>();
     for (const u of users) {
-      insertUser.run(
+      incomingUsernames.add(u.username);
+      upsertUser.run(
         u.username,
         autoCapitalizeFirstLetter(u.displayName),
         u.role,
@@ -1062,11 +1211,13 @@ export function saveUsersToDB(users: UserAccount[]): void {
         u.permissions ? JSON.stringify(u.permissions) : null
       );
     }
-    db.exec("COMMIT;");
-  } catch (err) {
-    db.exec("ROLLBACK;");
-    console.error("[SQLite saveUsersToDB Error]", err);
-  }
+    const existing = db.prepare(`SELECT username FROM user_accounts`).all() as { username: string }[];
+    for (const row of existing) {
+      if (row.username !== 'bako' && !incomingUsernames.has(row.username)) {
+        db.prepare(`DELETE FROM user_accounts WHERE username = ?`).run(row.username);
+      }
+    }
+  });
 }
 
 export function saveUnifiedDataToDB(payload: Partial<UnifiedDatabasePayload>): { success: boolean; lastUpdated: number } {
@@ -1160,15 +1311,15 @@ export function getDatabaseHealth(): DatabaseHealthInfo {
   let totalShipments = 0;
 
   try {
-    const matCount = db.prepare("SELECT COUNT(*) as count FROM materials").get() as { count: number };
+    const matCount = db.prepare("SELECT COUNT(*) as count FROM materials WHERE is_deleted = 0").get() as { count: number };
     totalMaterials = matCount?.count ?? 0;
-    const ordCount = db.prepare("SELECT COUNT(*) as count FROM orders").get() as { count: number };
+    const ordCount = db.prepare("SELECT COUNT(*) as count FROM orders WHERE is_deleted = 0").get() as { count: number };
     totalOrders = ordCount?.count ?? 0;
-    const txCount = db.prepare("SELECT COUNT(*) as count FROM transactions").get() as { count: number };
+    const txCount = db.prepare("SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 0").get() as { count: number };
     totalTransactions = txCount?.count ?? 0;
-    const prodCount = db.prepare("SELECT COUNT(*) as count FROM products").get() as { count: number };
+    const prodCount = db.prepare("SELECT COUNT(*) as count FROM products WHERE is_deleted = 0").get() as { count: number };
     totalProducts = prodCount?.count ?? 0;
-    const shipCount = db.prepare("SELECT COUNT(*) as count FROM shipments").get() as { count: number };
+    const shipCount = db.prepare("SELECT COUNT(*) as count FROM shipments WHERE is_deleted = 0").get() as { count: number };
     totalShipments = shipCount?.count ?? 0;
   } catch {}
 
@@ -1444,3 +1595,37 @@ export function saveWarehouseOpsRawToDB(json: string): void {
   const db = getDB();
   db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('warehouse_ops', ?)`).run(json);
 }
+
+export {
+  runSchemaMigrations,
+  writeAuditLog,
+  softDeleteMissing,
+  restoreSoftDeleted,
+  purgeSoftDeleted,
+  listSoftDeleted,
+  verifyAuditChain,
+  withActor,
+  currentActor,
+  runInTransaction,
+  type SoftTable
+} from "./dbSafety";
+export {
+  roundMoney,
+  toMinorUnits,
+  fromMinorUnits,
+  baseUsdFromRate,
+  legacyRatePerUsd,
+  buildMoneySnapshot,
+  isCurrencyCode
+} from "./money";
+export {
+  executeScheduledBackup,
+  listSnapshots,
+  getLatestSnapshot,
+  copySnapshotToDirectory,
+  detectExternalDrives,
+  startBackupScheduler,
+  getBackupDir,
+  isValidSnapshotName,
+  type SnapshotInfo
+} from "./backup";
