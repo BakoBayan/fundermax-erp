@@ -234,41 +234,44 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               type="button"
               onClick={handleSyncPing}
               className={`relative z-20 pointer-events-auto h-9 px-3 rounded-xl text-xs font-bold shadow-2xs select-none border inline-flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
-                syncStatus === "synced"
+                isOnline && syncStatus === "synced"
                   ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400/80 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100/80"
                   : syncStatus === "syncing" || isPinging
                   ? "bg-sky-50 dark:bg-sky-950/60 border-sky-400/80 text-sky-700 dark:text-sky-400 hover:bg-sky-100/80"
                   : "bg-amber-50 dark:bg-amber-950/60 border-amber-400/80 text-amber-700 dark:text-amber-400 hover:bg-amber-100/80"
               }`}
               title={
-                syncStatus === "synced"
-                  ? `Live Verified: SQLite WAL Active (${walHealth.latencyMs}ms latency • ${walHealth.dbSize} DB • Integrity: ${walHealth.integrity}). Click to re-verify.`
+                isOnline && syncStatus === "synced"
+                  ? `Live Connected: SQLite WAL Active (${walHealth.latencyMs}ms latency • ${walHealth.dbSize} DB). Click to re-verify.`
                   : syncStatus === "syncing" || isPinging
-                  ? "Verifying connection and checking SQLite WAL health..."
-                  : "Offline Mode (Local Storage fallback active) • Click to test server reconnect"
+                  ? "Network restored; flushing cached offline mutations to local SQLite server..."
+                  : "Offline Mode: Wi-Fi disconnected; local mutations safely queueing to storage. Click to test reconnect."
               }
             >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  syncStatus === "synced"
-                    ? "bg-emerald-500 animate-pulse"
-                    : syncStatus === "syncing" || isPinging
-                    ? "bg-sky-500 animate-spin"
-                    : "bg-amber-500"
-                }`}
-              />
+              <span className="relative flex h-2 w-2">
+                {syncStatus === "syncing" || isPinging ? (
+                  <>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
+                  </>
+                ) : isOnline && syncStatus === "synced" ? (
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                ) : (
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                )}
+              </span>
               <span className="hidden sm:inline">
-                {isPinging || syncStatus === "syncing"
-                  ? "Verifying..."
-                  : syncStatus === "synced"
-                  ? `Live (Synced) ${walHealth.latencyMs ? `(${walHealth.latencyMs}ms)` : ""}`
+                {syncStatus === "syncing" || isPinging
+                  ? "Syncing..."
+                  : isOnline && syncStatus === "synced"
+                  ? `Online / Synced ${walHealth.latencyMs ? `(${walHealth.latencyMs}ms)` : ""}`
                   : "Offline Mode"}
               </span>
               <span className="sm:hidden">
-                {isPinging || syncStatus === "syncing"
-                  ? "..."
-                  : syncStatus === "synced"
-                  ? `Live ${walHealth.latencyMs ? `(${walHealth.latencyMs}ms)` : ""}`
+                {syncStatus === "syncing" || isPinging
+                  ? "Syncing"
+                  : isOnline && syncStatus === "synced"
+                  ? "Online"
                   : "Offline"}
               </span>
             </button>

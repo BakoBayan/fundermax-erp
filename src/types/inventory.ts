@@ -38,7 +38,13 @@ export type ThemeMode = "light" | "dark";
 
 export type UserRole = "Admin" | "Manager" | "Staff" | "Viewer";
 
-export type RolePresetName = "Super Admin" | "Accountant" | "Workshop Floor" | "Read-Only Operator";
+export type RolePresetName =
+  | "Super Admin"
+  | "Accountant"
+  | "Sales Representative"
+  | "Workshop Floor"
+  | "Read-Only Viewer"
+  | "Read-Only Operator";
 
 export interface UserModulePermissions {
   // Legacy module access flags

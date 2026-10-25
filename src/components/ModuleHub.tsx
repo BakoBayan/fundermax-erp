@@ -162,147 +162,66 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   const customsShipmentsCount = warehouseOps.activeShipments.filter((s) => s.status === 'customs').length;
   const rackedUnitsCount = warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
 
-  // Ambient background: pointer tracking is written straight to CSS variables via
-  // requestAnimationFrame with dirty-flag checking so it does not recalculate when idle.
-  const containerRef = useRef<HTMLDivElement>(null);
-  const ambientRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const pointerRef = useRef({ clientX: 0, clientY: 0, active: false });
-  const isDirtyRef = useRef(false);
-  const lastCoordsRef = useRef({ x: -9999, y: -9999, active: false });
-
-  const flushPointer = useCallback(() => {
-    rafRef.current = null;
-    if (!isDirtyRef.current) return;
-    isDirtyRef.current = false;
-
-    const container = containerRef.current;
-    const ambient = ambientRef.current;
-    if (!container || !ambient) return;
-    const rect = container.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
-    const { clientX, clientY, active } = pointerRef.current;
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    const dx = Math.abs(x - lastCoordsRef.current.x);
-    const dy = Math.abs(y - lastCoordsRef.current.y);
-    if (!active && !lastCoordsRef.current.active) return;
-    if (active && dx < 3 && dy < 3) return;
-
-    lastCoordsRef.current = { x, y, active };
-    const normX = active ? Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1)) : 0;
-    const normY = active ? Math.max(-1, Math.min(1, (y / rect.height) * 2 - 1)) : 0;
-    ambient.style.setProperty('--mouse-x', normX.toFixed(3));
-    ambient.style.setProperty('--mouse-y', normY.toFixed(3));
-    ambient.style.setProperty('--spot-x', active ? `${x.toFixed(0)}px` : '50%');
-    ambient.style.setProperty('--spot-y', active ? `${y.toFixed(0)}px` : '30%');
-    ambient.style.setProperty('--spot-opacity', active ? '1' : '0.45');
-  }, []);
-
-  const schedulePointerFlush = useCallback(() => {
-    if (rafRef.current === null) {
-      rafRef.current = window.requestAnimationFrame(flushPointer);
-    }
-  }, [flushPointer]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    pointerRef.current = { clientX: e.clientX, clientY: e.clientY, active: true };
-    isDirtyRef.current = true;
-    schedulePointerFlush();
-  };
-
-  const handleMouseLeave = () => {
-    pointerRef.current.active = false;
-    isDirtyRef.current = true;
-    schedulePointerFlush();
-  };
-
-  useEffect(() => {
-    return () => {
-      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
-
   return (
-    <div
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="relative w-full overflow-hidden min-h-[calc(100vh-100px)] bg-white dark:bg-slate-900"
-    >
+    <div className="relative w-full overflow-hidden min-h-[calc(100vh-100px)] bg-white dark:bg-slate-900">
       {/* ========================================================================= */}
-      {/* DYNAMIC AMBIENT BACKGROUND (GPU-composited, pointer-events-none, z-0)       */}
+      {/* 100% PURE GPU COMPOSITOR AMBIENT BACKGROUND (Zero JS mouse tracking)     */}
       {/* ========================================================================= */}
-      <div ref={ambientRef} className="ambient-layer pointer-events-none select-none z-0" aria-hidden="true">
-        {/* Cursor spotlight */}
-        <div className="ambient-spot absolute inset-0 pointer-events-none" />
-
-        {/* Vibrant orb 1: emerald (traverses left to right) */}
-        <div className="absolute top-0 left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': -26, '--depth-y': -18 } as React.CSSProperties}>
+      <div className="ambient-layer pointer-events-none select-none z-0" aria-hidden="true">
+        {/* Traversing radial orb 1: emerald (left to right) */}
+        <div className="absolute top-0 left-0 pointer-events-none">
           <div className="animate-traverse-lr-1 pointer-events-none">
             <div className="w-[480px] sm:w-[640px] h-[480px] sm:h-[640px] rounded-full [background:radial-gradient(circle,rgba(16,185,129,0.22)_0%,rgba(20,184,166,0.1)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(16,185,129,0.18)_0%,rgba(20,184,166,0.08)_45%,transparent_70%)] animate-float-slow" />
           </div>
         </div>
 
-        {/* Vibrant orb 2: sky (traverses right to left) */}
-        <div className="absolute top-16 left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': 28, '--depth-y': 20 } as React.CSSProperties}>
+        {/* Traversing radial orb 2: sky (right to left) */}
+        <div className="absolute top-16 left-0 pointer-events-none">
           <div className="animate-traverse-rl-1 pointer-events-none">
             <div className="w-[440px] sm:w-[580px] h-[440px] sm:h-[580px] rounded-full [background:radial-gradient(circle,rgba(14,165,233,0.20)_0%,rgba(99,102,241,0.08)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(14,165,233,0.16)_0%,rgba(99,102,241,0.06)_45%,transparent_70%)] animate-float-reverse" />
           </div>
         </div>
 
-        {/* Vibrant orb 3: amber/violet (traverses top to bottom) */}
-        <div className="absolute top-0 left-1/4 pointer-events-none ambient-parallax" style={{ '--depth-x': -18, '--depth-y': 22 } as React.CSSProperties}>
+        {/* Traversing radial orb 3: amber/violet (top to bottom) */}
+        <div className="absolute top-0 left-1/4 pointer-events-none">
           <div className="animate-traverse-tb-1 pointer-events-none">
             <div className="w-[380px] sm:w-[500px] h-[380px] sm:h-[500px] rounded-full [background:radial-gradient(circle,rgba(251,191,36,0.18)_0%,rgba(232,121,249,0.08)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(251,191,36,0.14)_0%,rgba(232,121,249,0.06)_45%,transparent_70%)] animate-float-diag" />
           </div>
         </div>
 
         {/* Architectural grid: fine blueprint lines */}
-        <div className="ambient-blueprint absolute inset-0 pointer-events-none ambient-parallax" style={{ '--depth-x': 5, '--depth-y': 5 } as React.CSSProperties} />
+        <div className="ambient-blueprint absolute inset-0 pointer-events-none" />
 
         {/* Dot grid */}
-        <div className="ambient-dots absolute inset-0 pointer-events-none ambient-parallax text-slate-900 dark:text-white" style={{ '--depth-x': 9, '--depth-y': 9 } as React.CSSProperties} />
+        <div className="ambient-dots absolute inset-0 pointer-events-none text-slate-900 dark:text-white" />
 
-        {/* Floating geometric diamond (large, outlined) */}
-        <div className="absolute top-[14%] right-[10%] pointer-events-none ambient-parallax" style={{ '--depth-x': -34, '--depth-y': 30 } as React.CSSProperties}>
-          <div className="animate-drift-up-1 pointer-events-none">
-            <div className="w-28 h-28 rotate-45 rounded-2xl border-2 border-emerald-500/35 dark:border-emerald-400/30 bg-gradient-to-br from-emerald-400/15 to-transparent" />
+        {/* Tasteful Drifting Geometric Accent 1: Poly-diamond cube (Emerald) */}
+        <div className="absolute top-[15%] right-[12%] pointer-events-none">
+          <div className="animate-drift-poly-1 pointer-events-none">
+            <div className="w-16 h-16 rotate-45 rounded-2xl border-2 border-emerald-500/40 dark:border-emerald-400/50 bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-transparent shadow-xs" />
           </div>
         </div>
 
-        {/* Floating diamond (small, filled) */}
-        <div className="absolute top-[58%] left-[7%] pointer-events-none ambient-parallax" style={{ '--depth-x': 32, '--depth-y': -26 } as React.CSSProperties}>
-          <div className="animate-drift-up-2 pointer-events-none">
-            <div className="w-14 h-14 rotate-45 rounded-lg bg-gradient-to-br from-sky-500/30 to-indigo-500/10 border border-sky-500/30" />
-          </div>
-        </div>
-
-        {/* Glass orb with inner ring */}
-        <div className="absolute top-[30%] left-[12%] pointer-events-none ambient-parallax" style={{ '--depth-x': -40, '--depth-y': -32 } as React.CSSProperties}>
-          <div className="animate-orbit-slow pointer-events-none">
-            <div className="w-20 h-20 rounded-full border border-amber-500/35 bg-gradient-to-br from-amber-400/25 to-transparent flex items-center justify-center">
-              <div className="w-9 h-9 rounded-full border border-amber-500/30" />
+        {/* Tasteful Drifting Geometric Accent 2: Orbital tech ring (Cyan/Sky) */}
+        <div className="absolute top-[48%] right-[8%] pointer-events-none">
+          <div className="animate-drift-poly-2 pointer-events-none">
+            <div className="w-20 h-20 rounded-full border-2 border-dashed border-sky-500/35 dark:border-sky-400/45 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400/25 to-transparent" />
             </div>
           </div>
         </div>
 
-        {/* Architectural frosted slab */}
-        <div className="absolute top-[22%] left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': 30, '--depth-y': 25 } as React.CSSProperties}>
-          <div className="animate-traverse-lr-2 pointer-events-none">
-            <div className="w-24 h-24 rounded-2xl border border-slate-300/60 dark:border-slate-600/50 bg-white/35 dark:bg-slate-800/30 shadow-2xs rotate-6 flex items-center justify-center">
-              <div className="w-12 h-12 rounded-xl border border-slate-300/50 dark:border-slate-600/40" />
-            </div>
+        {/* Tasteful Drifting Geometric Accent 3: Angled prism (Indigo/Violet) */}
+        <div className="absolute top-[28%] left-[8%] pointer-events-none">
+          <div className="animate-drift-poly-3 pointer-events-none">
+            <div className="w-14 h-18 -rotate-12 rounded-2xl border-2 border-indigo-500/35 dark:border-indigo-400/45 bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent shadow-xs" />
           </div>
         </div>
 
-        {/* Frosted ring */}
-        <div className="absolute top-[40%] right-[6%] pointer-events-none ambient-parallax" style={{ '--depth-x': -30, '--depth-y': -25 } as React.CSSProperties}>
-          <div className="animate-orbit-reverse pointer-events-none">
-            <div className="w-24 h-24 rounded-full border-2 border-dashed border-sky-500/30 dark:border-sky-400/25 flex items-center justify-center">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400/25 to-transparent" />
-            </div>
+        {/* Tasteful Drifting Geometric Accent 4: Floating crystal tile (Amber/Slate) */}
+        <div className="absolute top-[68%] left-[10%] pointer-events-none">
+          <div className="animate-drift-poly-1 pointer-events-none">
+            <div className="w-12 h-12 rotate-12 rounded-xl border border-amber-500/35 dark:border-amber-400/40 bg-gradient-to-br from-amber-400/20 to-transparent shadow-2xs" />
           </div>
         </div>
 
@@ -321,12 +240,12 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           <button
             type="button"
             onClick={handleCheckHealth}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full backdrop-blur-md border shadow-xs mb-4 transition-all active:scale-95 cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border shadow-xs mb-4 transition-all active:scale-95 cursor-pointer ${
               syncStatus === 'synced' && walHealth.isWalActive
-                ? 'bg-white/80 dark:bg-slate-850/80 border-slate-200/80 dark:border-slate-700/80 hover:border-emerald-500/80'
+                ? 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-700 hover:border-emerald-500'
                 : isCheckingHealth
-                ? 'bg-sky-50/80 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700'
-                : 'bg-amber-50/80 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700'
+                ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700'
+                : 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700'
             }`}
             title={
               syncStatus === 'synced' && walHealth.isWalActive
@@ -372,17 +291,34 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </span>
           </button>
 
-          {/* Master Title */}
+          {/* Master Title with Fancy Shimmering "Master" Typography */}
           <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-            Bako&apos;s Master System
+            Bako&apos;s <span className="text-master-shimmer">Master</span> System
           </h1>
+
+          {/* Client Commission Attribution Badge */}
+          <div className="mt-3.5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              {isKu
+                ? 'دروستکراوە لەلایەن باکۆ بەیان تایبەت بۆ کۆمپانیای شەسواری ئەحمەد شەسوار'
+                : 'Engineered by Bako Bayan Madhhar specifically for Shaswar Ahmad Shaswar Co.'}
+            </span>
+            <button
+              type="button"
+              onClick={openCopyrightModal}
+              className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline ms-1 cursor-pointer"
+            >
+              {isKu ? 'مافەکان' : 'Licensure'}
+            </button>
+          </div>
 
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 font-medium max-w-xl mx-auto leading-relaxed">
             Unified industrial operations & sales platform. Each division is focused and self-contained; return here anytime via Main Menu.
           </p>
 
           {/* Professional Architect & Copyright Credit Strip */}
-          <div className="mt-4 inline-flex items-center gap-2 sm:gap-3 px-4 py-1.5 rounded-full bg-white/80 dark:bg-slate-850/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-700/80 shadow-2xs text-xs font-medium text-slate-600 dark:text-slate-400 select-text">
+          <div className="mt-4 inline-flex items-center gap-2 sm:gap-3 px-4 py-1.5 rounded-full bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs text-xs font-medium text-slate-600 dark:text-slate-400 select-text">
             <button
               type="button"
               onClick={openCopyrightModal}
@@ -417,21 +353,21 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </button>
           </div>
 
-          {/* Quick Glass KPI Ticker Strip */}
+          {/* Quick KPI Ticker Strip (Solid background for maximum rendering speed) */}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 text-xs">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-slate-200/70 dark:border-slate-700/70 text-slate-700 dark:text-slate-300 shadow-2xs">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
               <Layers className="w-3.5 h-3.5 text-emerald-500" />
               <span className="font-bold text-slate-900 dark:text-white font-mono">{stats.totalStock.toLocaleString()}</span>
               <span>Panels</span>
             </div>
 
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-slate-200/70 dark:border-slate-700/70 text-slate-700 dark:text-slate-300 shadow-2xs">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
               <ReceiptText className="w-3.5 h-3.5 text-sky-500" />
               <span className="font-bold text-slate-900 dark:text-white font-mono">{totalInvoicesCount}</span>
               <span>Invoices</span>
             </div>
 
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-slate-200/70 dark:border-slate-700/70 text-slate-700 dark:text-slate-300 shadow-2xs">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
               <Package className="w-3.5 h-3.5 text-amber-500" />
               <span className="font-bold text-slate-900 dark:text-white font-mono">{warehouseOps.activeShipments.length}</span>
               <span>Shipments</span>

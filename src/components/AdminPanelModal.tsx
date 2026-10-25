@@ -1120,19 +1120,23 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {(['Super Admin', 'Accountant', 'Workshop Floor', 'Read-Only Operator'] as RolePresetName[]).map((presetName) => {
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                      {(['Super Admin', 'Accountant', 'Sales Representative', 'Workshop Floor', 'Read-Only Viewer'] as RolePresetName[]).map((presetName) => {
                         const icons: Record<RolePresetName, string> = {
                           'Super Admin': '👑',
                           'Accountant': '📊',
+                          'Sales Representative': '💼',
                           'Workshop Floor': '🪵',
+                          'Read-Only Viewer': '👁️',
                           'Read-Only Operator': '👁️',
                         };
                         const descriptions: Record<RolePresetName, string> = {
-                          'Super Admin': lang === 'en' ? 'Full unrestricted access to all 4 divisions' : 'دەسەڵاتی تەواوی هەموو بەشەکان',
-                          'Accountant': lang === 'en' ? 'POS billing, customer debts & price override' : 'فرۆشتن، قەرز و دەستکاری نرخ',
-                          'Workshop Floor': lang === 'en' ? 'Panel cutting, order queues & stock intake' : 'بڕینی تەختە و داواکارییەکان',
-                          'Read-Only Operator': lang === 'en' ? 'View-only access, zero edits/deletes' : 'تەنها بینین، بێ سڕینەوە و دەستکاری',
+                          'Super Admin': lang === 'en' ? 'Full access, permissions & physical backup export' : 'دەسەڵاتی تەواو، بەڕێوەبردن و باکئەپ',
+                          'Accountant': lang === 'en' ? 'POS billing, debt ledger & financial export' : 'فرۆشتن، قەرز، نرخ و هەناردە',
+                          'Sales Representative': lang === 'en' ? 'Checkout POS sales; no price override/delete' : 'فرۆشتنی POS، بێ دەستکاری نرخ و سڕینەوە',
+                          'Workshop Floor': lang === 'en' ? 'Panel cutting queue & stock allocation' : 'بڕینی تەختە و داواکارییەکان',
+                          'Read-Only Viewer': lang === 'en' ? 'Strictly view-only across panels & goods' : 'تەنها بینین، بێ سڕینەوە و دەستکاری',
+                          'Read-Only Operator': lang === 'en' ? 'Strictly view-only across panels & goods' : 'تەنها بینین، بێ سڕینەوە و دەستکاری',
                         };
 
                         return (
@@ -1152,7 +1156,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             <div>
                               <div className="flex items-center gap-1.5 font-black text-xs text-slate-900 dark:text-white mb-1">
                                 <span className="text-base">{icons[presetName]}</span>
-                                <span>{presetName}</span>
+                                <span className="truncate">{presetName}</span>
                               </div>
                               <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight">
                                 {descriptions[presetName]}
@@ -1718,27 +1722,62 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   </div>
 
                   {/* Network URL Box with Copy */}
-                  <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs flex items-center justify-between gap-2">
-                    <span className="truncate font-bold text-blue-600 dark:text-blue-400">
-                      {serverInfo?.networkUrl || 'http://192.168.1.170:3000'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleCopyNetworkUrl}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-xs shrink-0 cursor-pointer"
-                    >
-                      {copiedUrl ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedUrl ? (lang === 'en' ? 'Copied!' : 'کۆپیکرا!') : (lang === 'en' ? 'Copy Link' : 'کۆپی')}</span>
-                    </button>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">
+                          {lang === 'en' ? 'Direct IP Address (Phones & Tablets):' : 'ناونیشانی ڕاستەوخۆ (مۆبایل و تابلێت):'}
+                        </span>
+                        <span className="truncate font-bold text-blue-600 dark:text-blue-400 text-sm">
+                          {serverInfo?.networkUrl || 'http://192.168.1.170:3000'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyNetworkUrl}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-xs shrink-0 cursor-pointer"
+                      >
+                        {copiedUrl ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedUrl ? (lang === 'en' ? 'Copied!' : 'کۆپیکرا!') : (lang === 'en' ? 'Copy Link' : 'کۆپی')}</span>
+                      </button>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">
+                          {lang === 'en' ? 'Local mDNS Hostname (Zero IP configuration):' : 'ناونیشانی ناوخۆیی بێ پێویستی بە ئایپی:'}
+                        </span>
+                        <span className="truncate font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                          {`http://bako-erp.local:${serverInfo?.port || 3000}`}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`http://bako-erp.local:${serverInfo?.port || 3000}`);
+                          onToast(lang === 'en' ? 'mDNS URL copied!' : 'ناونیشانی mDNS لەبەرگیرایەوە!');
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-xs shrink-0 cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? 'Copy mDNS' : 'کۆپیکردن'}</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-xs space-y-1 text-slate-600 dark:text-slate-300">
-                    <p className="font-bold text-blue-600 dark:text-blue-400">
-                      {lang === 'en' ? 'Quick Connection Steps:' : 'هەنگاوەکانی بەستنەوە:'}
-                    </p>
-                    <p>1. {lang === 'en' ? 'Connect your phone or laptop to the same Wi-Fi as this PC.' : 'مۆبایلەکەت پەیوەست بکە بە هەمان وایفای ئەم کۆمپیوتەرە.'}</p>
-                    <p>2. {lang === 'en' ? 'Open Camera or browser (Chrome/Safari) and scan the QR code above.' : 'کامێرا یان وێبگەڕ بکەرەوە و بارکۆدەکە سکان بکە.'}</p>
-                    <p>3. {lang === 'en' ? '100% free, fast, zero cloud fees, real-time local sync.' : 'بە تەواوی بێبەرامبەر، زۆر خێرا و سەربەخۆ لە ئینتەرنێت.'}</p>
+                  {/* Workshop Tablet Ergonomics & Connection Guidance */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-xs space-y-2 text-slate-600 dark:text-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                        {lang === 'en' ? 'Shop Floor Tablets & POS Counter Setup:' : 'ڕێنمایی تابلێتی کارگە و مێزی فرۆشتن:'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold text-[10px]">
+                        Enterprise Mesh Active
+                      </span>
+                    </div>
+                    <p>1. {lang === 'en' ? 'Connect shop tablets or saws to the local workshop Wi-Fi network.' : 'تابلێتەکانی کارگە پەیوەست بکە بە وایفای ناوخۆیی کۆمپانیا.'}</p>
+                    <p>2. {lang === 'en' ? 'Bookmark the URL above or add to Home Screen for a fullscreen Native App feel.' : 'بەستەرەکە خەزن بکە یان بیخەرە سەر شاشەی سەرەکی (Add to Home Screen) وەک ئەپ کاردەکات.'}</p>
+                    <p>3. {lang === 'en' ? 'All changes synchronize immediately to SQLite WAL on this master workstation.' : 'هەموو گۆڕانکارییەکان ڕاستەوخۆ دەگەنە ئەم کۆمپیوتەرە سەرەکییە.'}</p>
                   </div>
                 </div>
               </div>

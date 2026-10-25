@@ -127,6 +127,14 @@ export const CopyrightModal: React.FC = () => {
               <p className="text-slate-500 text-[11px] mt-0.5">
                 Software: Bako&apos;s Master System™ (Version {APP_VERSION_NUMBER}) • Author & Architect: Bako Bayan Madhhar
               </p>
+              <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-sans font-semibold text-[11px]">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {isKu
+                    ? 'ئەندازیاری کراوە لەلایەن باکۆ بەیان مەزهەر تایبەت بۆ کۆمپانیای شەسواری ئەحمەد شەسوار'
+                    : 'Engineered by Bako Bayan Madhhar specifically for Shaswar Ahmad Shaswar Co.'}
+                </span>
+              </div>
             </div>
 
             {/* Legal Tenets */}

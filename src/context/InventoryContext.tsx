@@ -301,6 +301,30 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canAccessAdmin: false,
     canExportBackups: true,
   },
+  "Sales Representative": {
+    panels: true,
+    orders: false,
+    sales: true,
+    goods: true,
+    shipping: false,
+    audit: false,
+    canDelete: false,
+    canExport: false,
+    canViewSales: true,
+    canCreateSales: true,
+    canEditSales: false,
+    canDeleteSales: false,
+    canOverridePrice: false,
+    canViewPanels: true,
+    canCreatePanels: false,
+    canEditPanels: false,
+    canDeletePanels: false,
+    canViewWarehouse: true,
+    canManageShipments: false,
+    canManageStock: false,
+    canAccessAdmin: false,
+    canExportBackups: false,
+  },
   "Workshop Floor": {
     panels: true,
     orders: true,
@@ -316,12 +340,36 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canDeleteSales: false,
     canOverridePrice: false,
     canViewPanels: true,
-    canCreatePanels: true,
+    canCreatePanels: false,
     canEditPanels: true,
     canDeletePanels: false,
     canViewWarehouse: true,
     canManageShipments: false,
     canManageStock: true,
+    canAccessAdmin: false,
+    canExportBackups: false,
+  },
+  "Read-Only Viewer": {
+    panels: true,
+    orders: false,
+    sales: true,
+    goods: true,
+    shipping: false,
+    audit: false,
+    canDelete: false,
+    canExport: false,
+    canViewSales: true,
+    canCreateSales: false,
+    canEditSales: false,
+    canDeleteSales: false,
+    canOverridePrice: false,
+    canViewPanels: true,
+    canCreatePanels: false,
+    canEditPanels: false,
+    canDeletePanels: false,
+    canViewWarehouse: true,
+    canManageShipments: false,
+    canManageStock: false,
     canAccessAdmin: false,
     canExportBackups: false,
   },
@@ -806,21 +854,36 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Network Online / Offline Detection
   useEffect(() => {
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const handleOnline = () => {
       setIsOnline(true);
       setSyncStatus("syncing");
-      pullFromServer();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(() => {
+        pullFromServer().catch(() => {});
+      }, 500);
     };
+
     const handleOffline = () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       setIsOnline(false);
       setSyncStatus("offline");
     };
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+    if (typeof window !== "undefined") {
+      setIsOnline(navigator.onLine);
+      if (!navigator.onLine) setSyncStatus("offline");
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
     };
   }, []);
 

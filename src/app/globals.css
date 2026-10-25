@@ -528,59 +528,141 @@
 
 
 /* ========================================================================= */
-/* AMBIENT BACKGROUND SYSTEM (v1.5) - mouse parallax via CSS variables       */
+/* AMBIENT BACKGROUND SYSTEM (v1.5) - 100% Pure GPU Compositor Keyframes    */
 /* ========================================================================= */
 .ambient-layer {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  pointer-events: none;
+  z-index: 0;
   overflow: hidden;
   contain: strict;
   transform: translateZ(0);
-  pointer-events: none;
-  --mouse-x: 0;
-  --mouse-y: 0;
-  --spot-x: 50%;
-  --spot-y: 30%;
-  --spot-opacity: 0.45;
-}
-
-.ambient-parallax {
-  --depth-x: 10;
-  --depth-y: 10;
   will-change: transform;
-  transform: translate3d(calc(var(--mouse-x) * var(--depth-x) * 1px), calc(var(--mouse-y) * var(--depth-y) * 1px), 0);
-  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.ambient-spot {
-  opacity: var(--spot-opacity);
-  background: radial-gradient(
-    420px circle at var(--spot-x) var(--spot-y),
-    rgba(16, 185, 129, 0.2),
-    rgba(14, 165, 233, 0.12) 45%,
-    transparent 72%
+/* Master Shimmer Gradient Animation */
+@keyframes master-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.text-master-shimmer {
+  background: linear-gradient(
+    135deg,
+    #059669 0%,
+    #0284c7 25%,
+    #10b981 50%,
+    #d97706 75%,
+    #059669 100%
   );
-  transition: opacity 0.5s ease-out;
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: master-shimmer 8s ease-in-out infinite;
+  display: inline-block;
+  will-change: background-position;
+}
+
+.dark .text-master-shimmer {
+  background: linear-gradient(
+    135deg,
+    #34d399 0%,
+    #38bdf8 25%,
+    #a78bfa 50%,
+    #fbbf24 75%,
+    #34d399 100%
+  );
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: master-shimmer 8s ease-in-out infinite;
+  display: inline-block;
+  will-change: background-position;
+}
+
+/* Drifting Geometric Accents (Pure GPU Compositor Keyframes) */
+@keyframes drift-poly-1 {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  33% {
+    transform: translate3d(25px, -35px, 0) rotate(15deg) scale(1.04);
+  }
+  66% {
+    transform: translate3d(-20px, 25px, 0) rotate(-10deg) scale(0.96);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes drift-poly-2 {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(45deg) scale(1);
+  }
+  50% {
+    transform: translate3d(-35px, 40px, 0) rotate(180deg) scale(1.08);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(360deg) scale(1);
+  }
+}
+
+@keyframes drift-poly-3 {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(-15deg);
+  }
+  50% {
+    transform: translate3d(30px, 45px, 0) rotate(45deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-15deg);
+  }
+}
+
+.animate-drift-poly-1 {
+  animation: drift-poly-1 18s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-drift-poly-2 {
+  animation: drift-poly-2 24s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+.animate-drift-poly-3 {
+  animation: drift-poly-3 20s ease-in-out infinite;
+  will-change: transform;
 }
 
 .ambient-blueprint {
-  opacity: 0.55;
+  opacity: 0.4;
   background-image:
-    linear-gradient(to right, rgba(100, 116, 139, 0.12) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(100, 116, 139, 0.12) 1px, transparent 1px);
-  background-size: 96px 96px;
+    linear-gradient(to right, rgba(100, 116, 139, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100, 116, 139, 0.08) 1px, transparent 1px);
+  background-size: 80px 80px;
   -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
   mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
 }
 
 .ambient-dots {
-  opacity: 0.07;
+  opacity: 0.05;
   background-image: radial-gradient(currentColor 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
 .dark .ambient-dots {
-  opacity: 0.1;
+  opacity: 0.08;
 }
 
 @media (prefers-reduced-motion: reduce) {
