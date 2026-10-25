@@ -25,7 +25,8 @@ import {
   Building2,
   UserCheck,
   SlidersHorizontal,
-  BarChart3
+  BarChart3,
+  MessageCircle
 } from 'lucide-react';
 import { CurrencyCode, PanelTransaction, InvoiceItem, ExchangeRates } from '../types/inventory';
 import PrintInvoiceModal from './PrintInvoiceModal';
@@ -396,6 +397,38 @@ export const SalesSection: React.FC = () => {
       images: tx.images || [],
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleWhatsAppShare = (tx: PanelTransaction) => {
+    const txCur = tx.currency || tx.chargedCurrency || 'USD';
+    const invoiceNum = tx.code || `INV-${tx.id}`;
+    const dateFormatted = tx.timestamp ? new Date(tx.timestamp).toLocaleDateString() : new Date().toLocaleDateString();
+    const itemsList = (tx.items && tx.items.length > 0)
+      ? tx.items.map((it, idx) => `  ${idx + 1}. ${it.product || it.type || 'ماددە'} (${it.quantity}x @ ${formatMoney(it.price, txCur)}) = ${formatMoney(it.total, txCur)}`).join('\n')
+      : `  1. ${tx.material || tx.panelType || 'ماددە'} (${tx.quantity}x @ ${formatMoney(tx.sellingAmount, txCur)})`;
+    const invoiceTotal = tx.totalAfterDiscount !== undefined ? tx.totalAfterDiscount : tx.sellingAmount;
+    const totalDebt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
+    const clientName = (tx as any).client || tx.seller || 'کڕیاری گشتی';
+
+    const msg =
+`کۆمپانیای شاسوار ئەحمەد شاسوار
+پسوولەی فرۆشتن: #${invoiceNum}
+بەروار: ${dateFormatted}
+کڕیار: ${clientName}
+-----------------------------
+ماددەکان:
+${itemsList}
+-----------------------------
+کۆی گشتی: ${formatMoney(invoiceTotal, txCur)}
+پارەی دراو: ${formatMoney(tx.amountPaidNow || 0, txCur)}
+قەرزی ماوە: ${formatMoney(totalDebt, txCur)}
+-----------------------------
+سوپاس بۆ مامەڵەکردنتان لەگەڵ کۆمپانیای شاسوار ئەحمەد شاسوار`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   // Add custom item to dropdown presets
@@ -817,6 +850,7 @@ export const SalesSection: React.FC = () => {
         </div>
 
         {/* 4. ACTIVE DRAFT BALANCE HIGHLIGHT */}
+        {userPermissions?.canCreateSales ? (
         <div className={`p-5 rounded-3xl border shadow-xs flex flex-col justify-between transition-colors ${
           combinedTotalDebt > 0
             ? 'border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/30'
@@ -849,10 +883,11 @@ export const SalesSection: React.FC = () => {
             </div>
           </div>
         </div>
+        ) : null}
       </div>
 
       {/* POS INVOICE CREATOR FORM (Strictly unmounted unless canCreateSales or canEditSales) */}
-      {(userPermissions.canCreateSales || (editingTxId && userPermissions.canEditSales)) && (
+      {userPermissions?.canCreateSales ? (
       <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
@@ -1164,19 +1199,19 @@ export const SalesSection: React.FC = () => {
               placeholder="0.00"
               className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold"
             />
-            {/* Quick-Cash Buttons in POS */}
-            <div className="pt-1 flex flex-wrap items-center gap-1.5">
+            {/* Quick-Cash Shortcut Pills (Always Visible Horizontal Row) */}
+            <div className="pt-2 flex flex-wrap items-center gap-2">
               {/* Full Payment Button */}
               <button
                 type="button"
                 onClick={() => setPosDraft((prev) => ({ ...prev, amountPaidNow: totalAfterDiscount }))}
-                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/70 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300/60 dark:border-emerald-800/60 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-500 hover:text-white dark:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shadow-2xs"
                 title="Set paid amount to full invoice total"
               >
-                {isKu ? 'تەواو دراوە (Full)' : 'Full Payment'}
+                {isKu ? 'تەواو دراوە' : 'Full Payment'}
               </button>
 
-              {/* Fast Cash Increments */}
+              {/* Fast Currency Pills */}
               {posDraft.activeCurrency === 'IQD' ? (
                 <>
                   <button
@@ -1185,9 +1220,9 @@ export const SalesSection: React.FC = () => {
                       const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
                       setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 10000 }));
                     }}
-                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-500 hover:text-white dark:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 font-mono shadow-2xs"
                   >
-                    +10,000
+                    +10,000 د.ع
                   </button>
                   <button
                     type="button"
@@ -1195,9 +1230,9 @@ export const SalesSection: React.FC = () => {
                       const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
                       setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 25000 }));
                     }}
-                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-500 hover:text-white dark:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 font-mono shadow-2xs"
                   >
-                    +25,000
+                    +25,000 د.ع
                   </button>
                   <button
                     type="button"
@@ -1205,9 +1240,9 @@ export const SalesSection: React.FC = () => {
                       const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
                       setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 50000 }));
                     }}
-                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-500 hover:text-white dark:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 font-mono shadow-2xs"
                   >
-                    +50,000
+                    +50,000 د.ع
                   </button>
                 </>
               ) : (
@@ -1218,7 +1253,7 @@ export const SalesSection: React.FC = () => {
                       const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
                       setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 20 }));
                     }}
-                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-500 hover:text-white dark:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 font-mono shadow-2xs"
                   >
                     +$20
                   </button>
@@ -1228,7 +1263,7 @@ export const SalesSection: React.FC = () => {
                       const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
                       setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 50 }));
                     }}
-                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-500 hover:text-white dark:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 font-mono shadow-2xs"
                   >
                     +$50
                   </button>
@@ -1238,12 +1273,22 @@ export const SalesSection: React.FC = () => {
                       const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
                       setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 100 }));
                     }}
-                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-500 hover:text-white dark:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 font-mono shadow-2xs"
                   >
                     +$100
                   </button>
                 </>
               )}
+
+              {/* [✕ سڕینەوە / Clear] Button: Resets paid amount to 0 */}
+              <button
+                type="button"
+                onClick={() => setPosDraft((prev) => ({ ...prev, amountPaidNow: 0 }))}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-rose-500 hover:text-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shadow-2xs"
+                title="Reset paid amount to 0"
+              >
+                ✕ {isKu ? 'سڕینەوە' : 'Clear'}
+              </button>
             </div>
           </div>
 
@@ -1342,7 +1387,7 @@ export const SalesSection: React.FC = () => {
           </div>
         </div>
       </div>
-      )}
+      ) : null}
 
       {/* TRANSACTIONS HISTORY TABLE */}
       <div className="space-y-4">
@@ -1588,6 +1633,15 @@ export const SalesSection: React.FC = () => {
                             </button>
                             <button
                               type="button"
+                              onClick={() => handleWhatsAppShare(tx)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                              title={isKu ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span className="hidden lg:inline">{isKu ? 'وەتسئەپ' : 'WhatsApp'}</span>
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => toggleExpandTx(tx.id)}
                               className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                               title="Expand line items"
@@ -1782,10 +1836,19 @@ export const SalesSection: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setPrintingTx(tx)}
-                      className="min-h-[48px] px-4 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-2 flex-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 flex-1 shadow-xs active:scale-95 transition-all cursor-pointer"
                     >
                       <Printer className="w-4 h-4" />
-                      <span>Print Voucher</span>
+                      <span>Print</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleWhatsAppShare(tx)}
+                      className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      title={isKu ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>{isKu ? 'وەتسئەپ' : 'WhatsApp'}</span>
                     </button>
                     <button
                       type="button"

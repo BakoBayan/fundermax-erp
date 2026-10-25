@@ -1,7 +1,7 @@
 @echo off
 :: ============================================================================
 :: Bako's Master System v1.6 - Dedicated Desktop App Shell Launcher
-:: Client: Shaswar Ahmad Shaswar Co. (کۆمپانیا شاسوار ئەحمەد شاسوار)
+:: Client: Shaswar Ahmad Shaswar Co. (کۆمپانیای شاسوار ئەحمەد شاسوار)
 :: Architect & System Maintainer: Bako Bayan Madhhar (07705488654)
 :: ============================================================================
 :: MANAGED SERVER HOSTING INSTRUCTIONS:

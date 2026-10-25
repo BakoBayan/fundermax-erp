@@ -138,7 +138,7 @@
       "role": "Admin",
       "password": "illcbtfmo1",
       "isAuthenticated": false,
-      "createdAt": 1792482702050
+      "createdAt": 1792964775584
     },
     {
       "username": "Awat",
@@ -146,31 +146,7 @@
       "role": "Manager",
       "password": "awat22",
       "isAuthenticated": false,
-      "createdAt": 1792482702050,
-      "permissions": {
-        "panels": true,
-        "orders": true,
-        "sales": false,
-        "goods": true,
-        "shipping": false,
-        "audit": false,
-        "canDelete": false,
-        "canExport": false,
-        "canViewSales": false,
-        "canCreateSales": false,
-        "canEditSales": false,
-        "canDeleteSales": false,
-        "canOverridePrice": false,
-        "canViewPanels": true,
-        "canCreatePanels": true,
-        "canEditPanels": true,
-        "canDeletePanels": false,
-        "canViewWarehouse": true,
-        "canManageShipments": false,
-        "canManageStock": true,
-        "canAccessAdmin": false,
-        "canExportBackups": false
-      }
+      "createdAt": 1792964775584
     },
     {
       "username": "viewer",
@@ -178,7 +154,7 @@
       "role": "Viewer",
       "password": "1234",
       "isAuthenticated": false,
-      "createdAt": 1792497922086,
+      "createdAt": 1792964775584,
       "permissions": {
         "panels": true,
         "orders": false,
@@ -188,7 +164,7 @@
         "audit": false,
         "canDelete": false,
         "canExport": false,
-        "canViewSales": false,
+        "canViewSales": true,
         "canCreateSales": false,
         "canEditSales": false,
         "canDeleteSales": false,
@@ -201,7 +177,10 @@
         "canManageShipments": false,
         "canManageStock": false,
         "canAccessAdmin": false,
-        "canExportBackups": false
+        "canExportBackups": false,
+        "canViewFinancialAnalytics": false,
+        "canViewWorkshopAnalytics": false,
+        "canViewRestrictedMetrics": false
       }
     }
   ],
@@ -249,11 +228,7 @@
         }
       ],
       "status": "debt",
-      "lastUpdated": "2026-10-18T13:01:11.727Z",
-      "chargedAmount": 1200,
-      "chargedCurrency": "USD",
-      "exchangeRateApplied": 1,
-      "baseUsdEquivalent": 1200
+      "lastUpdated": "2026-10-18T13:01:11.727Z"
     },
     {
       "id": "tx-sample-1792328442729-3",
@@ -298,11 +273,7 @@
         }
       ],
       "status": "debt",
-      "lastUpdated": "2026-10-18T13:00:42.729Z",
-      "chargedAmount": 1200,
-      "chargedCurrency": "USD",
-      "exchangeRateApplied": 1,
-      "baseUsdEquivalent": 1200
+      "lastUpdated": "2026-10-18T13:00:42.729Z"
     },
     {
       "id": "tx-1792327241591",
@@ -350,11 +321,7 @@
         }
       ],
       "status": "debt",
-      "lastUpdated": "2026-10-18T12:40:41.591Z",
-      "chargedAmount": 250,
-      "chargedCurrency": "USD",
-      "exchangeRateApplied": 1,
-      "baseUsdEquivalent": 250
+      "lastUpdated": "2026-10-18T12:40:41.591Z"
     },
     {
       "id": "tx-sample-1792328442729-2",
@@ -399,11 +366,7 @@
         }
       ],
       "status": "completed",
-      "lastUpdated": "2026-10-17T13:00:42.729Z",
-      "chargedAmount": 1800000,
-      "chargedCurrency": "IQD",
-      "exchangeRateApplied": 1,
-      "baseUsdEquivalent": 1800000
+      "lastUpdated": "2026-10-17T13:00:42.729Z"
     },
     {
       "id": "tx-sample-2",
@@ -448,11 +411,7 @@
         }
       ],
       "status": "completed",
-      "lastUpdated": "2026-10-17T11:50:08.062Z",
-      "chargedAmount": 1800000,
-      "chargedCurrency": "IQD",
-      "exchangeRateApplied": 1,
-      "baseUsdEquivalent": 1800000
+      "lastUpdated": "2026-10-17T11:50:08.062Z"
     },
     {
       "id": "tx-sample-1792328471727-1",
@@ -497,11 +456,7 @@
         }
       ],
       "status": "debt",
-      "lastUpdated": "2026-10-16T13:01:11.727Z",
-      "chargedAmount": 850,
-      "chargedCurrency": "USD",
-      "exchangeRateApplied": 1,
-      "baseUsdEquivalent": 850
+      "lastUpdated": "2026-10-16T13:01:11.727Z"
     },
     {
       "id": "tx-sample-1792328442729-1",
@@ -546,11 +501,7 @@
         }
       ],
       "status": "debt",
-      "lastUpdated": "2026-10-16T13:00:42.729Z",
-      "chargedAmount": 850,
-      "chargedCurrency": "USD",
-      "exchangeRateApplied": 1,
-      "baseUsdEquivalent": 850
+      "lastUpdated": "2026-10-16T13:00:42.729Z"
     }
   ],
   "products": [],
@@ -564,12 +515,8 @@
     "EUR_USD": 1.085
   },
   "dropdownPresets": {
-    "savedTypes": [
-      "Eee"
-    ],
-    "savedProducts": [
-      "Ddwe"
-    ],
+    "savedTypes": [],
+    "savedProducts": [],
     "savedSellingTypes": [
       "Wholesale (کۆ)",
       "Retail (مفرد)",
@@ -592,5 +539,5 @@
     "savedLocations": [],
     "savedClients": []
   },
-  "lastUpdated": 1792937696578
+  "lastUpdated": 1792964855315
 }

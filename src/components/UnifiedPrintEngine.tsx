@@ -477,7 +477,7 @@ export const PosInvoiceSlip: React.FC<{
             Bako&apos;s Master System
           </h1>
           <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wide mt-0.5">
-            {isKu ? 'کۆمپانیا شاسوار ئەحمەد شاسوار • بازرگانی گشتی تەختە و مەواد' : 'Shaswar Ahmad Shaswar Co. • General Trading & Wood Panel Supply'}
+            {isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار • بازرگانی گشتی تەختە و مەواد' : 'Shaswar Ahmad Shaswar Co. • General Trading & Wood Panel Supply'}
           </div>
         </div>
 

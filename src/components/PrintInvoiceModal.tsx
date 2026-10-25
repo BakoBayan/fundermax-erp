@@ -234,7 +234,7 @@ ${itemsText}
 *پارەی دراو:* ${formatMoney(tx.amountPaidNow || 0, tx.currency || tx.chargedCurrency)}
 *قەرزی ماوە:* ${formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, tx.currency || tx.chargedCurrency)}
 
-کۆمپانیا شاسوار ئەحمەد شاسوار
+کۆمپانیای شاسوار ئەحمەد شاسوار
 Bako's Master System`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;

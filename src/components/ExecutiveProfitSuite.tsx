@@ -250,7 +250,7 @@ export const ExecutiveProfitSuite: React.FC = () => {
             </div>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
               {isKu
-                ? 'کۆمپانیا شاسوار ئەحمەد شاسوار • شیکاری قازانجی ڕاستەقینە، باڵانسی کاش، و قەرزی فاندەرمەکس'
+                ? 'کۆمپانیای شاسوار ئەحمەد شاسوار • شیکاری قازانجی ڕاستەقینە، باڵانسی کاش، و قەرزی فاندەرمەکس'
                 : 'Shaswar Ahmad Shaswar Co. • Realized gross profit, net cash flow, and FunderMax supplier solvency'}
             </p>
           </div>

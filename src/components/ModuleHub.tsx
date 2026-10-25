@@ -125,7 +125,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           en: 'Sales POS, Billing & Invoicing',
           ku: 'فرۆشتن و پسوولەی کاش (POS)',
           descEn: 'Your account does not have authorization to access Sales POS, Invoices & Debt Ledger.',
-          descKu: 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی فرۆشتن و پسوولەکانی پێنەدراوە.'
+          descKu: 'دەستپێگەیشتن ڕێگاپێدراو نییە. ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی فرۆشتن و پسوولەکانی پێنەدراوە.'
         },
         goods: {
           en: 'Warehouse Goods & Logistics',
@@ -336,7 +336,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="font-semibold text-slate-700 dark:text-slate-300 truncate text-[11px]">
-                  {isKu ? 'کۆمپانیا شاسوار ئەحمەد شاسوار' : 'Shaswar Ahmad Shaswar Co.'}
+                  {isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار' : 'Shaswar Ahmad Shaswar Co.'}
                 </span>
               </div>
               <button
@@ -773,7 +773,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               {isKu
-                ? 'دروستکراوە لەلایەن باکۆ بەیان تایبەت بۆ کۆمپانیا شاسوار ئەحمەد شاسوار'
+                ? 'دروستکراوە لەلایەن باکۆ بەیان تایبەت بۆ کۆمپانیای شاسوار ئەحمەد شاسوار'
                 : 'Engineered by Bako Bayan Madhhar specifically for Shaswar Ahmad Shaswar Co.'}
             </span>
             <button
@@ -1385,7 +1385,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 font-mono text-xs font-bold mb-2">
                 <Lock className="w-3.5 h-3.5" />
-                <span>{isKu ? 'دەسەڵاتی ئەژمێر قوفڵکراوە' : 'Account Access Restricted'}</span>
+                <span>{isKu ? 'دەستپێگەیشتن ڕێگاپێدراو نییە' : 'Access Denied'}</span>
               </div>
               <h3 className="text-xl font-black text-slate-900 dark:text-white">
                 {deniedModal.moduleName}

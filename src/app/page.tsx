@@ -40,11 +40,13 @@ import {
 type PrintScope = 'panels' | 'orders' | 'all' | 'individual-panels' | 'individual-orders' | 'batch-selection';
 
 const AccessDeniedView: React.FC<{
-  moduleName: string;
+  moduleName?: string;
+  message?: string;
   onReturn: () => void;
-  language: string;
-}> = ({ moduleName, onReturn, language }) => {
+  language?: string;
+}> = ({ moduleName, message, onReturn, language = 'ku' }) => {
   const isKu = language === 'ku';
+  const displayTitle = message || moduleName || (isKu ? 'دەستپێگەیشتن ڕێگاپێدراو نییە' : 'Access Denied');
   return (
     <div className="flex-1 flex items-center justify-center p-6 text-center animate-in fade-in duration-200">
       <div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
@@ -52,10 +54,10 @@ const AccessDeniedView: React.FC<{
           <ShieldCheck className="w-8 h-8" />
         </div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 font-mono text-xs font-bold">
-          {isKu ? 'دەسەڵات سنووردارکراوە' : 'Access Restricted'}
+          {isKu ? 'دەستپێگەیشتن ڕێگاپێدراو نییە' : 'Access Denied'}
         </div>
         <h3 className="text-xl font-black text-slate-900 dark:text-white">
-          {moduleName}
+          {displayTitle}
         </h3>
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
           {isKu
@@ -242,8 +244,7 @@ function WarehouseApp() {
   useEffect(() => {
     if ((currentModule === 'panels' || currentModule === 'orders') && !userPermissions.canViewPanels) {
       setCurrentModule('hub');
-    } else if (currentModule === 'sales' && !userPermissions.canViewSales) {
-      setCurrentModule('hub');
+    
     } else if ((currentModule === 'goods' || currentModule === 'shipping') && !userPermissions.canViewWarehouse) {
       setCurrentModule('hub');
     } else if (currentModule === 'audit' && !userPermissions.canAccessAdmin) {
@@ -784,7 +785,8 @@ function WarehouseApp() {
             <SalesSection />
           ) : (
             <AccessDeniedView
-              moduleName={language === 'ku' ? 'فرۆشتن و پسوولەی کاش (POS)' : 'Sales POS, Invoicing & Debt Ledger'}
+              message="Sales POS Restricted"
+              moduleName={language === 'ku' ? 'دەستپێگەیشتن ڕێگاپێدراو نییە • فرۆشتن و پسوولەی کاش (POS)' : 'Sales POS Restricted'}
               onReturn={() => setCurrentModule('hub')}
               language={language}
             />

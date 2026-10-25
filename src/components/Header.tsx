@@ -229,7 +229,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                   </span>
                 </div>
                 <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tracking-wider mt-1 leading-none hidden sm:block truncate max-w-[280px]">
-                  {language === "ku" ? "کۆمپانیا شاسوار ئەحمەد شاسوار" : "Shaswar Ahmad Shaswar Co."}
+                  {language === "ku" ? "کۆمپانیای شاسوار ئەحمەد شاسوار" : "Shaswar Ahmad Shaswar Co."}
                 </span>
               </div>
             </button>
