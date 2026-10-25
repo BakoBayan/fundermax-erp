@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useEffect } from 'react';
 import { useInventory, resolveUserPermissions, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS, DEFAULT_VIEWER_PERMISSIONS } from '@/context/InventoryContext';
 import { CurrencyCode, PanelTransaction, UserModulePermissions, UserRole } from '@/types/inventory';
@@ -387,7 +388,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   {lang === 'en' ? 'Admin Command & Control Console' : 'بەڕێوەبردن و کۆنترۆڵی سیستەم'}
                 </h3>
                 <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-                  v1.3
+                  {APP_CONFIG.version}
                 </span>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/25">
                   Admin Access
@@ -1329,7 +1330,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         {lang === 'en' ? "Bako's Master System Codebase Telemetry" : 'ئاماری کۆد و داتابەیسی سیستەمی باکۆ'}
                       </h4>
                       <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                        v1.3
+                        {APP_CONFIG.version}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1702,7 +1703,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             <strong className="text-slate-900 dark:text-white font-black">Bako Bayan Madhhar</strong>
             <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">•</span>
             <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px] hidden sm:inline">
-              Version 1.3
+              Version {APP_VERSION_NUMBER}
             </span>
           </div>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -893,7 +894,7 @@ export default function PrintInvoiceModal({
                 Created by Bako&apos;s Inventory Manager. Made specially for Shaswar Ahmad Shaswar Co.
               </p>
               <p className="text-[8.5px] sm:text-[9.5px] text-slate-500 font-medium tracking-wide flex items-center justify-center gap-1.5 flex-wrap">
-                <span>© 2026 Bako Bayan Madhhar. All rights reserved. • Bako&apos;s Master System (v1.3)</span>
+                <span>© 2026 Bako Bayan Madhhar. All rights reserved. • Bako&apos;s Master System ({APP_CONFIG.version})</span>
                 <span>•</span>
                 <span className="inline-flex items-center gap-1 font-mono font-bold text-slate-700">
                   <Phone className="w-2.5 h-2.5 inline fill-current text-blue-600" />

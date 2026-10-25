@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -81,7 +82,7 @@ export const CopyrightModal: React.FC = () => {
                     : 'Copyright, Intellectual Property & Project Commissioning'}
                 </h2>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono text-[10px] font-bold">
-                  v1.3
+                  {APP_CONFIG.version}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -124,7 +125,7 @@ export const CopyrightModal: React.FC = () => {
                 © 2026 Bako Bayan Madhhar. All Rights Reserved.
               </p>
               <p className="text-slate-500 text-[11px] mt-0.5">
-                Software: Bako&apos;s Master System™ (Version 1.3) • Author & Architect: Bako Bayan Madhhar
+                Software: Bako&apos;s Master System™ (Version {APP_VERSION_NUMBER}) • Author & Architect: Bako Bayan Madhhar
               </p>
             </div>
 

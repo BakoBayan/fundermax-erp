@@ -1,8 +1,8 @@
-# Bako's Panel Manager (v1.3)
+# Bako's Panel Manager (v1.5)
 
 A high-performance, real-time wood panel inventory and customer order management system crafted specifically for warehouse floor operations.
 
-## Features in v1.3
+## Features in v1.5
 
 - **Wood Panel Inventory**: Complete physical metrics tracking (Dimensions in mm, Thickness, Type, and Auto-generated 3-digit Code).
 - **Real-Time Stock Allocations**: Instant mathematical balance calculation between Total Stock, Reserved (active client orders), and Available Stock.

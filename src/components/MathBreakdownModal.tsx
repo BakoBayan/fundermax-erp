@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState } from 'react';
 import { Calculator, X, ArrowUpDown, DollarSign, AlertCircle, Phone, Coins, CheckCircle2 } from 'lucide-react';
 import { PanelTransaction, CurrencyCode, ExchangeRates } from '@/types/inventory';
@@ -125,7 +126,7 @@ export default function MathBreakdownModal({
                   {lang === 'en' ? 'Debt & Math Calculation Inspector' : 'ڕوونکردنەوەی هەژمارکردنی قەرز و نرخ'}
                 </h3>
                 <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/25">
-                  v1.3
+                  {APP_CONFIG.version}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useInventory } from '../context/InventoryContext';
@@ -1056,7 +1057,7 @@ export const VisualChartsModal: React.FC = () => {
                   {isKu ? 'چارت و شیکاری بینراوی سیستەمی سەرەکی' : 'Visual Charts & Executive Analytics'}
                 </h2>
                 <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-                  v1.3
+                  {APP_CONFIG.version}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -1181,7 +1182,7 @@ export const VisualChartsModal: React.FC = () => {
                 OFFICIAL SYSTEM ANALYTICS & INTELLIGENCE REPORT
               </div>
               <h1 className="text-3xl font-black uppercase tracking-tight">
-                Bako&apos;s Master System • v1.3
+                Bako&apos;s Master System • {APP_CONFIG.version}
               </h1>
               <p className="text-xs font-bold text-slate-600 mt-0.5">
                 Division Focus:{' '}
@@ -2056,7 +2057,7 @@ export const VisualChartsModal: React.FC = () => {
               <div>
                 <p className="font-bold text-slate-900 mb-1">System Verification Notice:</p>
                 <p className="text-slate-600 text-[11px] leading-relaxed">
-                  This visual analytics report was generated from Bako&apos;s Master System (v1.3) with SQLite Write-Ahead Logging (WAL) state persistence. All inventory units, multi-currency ledger balances, and workshop reservation allocations are verified accurate as of the execution timestamp.
+                  This visual analytics report was generated from Bako&apos;s Master System ({APP_CONFIG.version}) with SQLite Write-Ahead Logging (WAL) state persistence. All inventory units, multi-currency ledger balances, and workshop reservation allocations are verified accurate as of the execution timestamp.
                 </p>
                 <p className="text-slate-500 text-[10px] mt-2 font-mono">
                   Report Ref: #BMS-ANL-{Date.now().toString().slice(-6)} • Operator: Bako Bayan Madhhar (07705488654)

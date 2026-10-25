@@ -1428,3 +1428,19 @@ export const db = {
   undo: () => ({ success: false, action: '' }),
   redo: () => ({ success: false, action: '' })
 };
+
+// ==========================================
+// WAREHOUSE OPERATIONS (Division 03): inbound shipments, allocations, transfers
+// Stored as a single JSON document in the meta key/value table.
+// ==========================================
+
+export function getWarehouseOpsRawFromDB(): string | null {
+  const db = getDB();
+  const row = db.prepare(`SELECT value FROM meta WHERE key = 'warehouse_ops'`).get() as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+export function saveWarehouseOpsRawToDB(json: string): void {
+  const db = getDB();
+  db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('warehouse_ops', ?)`).run(json);
+}

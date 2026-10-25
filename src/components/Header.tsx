@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
+import React, { useState, useEffect, useCallback } from "react";
 import { useInventory } from "../context/InventoryContext";
 import {
   Sun,
@@ -88,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-    showToast("Bako's Master System • v1.3");
+    showToast(`${APP_CONFIG.name} • ${APP_CONFIG.version}`);
   };
 
   const handleSetLang = (lang: "en" | "ku") => {
@@ -96,7 +97,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
     showToast(lang === "ku" ? "Language set to Kurdish (Header stays in English)" : "Language set to English");
   };
 
+  const openAdminPanel = useCallback(() => {
+    setIsAdminModalOpen(true);
+  }, []);
+
+  const openCharts = useCallback(() => {
+    openVisualCharts();
+  }, [openVisualCharts]);
+
   const handleToggleTheme = () => {
+    // Suspend CSS transitions for a single frame so every surface flips theme at once (no flicker).
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      root.classList.add("no-theme-transition");
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => root.classList.remove("no-theme-transition"));
+      });
+    }
     toggleTheme();
     showToast(theme === "light" ? "Night Mode Activated" : "Day Mode Activated");
   };
@@ -181,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                   </span>
                   {/* Sleek, Integrated Version Badge */}
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-500/10 dark:bg-emerald-400/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-400/25 tracking-tight leading-none">
-                    v1.3
+                    {APP_CONFIG.version}
                   </span>
                 </div>
                 <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tracking-wider uppercase mt-1 leading-none hidden sm:block">
@@ -286,6 +303,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             >
               <button
                 type="button"
+                aria-pressed={language === "en"}
                 onClick={() => handleSetLang("en")}
                 className={`min-w-[40px] px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
                   language === "en"
@@ -298,6 +316,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               </button>
               <button
                 type="button"
+                aria-pressed={language === "ku"}
                 onClick={() => handleSetLang("ku")}
                 className={`min-w-[50px] px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
                   language === "ku"
@@ -313,6 +332,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             {/* Theme Toggle: Day vs Night */}
             <button
               type="button"
+              id="header-theme-toggle"
+              aria-label="Toggle dark and light theme"
               onClick={handleToggleTheme}
               className="relative z-20 pointer-events-auto h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750 inline-flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
               title={theme === "light" ? "Switch to Night Mode (Dark)" : "Switch to Day Mode (Light)"}
@@ -335,11 +356,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             {/* Visual Charts & Analytics Modal Trigger */}
             <button
               type="button"
-              onClick={() => openVisualCharts()}
-              className="relative z-20 pointer-events-auto h-9 px-2.5 sm:px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-750 inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 group"
+              onClick={openCharts}
+              id="header-charts-button"
+              aria-label="Open visual charts and executive analytics"
+              className="relative z-20 pointer-events-auto h-9 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700/40 text-white inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 group"
               title="View Visual Charts & Executive Analytics"
             >
-              <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+              <BarChart3 className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
               <span className="hidden md:inline">
                 Charts
               </span>
@@ -349,7 +372,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => setIsAdminModalOpen(true)}
+                onClick={openAdminPanel}
                 className="relative z-20 pointer-events-auto h-9 px-3.5 rounded-xl bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-800/90 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 border border-slate-300/80 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 shadow-2xs inline-flex items-center gap-2 text-xs font-bold transition-all cursor-pointer group active:scale-95"
                 title="Open Admin Control Panel (Wi-Fi QR Code, Database, Backups & Logs)"
               >
@@ -394,7 +417,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
       <AccountModal
         isOpen={isAccountModalOpen}
         onClose={() => setIsAccountModalOpen(false)}
-        onOpenAdminPanel={() => setIsAdminModalOpen(true)}
+        onOpenAdminPanel={openAdminPanel}
       />
 
       <AdminPanelModal

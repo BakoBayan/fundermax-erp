@@ -1,3 +1,4 @@
+import { APP_CONFIG } from '@/config/appConfig';
 import { NextResponse } from 'next/server';
 import os from 'os';
 import fs from 'fs';

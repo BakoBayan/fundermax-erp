@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState } from "react";
 import { useInventory } from "../context/InventoryContext";
 import { BakoLogo } from "./BakoLogo";
@@ -82,7 +83,7 @@ export const LoginScreen: React.FC = () => {
                   {language === "ku" ? "سیستەمی سەرەکی باکۆ" : "Bako's Master System"}
                 </h1>
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 dark:bg-emerald-400/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-400/25">
-                  v1.3
+                  {APP_CONFIG.version}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
@@ -180,7 +181,7 @@ export const LoginScreen: React.FC = () => {
           title="Click to view legal copyright notice and custom software project inquiries"
         >
           <span>© 2026 Bako Bayan Madhhar. All rights reserved.</span>
-          <span className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">• Bako&apos;s Master System (v1.3)</span>
+          <span className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">• Bako&apos;s Master System ({APP_CONFIG.version})</span>
         </button>
         <div className="font-mono text-[11px] text-slate-400 dark:text-slate-500">
           Official Support &amp; Commissions: <a href="tel:07705488654" className="font-bold text-slate-600 dark:text-slate-300 hover:text-emerald-600 transition-colors">07705488654</a>

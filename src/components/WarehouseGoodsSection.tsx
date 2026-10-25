@@ -1,1356 +1,1137 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import {
-  Package,
   Truck,
   Plus,
   Trash2,
-  Edit3,
   Download,
   Search,
-  Kanban,
-  Table as TableIcon,
-  CheckCircle2,
-  Clock,
-  ArrowRight,
-  AlertTriangle,
   MapPin,
   X,
-  SlidersHorizontal,
-  BarChart3
+  ArrowRightLeft,
+  PackageCheck,
+  Warehouse,
+  ClipboardList,
+  Boxes,
+  CalendarDays,
+  Globe2,
+  ShieldAlert,
+  Undo2,
+  AlertTriangle,
 } from 'lucide-react';
-import { Product, Shipment, ShipmentStatus } from '../types/inventory';
-import { exportProductsToCSV, exportShipmentsToCSV } from '../utils/export';
-import { SearchableDropdown } from './SearchableDropdown';
-import DropdownManagerModal from './DropdownManagerModal';
+import { allocatedQtyForItem, useWarehouseOps } from '../hooks/useWarehouseOps';
+import {
+  INBOUND_STATUS_ORDER,
+  InboundShipment,
+  InboundStatus,
+  StockAllocation,
+  TRANSFER_REASONS,
+  TransferReason,
+  WORKSHOP_LOCATION_ID,
+  formatLocationLabel,
+} from '../types/warehouse';
 import { autoCapitalizeFirstLetter } from '../utils/text';
 
+type WarehouseTab = 'shipments' | 'stock' | 'transfers';
+
+type ModalState =
+  | { type: 'none' }
+  | { type: 'newShipment' }
+  | { type: 'allocate'; shipmentId: string; itemId: string }
+  | { type: 'transfer'; allocationId: string }
+  | { type: 'openingStock' };
+
+const STATUS_META: Record<InboundStatus, { label: string; labelKu: string; chip: string; dot: string }> = {
+  pending: {
+    label: 'Pending',
+    labelKu: 'چاوەڕوان',
+    chip: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
+    dot: 'bg-slate-400',
+  },
+  customs: {
+    label: 'Customs',
+    labelKu: 'گومرگ',
+    chip: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+    dot: 'bg-amber-500',
+  },
+  received: {
+    label: 'Received',
+    labelKu: 'وەرگیراوە',
+    chip: 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800',
+    dot: 'bg-sky-500',
+  },
+  inspected: {
+    label: 'Inspected',
+    labelKu: 'پشکنراوە',
+    chip: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+    dot: 'bg-emerald-500',
+  },
+};
+
+const inputCls =
+  'w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500';
+const labelCls = 'block text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1';
+const primaryBtn =
+  'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+const ghostBtn =
+  'inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
+
+const fmtQty = (n: number): string => (Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 3 }));
+
+const toNum = (v: string): number => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+function downloadCsv(filename: string, rows: Array<Array<string | number>>): void {
+  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = '\uFEFF' + rows.map((r) => r.map(esc).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const ModalShell: React.FC<{ title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }> = ({
+  title,
+  onClose,
+  children,
+  wide,
+}) => (
+  <div
+    className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150 no-print"
+    onMouseDown={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}
+  >
+    <div
+      className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[90dvh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+        <h2 className="text-base font-black text-slate-900 dark:text-white">{title}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  </div>
+);
+
+const FormError: React.FC<{ message: string }> = ({ message }) =>
+  message ? (
+    <div className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs font-semibold text-rose-700 dark:text-rose-300">
+      <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+      <span>{message}</span>
+    </div>
+  ) : null;
+
 export const WarehouseGoodsSection: React.FC = () => {
-  const {
-    t,
-    language,
-    products,
-    addProduct,
-    editProduct,
-    deleteProduct,
-    shipments,
-    addShipment,
-    updateShipmentStatus,
-    deleteShipment,
-    canModify,
-    canDeleteMaterial,
-    userPermissions,
-    hasModulePermission,
-    isViewer,
-    dropdownPresets,
-    addToDropdownPresets,
-    removeFromDropdownPresets,
-    openVisualCharts,
-  } = useInventory();
+  const { language, currentUser, isViewer, canModify, isAdmin, logActivity } = useInventory();
+  const wh = useWarehouseOps();
 
   const isKu = language === 'ku';
+  const canWrite = !isViewer && canModify;
+  const userName = currentUser?.displayName || 'Unknown User';
 
-  const hasGoods = hasModulePermission('goods');
-  const hasShipping = hasModulePermission('shipping');
+  const [tab, setTab] = useState<WarehouseTab>('shipments');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | InboundStatus>('all');
+  const [reasonFilter, setReasonFilter] = useState<'all' | TransferReason>('all');
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [modal, setModal] = useState<ModalState>({ type: 'none' });
 
-  const savedCategories = dropdownPresets?.savedCategories || [
-    'Hardware & Edge Banding',
-    'Veneer & Laminate',
-    'PVC Edging',
-    'Glues & Fasteners',
-    'Accessories'
-  ];
+  const closeModal = () => setModal({ type: 'none' });
 
-  const savedLocations = dropdownPresets?.savedLocations || [
-    'Bay A-1',
-    'Bay A-2',
-    'Bay B-1',
-    'Bay B-2',
-    'Bay C-1',
-    'Warehouse Floor'
-  ];
+  // ---------- Derived data ----------
+  const q = search.trim().toLowerCase();
 
-  // Sub-tab: "goods" vs "shipping" (respecting individual account permissions)
-  const [activeTab, setActiveTab] = useState<'goods' | 'shipping'>(() => {
-    if (!hasGoods && hasShipping) return 'shipping';
-    return 'goods';
-  });
-  const [goodsViewMode, setGoodsViewMode] = useState<'board' | 'table'>('board');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
-  const [goodsStockStatusFilter, setGoodsStockStatusFilter] = useState<'all' | 'inStock' | 'lowStock' | 'outOfStock'>('all');
-  const [goodsLocationFilter, setGoodsLocationFilter] = useState<string>('all');
-  const [goodsSortBy, setGoodsSortBy] = useState<'name' | 'stockAsc' | 'stockDesc' | 'priceAsc' | 'priceDesc'>('name');
+  const filteredShipments = useMemo(() => {
+    const source = showDeleted ? wh.deletedShipments : wh.activeShipments;
+    return source
+      .filter((s) => (statusFilter === 'all' ? true : s.status === statusFilter))
+      .filter((s) => {
+        if (!q) return true;
+        return (
+          s.batchCode.toLowerCase().includes(q) ||
+          s.supplier.toLowerCase().includes(q) ||
+          s.originCountry.toLowerCase().includes(q) ||
+          s.items.some((i) => i.description.toLowerCase().includes(q))
+        );
+      })
+      .sort((a, b) => b.arrivalDate.localeCompare(a.arrivalDate) || b.createdAt.localeCompare(a.createdAt));
+  }, [wh.activeShipments, wh.deletedShipments, showDeleted, statusFilter, q]);
 
-  const [shipmentStatusFilter, setShipmentStatusFilter] = useState<'all' | ShipmentStatus>('all');
-  const [shipmentDestFilter, setShipmentDestFilter] = useState<string>('all');
-  const [shipmentSortBy, setShipmentSortBy] = useState<'newest' | 'oldest' | 'highestQty'>('newest');
-
-  const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
-
-  // Dynamically extract locations and destinations
-  const availableLocations = React.useMemo(() => {
-    const set = new Set<string>(savedLocations);
-    products.forEach((p) => {
-      if (p.location && p.location.trim()) set.add(p.location.trim());
-    });
-    return Array.from(set).filter(Boolean).sort();
-  }, [savedLocations, products]);
-
-  const availableDestinations = React.useMemo(() => {
-    const set = new Set<string>();
-    shipments.forEach((s) => {
-      if (s.destination && s.destination.trim()) set.add(s.destination.trim());
-    });
-    return Array.from(set).filter(Boolean).sort();
-  }, [shipments]);
-
-  // Modals
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
-
-  // Form states for Product
-  const [prodSku, setProdSku] = useState('');
-  const [prodName, setProdName] = useState('');
-  const [prodCategory, setProdCategory] = useState('Hardware & Edge Banding');
-  const [prodStock, setProdStock] = useState<number | ''>(10);
-  const [prodMinStock, setProdMinStock] = useState<number | ''>(5);
-  const [prodLocation, setProdLocation] = useState('Bay A-1');
-  const [prodPrice, setProdPrice] = useState<number | ''>(15);
-
-  // Form states for Shipment
-  const [shipTracking, setShipTracking] = useState(`TRK-${Date.now().toString().slice(-5)}`);
-  const [shipDest, setShipDest] = useState('');
-  const [shipSummary, setShipSummary] = useState('');
-  const [shipQty, setShipQty] = useState<number | ''>(10);
-  const [shipStatus, setShipStatus] = useState<ShipmentStatus>('pending');
-
-  const openNewProductModal = () => {
-    setEditingProduct(null);
-    setProdSku(`SKU-${Math.floor(100 + Math.random() * 900)}`);
-    setProdName('');
-    setProdCategory('Hardware & Accessories');
-    setProdStock(20);
-    setProdMinStock(5);
-    setProdLocation('Bay A-1');
-    setProdPrice(10);
-    setIsProductModalOpen(true);
-  };
-
-  const openEditProductModal = (p: Product) => {
-    setEditingProduct(p);
-    setProdSku(p.sku);
-    setProdName(p.name);
-    setProdCategory(p.category);
-    setProdStock(p.currentStock);
-    setProdMinStock(p.minStock);
-    setProdLocation(p.location);
-    setProdPrice(p.price);
-    setIsProductModalOpen(true);
-  };
-
-  const handleSaveProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prodName.trim()) return;
-
-    const stockNum = typeof prodStock === 'number' ? prodStock : 0;
-    const minStockNum = typeof prodMinStock === 'number' ? prodMinStock : 0;
-
-    let lane: 'inStock' | 'lowStock' | 'outOfStock' = 'inStock';
-    if (stockNum <= 0) lane = 'outOfStock';
-    else if (stockNum <= minStockNum) lane = 'lowStock';
-
-    const payload: Product = {
-      id: editingProduct ? editingProduct.id : `prod-${Date.now()}`,
-      sku: prodSku.trim() ? autoCapitalizeFirstLetter(prodSku.trim()) : `SKU-${Date.now().toString().slice(-4)}`,
-      name: autoCapitalizeFirstLetter(prodName.trim()),
-      category: autoCapitalizeFirstLetter(prodCategory.trim() || 'General'),
-      currentStock: stockNum,
-      minStock: minStockNum,
-      location: autoCapitalizeFirstLetter(prodLocation.trim() || 'Warehouse Floor'),
-      price: typeof prodPrice === 'number' ? prodPrice : 0,
-      lane,
-      lastUpdated: new Date().toISOString(),
-    };
-
-    if (editingProduct) {
-      editProduct(editingProduct.id, payload);
-    } else {
-      addProduct(payload);
+  const awaitingPutAway = useMemo(() => {
+    let total = 0;
+    for (const s of wh.activeShipments) {
+      if (s.status !== 'received' && s.status !== 'inspected') continue;
+      for (const i of s.items) {
+        total += Math.max(0, i.receivedQty - allocatedQtyForItem(wh.allocations, s.id, i.id));
+      }
     }
+    return total;
+  }, [wh.activeShipments, wh.allocations]);
 
-    setIsProductModalOpen(false);
-  };
+  const inCustoms = wh.activeShipments.filter((s) => s.status === 'customs').length;
+  const totalRackUnits = wh.allocations
+    .filter((a) => a.locationId !== WORKSHOP_LOCATION_ID)
+    .reduce((sum, a) => sum + a.quantity, 0);
+  const workshopUnits = wh.allocations
+    .filter((a) => a.locationId === WORKSHOP_LOCATION_ID)
+    .reduce((sum, a) => sum + a.quantity, 0);
 
-  const handleSaveShipment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!shipDest.trim() || !shipSummary.trim()) return;
-
-    const payload: Shipment = {
-      id: `ship-${Date.now()}`,
-      trackingCode: shipTracking.trim() ? autoCapitalizeFirstLetter(shipTracking.trim()) : `TRK-${Date.now().toString().slice(-5)}`,
-      destination: autoCapitalizeFirstLetter(shipDest.trim()),
-      itemSummary: autoCapitalizeFirstLetter(shipSummary.trim()),
-      quantity: typeof shipQty === 'number' ? shipQty : 1,
-      status: shipStatus,
-      createdAt: new Date().toISOString(),
-    };
-
-    addShipment(payload);
-    setIsShipmentModalOpen(false);
-    setShipDest('');
-    setShipSummary('');
-    setShipQty(10);
-  };
-
-  // Filter and sort products
-  const filteredProducts = React.useMemo(() => {
-    const list = products.filter((p) => {
-      if (selectedCategoryFilter !== 'all' && p.category !== selectedCategoryFilter) {
-        return false;
-      }
-      if (goodsStockStatusFilter === 'inStock' && p.currentStock <= p.minStock) return false;
-      if (goodsStockStatusFilter === 'lowStock' && (p.currentStock <= 0 || p.currentStock > p.minStock)) return false;
-      if (goodsStockStatusFilter === 'outOfStock' && p.currentStock > 0) return false;
-
-      if (goodsLocationFilter !== 'all' && (p.location || '').toLowerCase() !== goodsLocationFilter.toLowerCase()) {
-        return false;
-      }
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const match =
-          p.name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          p.location.toLowerCase().includes(q);
-        if (!match) return false;
-      }
-
-      return true;
-    });
-
-    list.sort((a, b) => {
-      if (goodsSortBy === 'stockAsc') return a.currentStock - b.currentStock;
-      if (goodsSortBy === 'stockDesc') return b.currentStock - a.currentStock;
-      if (goodsSortBy === 'priceAsc') return a.price - b.price;
-      if (goodsSortBy === 'priceDesc') return b.price - a.price;
-      return a.name.localeCompare(b.name);
-    });
-
-    return list;
-  }, [products, selectedCategoryFilter, goodsStockStatusFilter, goodsLocationFilter, searchQuery, goodsSortBy]);
-
-  // Filter and sort shipments
-  const filteredShipments = React.useMemo(() => {
-    const list = shipments.filter((s) => {
-      if (shipmentStatusFilter !== 'all' && s.status !== shipmentStatusFilter) {
-        return false;
-      }
-      if (shipmentDestFilter !== 'all' && (s.destination || '').toLowerCase() !== shipmentDestFilter.toLowerCase()) {
-        return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const match =
-          s.trackingCode.toLowerCase().includes(q) ||
-          s.destination.toLowerCase().includes(q) ||
-          s.itemSummary.toLowerCase().includes(q);
-        if (!match) return false;
-      }
-      return true;
-    });
-
-    list.sort((a, b) => {
-      if (shipmentSortBy === 'highestQty') return b.quantity - a.quantity;
-      if (shipmentSortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-
-    return list;
-  }, [shipments, shipmentStatusFilter, shipmentDestFilter, searchQuery, shipmentSortBy]);
-
-  const hasActiveGoodsFilters = Boolean(
-    searchQuery.trim() ||
-    selectedCategoryFilter !== 'all' ||
-    goodsStockStatusFilter !== 'all' ||
-    goodsLocationFilter !== 'all' ||
-    goodsSortBy !== 'name'
+  const filteredAllocations = useMemo(
+    () =>
+      wh.allocations.filter((a) => {
+        if (!q) return true;
+        return (
+          a.itemName.toLowerCase().includes(q) ||
+          (a.batchCode || '').toLowerCase().includes(q) ||
+          wh.locationLabel(a.locationId).toLowerCase().includes(q)
+        );
+      }),
+    [wh.allocations, wh, q]
   );
 
-  const resetAllGoodsFilters = () => {
-    setSearchQuery('');
-    setSelectedCategoryFilter('all');
-    setGoodsStockStatusFilter('all');
-    setGoodsLocationFilter('all');
-    setGoodsSortBy('name');
-  };
-
-  const hasActiveShipmentFilters = Boolean(
-    searchQuery.trim() ||
-    shipmentStatusFilter !== 'all' ||
-    shipmentDestFilter !== 'all' ||
-    shipmentSortBy !== 'newest'
+  const filteredTransfers = useMemo(
+    () =>
+      wh.transfers.filter((t) => {
+        if (reasonFilter !== 'all' && t.reason !== reasonFilter) return false;
+        if (!q) return true;
+        return (
+          t.itemName.toLowerCase().includes(q) ||
+          t.fromLabel.toLowerCase().includes(q) ||
+          t.toLabel.toLowerCase().includes(q) ||
+          t.userName.toLowerCase().includes(q) ||
+          (t.batchCode || '').toLowerCase().includes(q)
+        );
+      }),
+    [wh.transfers, reasonFilter, q]
   );
 
-  const resetAllShipmentFilters = () => {
-    setSearchQuery('');
-    setShipmentStatusFilter('all');
-    setShipmentDestFilter('all');
-    setShipmentSortBy('newest');
+  // ---------- Exports ----------
+  const exportShipments = () => {
+    const rows: Array<Array<string | number>> = [
+      ['Batch Code', 'Supplier', 'Origin', 'Arrival Date', 'Status', 'Item', 'Unit', 'Expected', 'Received', 'Allocated'],
+    ];
+    for (const s of wh.activeShipments) {
+      for (const i of s.items) {
+        rows.push([
+          s.batchCode,
+          s.supplier,
+          s.originCountry,
+          s.arrivalDate,
+          STATUS_META[s.status].label,
+          i.description,
+          i.unit,
+          i.expectedQty,
+          i.receivedQty,
+          allocatedQtyForItem(wh.allocations, s.id, i.id),
+        ]);
+      }
+    }
+    downloadCsv(`incoming-shipments-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   };
 
-  const inStockProducts = filteredProducts.filter((p) => p.lane === 'inStock' || p.currentStock > p.minStock);
-  const lowStockProducts = filteredProducts.filter((p) => p.lane === 'lowStock' || (p.currentStock > 0 && p.currentStock <= p.minStock));
-  const outOfStockProducts = filteredProducts.filter((p) => p.lane === 'outOfStock' || p.currentStock <= 0);
+  const exportTransfers = () => {
+    const rows: Array<Array<string | number>> = [
+      ['Timestamp', 'User', 'Item', 'Qty', 'Unit', 'From', 'To', 'Reason', 'Batch', 'Note'],
+      ...wh.transfers.map((t) => [
+        t.timestamp,
+        t.userName,
+        t.itemName,
+        t.quantity,
+        t.unit,
+        t.fromLabel,
+        t.toLabel,
+        t.reason,
+        t.batchCode || '',
+        t.note,
+      ]),
+    ];
+    downloadCsv(`stock-transfers-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  };
 
-  const pendingShipments = filteredShipments.filter((s) => s.status === 'pending');
-  const transitShipments = filteredShipments.filter((s) => s.status === 'in_transit');
-  const deliveredShipments = filteredShipments.filter((s) => s.status === 'delivered');
+  const handleDeleteShipment = (s: InboundShipment) => {
+    const allocated = wh.allocations.some((a) => a.shipmentId === s.id);
+    const msg = allocated
+      ? `${s.batchCode} already has stock allocated to racks. Archive it anyway? The shipment record is kept for admin review and allocated stock is not touched.`
+      : `Archive shipment ${s.batchCode}? It is soft-deleted and kept for admin review.`;
+    if (!window.confirm(msg)) return;
+    wh.softDeleteShipment(s.id);
+    logActivity('SHIPMENT_ARCHIVED', `Inbound shipment ${s.batchCode} archived`, undefined, 'inventory');
+  };
+
+  const tabs: Array<{ id: WarehouseTab; label: string; icon: React.ReactNode; count: number }> = [
+    { id: 'shipments', label: isKu ? 'بارە گەیشتووەکان' : 'Incoming Shipments', icon: <Truck className="w-4 h-4" />, count: wh.activeShipments.length },
+    { id: 'stock', label: isKu ? 'شوێنی کۆگا' : 'Locations & Stock', icon: <MapPin className="w-4 h-4" />, count: wh.allocations.length },
+    { id: 'transfers', label: isKu ? 'گواستنەوەکان' : 'Transfer Log', icon: <ArrowRightLeft className="w-4 h-4" />, count: wh.transfers.length },
+  ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-200">
-      {/* SECTION HEADER & CONTROLS */}
+    <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-200">
+      {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <Package className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            <Warehouse className="w-6 h-6 text-amber-600 dark:text-amber-400" />
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {t.module3Title}
+              {isKu ? 'کۆگا و بارە گەیشتووەکان' : 'Warehouse: Shipments, Locations & Transfers'}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isKu
-              ? 'بەڕێوەبردنی کاڵاکانی کۆگا و قۆناغەکانی گەیاندن و بەدواداچوونی بار'
-              : 'Warehouse goods catalog, stock threshold lanes, and shipping pipeline'}
+              ? 'بارە گەیشتووەکانی کۆمپانیا، دابەشکردنی شوێنی کۆگا، و تۆماری گواستنەوە'
+              : 'Incoming company shipments, rack and bay allocation, and audited stock movements.'}
           </p>
         </div>
-
-        {/* Tab & Action Controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Sub-Tab Switcher */}
-          {(hasGoods || hasShipping) && (
-            <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              {hasGoods && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('goods')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    activeTab === 'goods'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Package className="w-3.5 h-3.5" />
-                  <span>{t.goodsInventory} ({products.length})</span>
-                </button>
-              )}
-              {hasShipping && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('shipping')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    activeTab === 'shipping'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Truck className="w-3.5 h-3.5" />
-                  <span>{t.shippingPipeline} ({shipments.length})</span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Manage Saved Dropdowns */}
-          <button
-            type="button"
-            onClick={() => setIsDropdownManagerOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Manage saved categories and locations"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
-            <span>Manage Dropdowns</span>
-          </button>
-
-          {/* Export utility */}
-          {userPermissions?.canExport !== false && (
-            <button
-              type="button"
-              onClick={() => {
-                if (activeTab === 'goods') exportProductsToCSV(products, language);
-                else exportShipmentsToCSV(shipments, language);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="1-Tap Export to CSV / Excel"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Export CSV</span>
-            </button>
-          )}
-
-          {/* Visual Charts Modal Trigger for Goods & Shipping */}
-          <button
-            type="button"
-            onClick={() => openVisualCharts(activeTab === 'shipping' ? 'shipping' : 'goods')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer shadow-2xs"
-            title={isKu ? 'چارت و شیکاری کاڵاکانی کۆگا' : 'View Warehouse Goods & Logistics Visual Charts'}
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-amber-600" />
-            <span>{isKu ? 'چارتەکانی کۆگا' : 'Goods Charts'}</span>
-          </button>
-
-          {/* Primary Action Button */}
-          {canModify && (
-            activeTab === 'goods' ? (
-              <button
-                type="button"
-                onClick={openNewProductModal}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 active:scale-98 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Add Product</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setShipTracking(`TRK-${Date.now().toString().slice(-5)}`);
-                  setIsShipmentModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 active:scale-98 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{t.newShipment}</span>
-              </button>
-            )
-          )}
-        </div>
-      </div>
-
-      {/* SEARCH AND VIEW TOGGLE BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 flex-wrap">
-        <div className="flex flex-1 items-center gap-2 flex-wrap">
-          {/* Search Input */}
-          <div className="relative min-w-[150px] flex-1">
-            <Search className="w-3.5 h-3.5 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={activeTab === 'goods' ? (isKu ? "گەڕان بەپێی ناو، کۆد، شوێن..." : "Search products by name, SKU, location...") : (isKu ? "گەڕان بەپێی کۆدی بار، شوێن..." : "Search shipments by tracking, destination...")}
-              className="w-full h-8 ps-8 pe-7 text-xs rounded-xl bg-white dark:bg-slate-850 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-amber-500"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute end-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {/* GOODS SPECIFIC FILTERS */}
-          {activeTab === 'goods' && (
-            <>
-              {/* Category Filter */}
-              <div className="w-40 shrink-0">
-                <SearchableDropdown
-                  options={['All Categories', ...savedCategories]}
-                  value={selectedCategoryFilter === 'all' ? 'All Categories' : selectedCategoryFilter}
-                  onChange={(v) => setSelectedCategoryFilter(v === 'All Categories' ? 'all' : v)}
-                  onAddNew={(v) => addToDropdownPresets('savedCategories', v)}
-                  onDeleteOption={(v) => removeFromDropdownPresets('savedCategories', v)}
-                  placeholder="All Categories"
-                  compact={true}
-                  allowDelete={!isViewer}
-                />
-              </div>
-
-              {/* Stock Status Filter */}
-              <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-                <select
-                  value={goodsStockStatusFilter}
-                  onChange={(e) => setGoodsStockStatusFilter(e.target.value as 'all' | 'inStock' | 'lowStock' | 'outOfStock')}
-                  className="bg-transparent focus:outline-none cursor-pointer"
-                  title="Filter by stock level"
-                >
-                  <option value="all" className="dark:bg-slate-800">{isKu ? 'هەموو کۆگا' : 'All Stock Levels'}</option>
-                  <option value="inStock" className="dark:bg-slate-800">{isKu ? 'بەردەست (تەواو)' : 'In Stock (> Min)'}</option>
-                  <option value="lowStock" className="dark:bg-slate-800">{isKu ? 'کەم ماوە (پێویستی بە کڕین)' : 'Low Stock (≤ Min)'}</option>
-                  <option value="outOfStock" className="dark:bg-slate-800">{isKu ? 'تەواوبوو (0)' : 'Out of Stock (0)'}</option>
-                </select>
-              </div>
-
-              {/* Location Filter */}
-              {availableLocations.length > 0 && (
-                <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-                  <MapPin className="w-3.5 h-3.5 me-1 text-slate-400" />
-                  <select
-                    value={goodsLocationFilter}
-                    onChange={(e) => setGoodsLocationFilter(e.target.value)}
-                    className="bg-transparent focus:outline-none cursor-pointer max-w-[120px] truncate"
-                    title="Filter by warehouse location"
-                  >
-                    <option value="all" className="dark:bg-slate-800">{isKu ? 'هەموو شوێنەکان' : 'All Locations'}</option>
-                    {availableLocations.map((loc) => (
-                      <option key={loc} value={loc} className="dark:bg-slate-800">
-                        {loc}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Sort By */}
-              <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-                <select
-                  value={goodsSortBy}
-                  onChange={(e) => setGoodsSortBy(e.target.value as 'name' | 'stockAsc' | 'stockDesc' | 'priceAsc' | 'priceDesc')}
-                  className="bg-transparent focus:outline-none cursor-pointer"
-                  title="Sort Products"
-                >
-                  <option value="name" className="dark:bg-slate-800">{isKu ? 'ناو (ئەلفوبێ)' : 'Name (A-Z)'}</option>
-                  <option value="stockAsc" className="dark:bg-slate-800">{isKu ? 'کەمترین ژمارە' : 'Stock: Low to High'}</option>
-                  <option value="stockDesc" className="dark:bg-slate-800">{isKu ? 'زۆرترین ژمارە' : 'Stock: High to Low'}</option>
-                  <option value="priceDesc" className="dark:bg-slate-800">{isKu ? 'بەرزترین نرخ' : 'Price: High to Low'}</option>
-                  <option value="priceAsc" className="dark:bg-slate-800">{isKu ? 'نزمترین نرخ' : 'Price: Low to High'}</option>
-                </select>
-              </div>
-
-              {/* Reset Goods Filters */}
-              {hasActiveGoodsFilters && (
-                <button
-                  type="button"
-                  onClick={resetAllGoodsFilters}
-                  className="h-8 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer shrink-0"
-                  title="Reset all active goods filters"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>{isKu ? 'سڕینەوەی فلتەر' : 'Clear Filters'}</span>
-                </button>
-              )}
-            </>
-          )}
-
-          {/* SHIPPING SPECIFIC FILTERS */}
-          {activeTab === 'shipping' && (
-            <>
-              {/* Shipment Status Filter */}
-              <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-                <select
-                  value={shipmentStatusFilter}
-                  onChange={(e) => setShipmentStatusFilter(e.target.value as 'all' | ShipmentStatus)}
-                  className="bg-transparent focus:outline-none cursor-pointer"
-                  title="Filter by shipment status"
-                >
-                  <option value="all" className="dark:bg-slate-800">{isKu ? 'هەموو قۆناغەکان' : 'All Stages'}</option>
-                  <option value="pending" className="dark:bg-slate-800">{isKu ? 'چاوەڕوانکراو' : 'Pending Processing'}</option>
-                  <option value="in_transit" className="dark:bg-slate-800">{isKu ? 'لە ڕێگایە' : 'In Transit'}</option>
-                  <option value="delivered" className="dark:bg-slate-800">{isKu ? 'گەیەندراو' : 'Delivered'}</option>
-                </select>
-              </div>
-
-              {/* Destination Filter */}
-              {availableDestinations.length > 0 && (
-                <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-                  <Truck className="w-3.5 h-3.5 me-1 text-slate-400" />
-                  <select
-                    value={shipmentDestFilter}
-                    onChange={(e) => setShipmentDestFilter(e.target.value)}
-                    className="bg-transparent focus:outline-none cursor-pointer max-w-[120px] truncate"
-                    title="Filter by destination"
-                  >
-                    <option value="all" className="dark:bg-slate-800">{isKu ? 'هەموو ناوچەکان' : 'All Destinations'}</option>
-                    {availableDestinations.map((dest) => (
-                      <option key={dest} value={dest} className="dark:bg-slate-800">
-                        {dest}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Sort By */}
-              <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-                <select
-                  value={shipmentSortBy}
-                  onChange={(e) => setShipmentSortBy(e.target.value as 'newest' | 'oldest' | 'highestQty')}
-                  className="bg-transparent focus:outline-none cursor-pointer"
-                  title="Sort Shipments"
-                >
-                  <option value="newest" className="dark:bg-slate-800">{isKu ? 'نوێترین' : 'Newest'}</option>
-                  <option value="oldest" className="dark:bg-slate-800">{isKu ? 'کۆنترین' : 'Oldest'}</option>
-                  <option value="highestQty" className="dark:bg-slate-800">{isKu ? 'زۆرترین بڕ' : 'Highest Quantity'}</option>
-                </select>
-              </div>
-
-              {/* Reset Shipment Filters */}
-              {hasActiveShipmentFilters && (
-                <button
-                  type="button"
-                  onClick={resetAllShipmentFilters}
-                  className="h-8 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer shrink-0"
-                  title="Reset all active shipment filters"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>{isKu ? 'سڕینەوەی فلتەر' : 'Clear Filters'}</span>
-                </button>
-              )}
-            </>
-          )}
-        </div>
-
-        {activeTab === 'goods' && (
-          <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-750 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setGoodsViewMode('board')}
-              className={`flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                goodsViewMode === 'board'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Kanban className="w-3.5 h-3.5" />
-              <span>{t.boardView}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setGoodsViewMode('table')}
-              className={`flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                goodsViewMode === 'table'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-              <span>{t.tableView}</span>
+        {canWrite && (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={primaryBtn} onClick={() => setModal({ type: 'newShipment' })}>
+              <Plus className="w-4 h-4" />
+              {isKu ? 'بارێکی نوێ' : 'New Incoming Shipment'}
             </button>
           </div>
         )}
       </div>
 
-      {/* CONTENT: GOODS INVENTORY */}
-      {activeTab === 'goods' && (
-        goodsViewMode === 'board' ? (
-          /* Kanban Lanes Grid */
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Lane 1: In Stock */}
-            <div className="flex flex-col rounded-3xl bg-slate-100/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 min-h-[400px]">
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {t.inStockLane}
-                  </h3>
-                </div>
-                <span className="px-2 py-0.5 text-xs font-extrabold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-                  {inStockProducts.length}
-                </span>
-              </div>
-
-              <div className="space-y-3 flex-1 overflow-y-auto">
-                {inStockProducts.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-xs hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[11px] font-mono font-bold text-amber-600 dark:text-amber-400">
-                          {p.sku}
-                        </span>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight mt-0.5">
-                          {p.name}
-                        </h4>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {p.category}
-                        </span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
-                          {p.currentStock}
-                        </span>
-                        <span className="block text-[10px] text-slate-400">units</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
-                      <div className="flex items-center gap-1 text-[11px]">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        <span>{p.location}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                          ${p.price}
-                        </span>
-                        {canModify && (
-                          <button
-                            type="button"
-                            onClick={() => openEditProductModal(p)}
-                            className="p-1 hover:text-amber-600 rounded"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      {/* KPI STRIP */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Active Shipments', value: wh.activeShipments.length, icon: <Truck className="w-4 h-4" />, tone: 'text-slate-900 dark:text-white' },
+          { label: 'In Customs', value: inCustoms, icon: <ShieldAlert className="w-4 h-4" />, tone: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Awaiting Put-Away', value: fmtQty(awaitingPutAway), icon: <PackageCheck className="w-4 h-4" />, tone: 'text-sky-600 dark:text-sky-400' },
+          { label: 'Units Racked / Workshop', value: `${fmtQty(totalRackUnits)} / ${fmtQty(workshopUnits)}`, icon: <Boxes className="w-4 h-4" />, tone: 'text-emerald-600 dark:text-emerald-400' },
+        ].map((k) => (
+          <div key={k.label} className="p-3.5 rounded-2xl bg-white/90 dark:bg-slate-850/90 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {k.icon}
+              <span>{k.label}</span>
             </div>
-
-            {/* Lane 2: Low Stock Alert */}
-            <div className="flex flex-col rounded-3xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 p-4 min-h-[400px]">
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-amber-200 dark:border-amber-900/40">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {t.lowStockLane}
-                  </h3>
-                </div>
-                <span className="px-2 py-0.5 text-xs font-extrabold rounded-full bg-amber-200 text-amber-900 dark:bg-amber-900/80 dark:text-amber-200">
-                  {lowStockProducts.length}
-                </span>
-              </div>
-
-              <div className="space-y-3 flex-1 overflow-y-auto">
-                {lowStockProducts.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-amber-200 dark:border-amber-900/50 shadow-xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[11px] font-mono font-bold text-amber-600 dark:text-amber-400">
-                          {p.sku}
-                        </span>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight mt-0.5">
-                          {p.name}
-                        </h4>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {p.category}
-                        </span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-base font-extrabold text-amber-600 dark:text-amber-400 font-mono">
-                          {p.currentStock}
-                        </span>
-                        <span className="block text-[10px] text-amber-600">min {p.minStock}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
-                      <div className="flex items-center gap-1 text-[11px]">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        <span>{p.location}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                          ${p.price}
-                        </span>
-                        {canModify && (
-                          <button
-                            type="button"
-                            onClick={() => openEditProductModal(p)}
-                            className="p-1 hover:text-amber-600 rounded"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Lane 3: Out of Stock */}
-            <div className="flex flex-col rounded-3xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 p-4 min-h-[400px]">
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-rose-200 dark:border-rose-900/40">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {t.outOfStockLane}
-                  </h3>
-                </div>
-                <span className="px-2 py-0.5 text-xs font-extrabold rounded-full bg-rose-200 text-rose-900 dark:bg-rose-900/80 dark:text-rose-200">
-                  {outOfStockProducts.length}
-                </span>
-              </div>
-
-              <div className="space-y-3 flex-1 overflow-y-auto">
-                {outOfStockProducts.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-rose-200 dark:border-rose-900/50 shadow-xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[11px] font-mono font-bold text-rose-600 dark:text-rose-400">
-                          {p.sku}
-                        </span>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight mt-0.5">
-                          {p.name}
-                        </h4>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {p.category}
-                        </span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-base font-extrabold text-rose-600 dark:text-rose-400 font-mono">
-                          0
-                        </span>
-                        <span className="block text-[10px] text-rose-500">Out of Stock</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
-                      <div className="flex items-center gap-1 text-[11px]">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        <span>{p.location}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                          ${p.price}
-                        </span>
-                        {canModify && (
-                          <button
-                            type="button"
-                            onClick={() => openEditProductModal(p)}
-                            className="p-1 hover:text-amber-600 rounded"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <div className={`mt-1 text-xl sm:text-2xl font-black font-mono ${k.tone}`}>{k.value}</div>
           </div>
-        ) : (
-          /* Table View */
-          <div className="overflow-x-auto rounded-3xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-850 shadow-xs">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3">SKU</th>
-                  <th className="px-4 py-3">Product Name</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3 text-center">Stock</th>
-                  <th className="px-4 py-3 text-center">Min Stock</th>
-                  <th className="px-4 py-3">Location</th>
-                  <th className="px-4 py-3 text-right">Price</th>
-                  <th className="px-4 py-3 text-center">Action</th>
+        ))}
+      </div>
+
+      {/* TABS + SEARCH */}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 gap-1 overflow-x-auto no-scrollbar" role="tablist">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === tb.id}
+              onClick={() => setTab(tb.id)}
+              className={`h-10 px-4 rounded-xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+                tab === tb.id
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+              }`}
+            >
+              {tb.icon}
+              <span>{tb.label}</span>
+              <span className={`px-1.5 rounded-full text-[11px] font-mono ${tab === tb.id ? 'bg-white/25' : 'bg-slate-200 dark:bg-slate-700'}`}>{tb.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 max-w-xl">
+          <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 start-3 text-slate-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={isKu ? 'گەڕان...' : 'Search batch, supplier, item, location...'}
+            className={`${inputCls} ps-9`}
+            aria-label="Search warehouse"
+          />
+        </div>
+      </div>
+
+      {/* ============ SHIPMENTS TAB ============ */}
+      {tab === 'shipments' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | InboundStatus)}
+              className="h-9 px-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold cursor-pointer"
+              aria-label="Filter by status"
+            >
+              <option value="all">All statuses</option>
+              {INBOUND_STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_META[s].label}
+                </option>
+              ))}
+            </select>
+            <button type="button" className={ghostBtn} onClick={exportShipments}>
+              <Download className="w-3.5 h-3.5" /> CSV
+            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                className={ghostBtn}
+                onClick={() => setShowDeleted((v) => !v)}
+                title="Admin only: review archived (soft-deleted) shipments"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                {showDeleted ? 'Show Active' : `Archived (${wh.deletedShipments.length})`}
+              </button>
+            )}
+          </div>
+
+          {filteredShipments.length === 0 ? (
+            <div className="py-16 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-850/60">
+              <Truck className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+              <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                {showDeleted ? 'No archived shipments.' : 'No incoming shipments yet.'}
+              </p>
+              {canWrite && !showDeleted && (
+                <button type="button" className={`${primaryBtn} mt-4`} onClick={() => setModal({ type: 'newShipment' })}>
+                  <Plus className="w-4 h-4" /> Register the first shipment
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredShipments.map((s) => (
+              <article
+                key={s.id}
+                className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden"
+              >
+                <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white dark:bg-amber-600 text-xs font-mono font-black tracking-wide">{s.batchCode}</span>
+                      <span className={`px-2.5 py-1 rounded-full border text-[11px] font-bold inline-flex items-center gap-1.5 ${STATUS_META[s.status].chip}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[s.status].dot}`} />
+                        {isKu ? STATUS_META[s.status].labelKu : STATUS_META[s.status].label}
+                      </span>
+                      {s.isDeleted === 1 && <span className="px-2 py-1 rounded-full bg-rose-100 text-rose-700 text-[11px] font-bold">Archived</span>}
+                    </div>
+                    <h3 className="mt-2 text-lg font-black text-slate-900 dark:text-white truncate">{s.supplier}</h3>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      <span className="inline-flex items-center gap-1"><Globe2 className="w-3.5 h-3.5" />{s.originCountry || 'Origin not set'}</span>
+                      <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{s.arrivalDate || 'Date not set'}</span>
+                      {s.supplierContact && <span>{s.supplierContact}</span>}
+                    </div>
+                    {s.notes && <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 max-w-2xl">{s.notes}</p>}
+                  </div>
+
+                  <div className="flex flex-col items-stretch lg:items-end gap-2 shrink-0">
+                    {canWrite && s.isDeleted === 0 && (
+                      <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 gap-1" role="group" aria-label="Customs and arrival status">
+                        {INBOUND_STATUS_ORDER.map((st) => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => {
+                              if (st !== s.status) {
+                                wh.setShipmentStatus(s.id, st);
+                                logActivity('SHIPMENT_STATUS', `${s.batchCode} set to ${STATUS_META[st].label}`, undefined, 'inventory');
+                              }
+                            }}
+                            className={`min-h-[36px] px-2.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                              s.status === st
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {STATUS_META[st].label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2 lg:justify-end">
+                      {isAdmin && s.isDeleted === 1 ? (
+                        <button type="button" className={ghostBtn} onClick={() => wh.restoreShipment(s.id)}>
+                          <Undo2 className="w-3.5 h-3.5" /> Restore
+                        </button>
+                      ) : (
+                        canWrite && (
+                          <button type="button" className={`${ghostBtn} text-rose-600 dark:text-rose-400`} onClick={() => handleDeleteShipment(s)}>
+                            <Trash2 className="w-3.5 h-3.5" /> Archive
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div className="border-t border-slate-200 dark:border-slate-800 overflow-x-auto">
+                  <table className="w-full text-sm min-w-[620px]">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        <th className="text-start font-bold px-4 py-2">Item</th>
+                        <th className="text-end font-bold px-3 py-2">Expected</th>
+                        <th className="text-end font-bold px-3 py-2">Received</th>
+                        <th className="text-end font-bold px-3 py-2">Racked</th>
+                        <th className="text-end font-bold px-3 py-2">Left</th>
+                        <th className="px-4 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {s.items.map((it) => {
+                        const allocated = allocatedQtyForItem(wh.allocations, s.id, it.id);
+                        const left = Math.max(0, it.receivedQty - allocated);
+                        const canPutAway = canWrite && s.isDeleted === 0 && left > 0;
+                        return (
+                          <tr key={it.id} className="border-t border-slate-100 dark:border-slate-800">
+                            <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">
+                              {it.description}
+                              <span className="ms-1.5 text-[11px] font-mono text-slate-400">{it.unit}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-end font-mono text-slate-600 dark:text-slate-300">{fmtQty(it.expectedQty)}</td>
+                            <td className="px-3 py-2.5 text-end">
+                              {canWrite && s.isDeleted === 0 ? (
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  min={0}
+                                  step="any"
+                                  defaultValue={it.receivedQty}
+                                  key={`${it.id}-${it.receivedQty}`}
+                                  onBlur={(e) => {
+                                    const v = toNum(e.target.value);
+                                    if (v !== it.receivedQty) wh.setReceivedQty(s.id, it.id, v);
+                                  }}
+                                  className="w-24 h-9 px-2 rounded-lg text-end font-mono text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+                                  aria-label={`Received quantity for ${it.description}`}
+                                />
+                              ) : (
+                                <span className="font-mono">{fmtQty(it.receivedQty)}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-end font-mono text-emerald-600 dark:text-emerald-400">{fmtQty(allocated)}</td>
+                            <td className={`px-3 py-2.5 text-end font-mono ${left > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400'}`}>{fmtQty(left)}</td>
+                            <td className="px-4 py-2.5 text-end">
+                              {canPutAway && (
+                                <button
+                                  type="button"
+                                  className={ghostBtn}
+                                  onClick={() => setModal({ type: 'allocate', shipmentId: s.id, itemId: it.id })}
+                                >
+                                  <MapPin className="w-3.5 h-3.5" /> Allocate
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* ============ STOCK & LOCATIONS TAB ============ */}
+      {tab === 'stock' && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">Stock by Location</h2>
+              {canWrite && (
+                <button type="button" className={ghostBtn} onClick={() => setModal({ type: 'openingStock' })}>
+                  <ClipboardList className="w-3.5 h-3.5" /> Record Opening Stock
+                </button>
+              )}
+            </div>
+            {wh.locations.map((loc) => {
+              const rows = filteredAllocations.filter((a) => a.locationId === loc.id);
+              const total = wh.allocations.filter((a) => a.locationId === loc.id).reduce((sum, a) => sum + a.quantity, 0);
+              if (q && rows.length === 0) return null;
+              return (
+                <section key={loc.id} className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  <header className="px-4 py-3 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MapPin className={`w-4 h-4 shrink-0 ${loc.kind === 'workshop' ? 'text-sky-500' : 'text-amber-600'}`} />
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">{formatLocationLabel(loc)}</h3>
+                      {loc.kind === 'workshop' && <span className="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10px] font-bold">WORKSHOP</span>}
+                    </div>
+                    <span className="text-xs font-mono font-bold text-slate-500">{fmtQty(total)} units</span>
+                  </header>
+                  {rows.length === 0 ? (
+                    <p className="px-4 py-4 text-xs text-slate-400">Empty.</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {rows.map((a: StockAllocation) => (
+                        <li key={a.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{a.itemName}</div>
+                            <div className="text-[11px] font-mono text-slate-500">{a.batchCode || 'Opening stock'}</div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">
+                              {fmtQty(a.quantity)} <span className="text-[11px] text-slate-400">{a.unit}</span>
+                            </span>
+                            {canWrite && (
+                              <button type="button" className={ghostBtn} onClick={() => setModal({ type: 'transfer', allocationId: a.id })}>
+                                <ArrowRightLeft className="w-3.5 h-3.5" /> Move
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+
+          <LocationManager canWrite={canWrite} />
+        </div>
+      )}
+
+      {/* ============ TRANSFERS TAB ============ */}
+      {tab === 'transfers' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={reasonFilter}
+              onChange={(e) => setReasonFilter(e.target.value as 'all' | TransferReason)}
+              className="h-9 px-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold cursor-pointer"
+              aria-label="Filter by reason"
+            >
+              <option value="all">All reasons</option>
+              {TRANSFER_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <button type="button" className={ghostBtn} onClick={exportTransfers}>
+              <Download className="w-3.5 h-3.5" /> CSV
+            </button>
+          </div>
+          <div className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+            <table className="w-full text-sm min-w-[760px]">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <th className="text-start font-bold px-4 py-2.5">When</th>
+                  <th className="text-start font-bold px-3 py-2.5">Item</th>
+                  <th className="text-end font-bold px-3 py-2.5">Qty</th>
+                  <th className="text-start font-bold px-3 py-2.5">From</th>
+                  <th className="text-start font-bold px-3 py-2.5">To</th>
+                  <th className="text-start font-bold px-3 py-2.5">Reason</th>
+                  <th className="text-start font-bold px-3 py-2.5">By</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                {filteredProducts.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="px-4 py-3 font-mono font-bold text-amber-600 dark:text-amber-400">
-                      {p.sku}
+              <tbody>
+                {filteredTransfers.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                      No stock movements recorded.
                     </td>
-                    <td className="px-4 py-3 text-slate-900 dark:text-white font-bold">
-                      {p.name}
+                  </tr>
+                )}
+                {filteredTransfers.map((t) => (
+                  <tr key={t.id} className="border-t border-slate-100 dark:border-slate-800 align-top">
+                    <td className="px-4 py-2.5 text-xs font-mono text-slate-500 whitespace-nowrap">{new Date(t.timestamp).toLocaleString()}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="font-semibold text-slate-900 dark:text-white">{t.itemName}</div>
+                      {t.note && <div className="text-[11px] text-slate-500 max-w-xs">{t.note}</div>}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">
-                      {p.category}
+                    <td className="px-3 py-2.5 text-end font-mono font-bold">{fmtQty(t.quantity)} <span className="text-[11px] text-slate-400">{t.unit}</span></td>
+                    <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300">{t.fromLabel}</td>
+                    <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300">{t.toLabel}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap">{t.reason}</span>
                     </td>
-                    <td className="px-4 py-3 text-center font-mono font-extrabold text-slate-900 dark:text-white">
-                      {p.currentStock}
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono text-slate-500">
-                      {p.minStock}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">
-                      {p.location}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">
-                      ${p.price}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {canModify && (
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openEditProductModal(p)}
-                            className="p-1 hover:text-amber-600 rounded"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          {canDeleteMaterial && (
-                            <button
-                              type="button"
-                              onClick={() => deleteProduct(p.id)}
-                              className="p-1 hover:text-rose-600 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">{t.userName}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )
-      )}
-
-      {/* CONTENT: SHIPPING PIPELINE */}
-      {activeTab === 'shipping' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* Stage 1: Pending */}
-          <div className="flex flex-col rounded-3xl bg-slate-100/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 min-h-[400px]">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  {t.statusPending}
-                </h3>
-              </div>
-              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
-                {pendingShipments.length}
-              </span>
-            </div>
-
-            <div className="space-y-3 flex-1 overflow-y-auto">
-              {pendingShipments.map((s) => (
-                <div
-                  key={s.id}
-                  className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-xs"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400">
-                        {s.trackingCode}
-                      </span>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                        {s.destination}
-                      </h4>
-                    </div>
-                    <span className="text-sm font-extrabold font-mono text-slate-800 dark:text-slate-200">
-                      {s.quantity} units
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-                    {s.itemSummary}
-                  </p>
-
-                  <div className="flex items-center justify-between gap-2 mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(s.createdAt).toLocaleDateString()}
-                    </span>
-                    {canModify && (
-                      <button
-                        type="button"
-                        onClick={() => updateShipmentStatus(s.id, 'in_transit')}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 transition-colors"
-                      >
-                        <span>Dispatch</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Stage 2: In Transit */}
-          <div className="flex flex-col rounded-3xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200/80 dark:border-sky-900/40 p-4 min-h-[400px]">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-sky-200 dark:border-sky-900/40">
-              <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  {t.statusInTransit}
-                </h3>
-              </div>
-              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-sky-200 text-sky-900 dark:bg-sky-900/80 dark:text-sky-200">
-                {transitShipments.length}
-              </span>
-            </div>
-
-            <div className="space-y-3 flex-1 overflow-y-auto">
-              {transitShipments.map((s) => (
-                <div
-                  key={s.id}
-                  className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-sky-200 dark:border-sky-900/50 shadow-xs"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400">
-                        {s.trackingCode}
-                      </span>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                        {s.destination}
-                      </h4>
-                    </div>
-                    <span className="text-sm font-extrabold font-mono text-slate-800 dark:text-slate-200">
-                      {s.quantity} units
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-                    {s.itemSummary}
-                  </p>
-
-                  <div className="flex items-center justify-between gap-2 mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(s.createdAt).toLocaleDateString()}
-                    </span>
-                    {canModify && (
-                      <button
-                        type="button"
-                        onClick={() => updateShipmentStatus(s.id, 'delivered')}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 transition-colors"
-                      >
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Deliver</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Stage 3: Delivered */}
-          <div className="flex flex-col rounded-3xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40 p-4 min-h-[400px]">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-emerald-200 dark:border-emerald-900/40">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  {t.statusDelivered}
-                </h3>
-              </div>
-              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-200 text-emerald-900 dark:bg-emerald-900/80 dark:text-emerald-200">
-                {deliveredShipments.length}
-              </span>
-            </div>
-
-            <div className="space-y-3 flex-1 overflow-y-auto">
-              {deliveredShipments.map((s) => (
-                <div
-                  key={s.id}
-                  className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-emerald-200 dark:border-emerald-900/50 shadow-xs opacity-90"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        {s.trackingCode}
-                      </span>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                        {s.destination}
-                      </h4>
-                    </div>
-                    <span className="text-sm font-extrabold font-mono text-slate-800 dark:text-slate-200">
-                      {s.quantity} units
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-                    {s.itemSummary}
-                  </p>
-
-                  <div className="flex items-center justify-between gap-2 mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                      Completed & Delivered
-                    </span>
-                    {canDeleteMaterial && (
-                      <button
-                        type="button"
-                        onClick={() => deleteShipment(s.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PRODUCT */}
-      {isProductModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setIsProductModalOpen(false)}
-        >
-          <form
-            onSubmit={handleSaveProduct}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl space-y-4"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {editingProduct ? 'Edit Warehouse Product' : 'Add New Warehouse Product'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsProductModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  SKU / Code
-                </label>
-                <input
-                  type="text"
-                  value={prodSku}
-                  onChange={(e) => setProdSku(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Category
-                </label>
-                <SearchableDropdown
-                  options={savedCategories}
-                  value={prodCategory}
-                  onChange={setProdCategory}
-                  onAddNew={(v) => addToDropdownPresets('savedCategories', v)}
-                  onDeleteOption={(v) => removeFromDropdownPresets('savedCategories', v)}
-                  placeholder="Select or add category..."
-                  allowDelete={!isViewer}
-                  compact={true}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Product Name
-              </label>
-              <input
-                type="text"
-                value={prodName}
-                onChange={(e) => setProdName(e.target.value)}
-                placeholder="e.g. PVC Edge Banding 22mm Oak"
-                className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Stock Units
-                </label>
-                <input
-                  type="number"
-                  value={prodStock}
-                  onChange={(e) => setProdStock(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Min Alert
-                </label>
-                <input
-                  type="number"
-                  value={prodMinStock}
-                  onChange={(e) => setProdMinStock(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Unit Price ($)
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={prodPrice}
-                  onChange={(e) => setProdPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Location / Bay
-              </label>
-              <SearchableDropdown
-                options={savedLocations}
-                value={prodLocation}
-                onChange={setProdLocation}
-                onAddNew={(v) => addToDropdownPresets('savedLocations', v)}
-                onDeleteOption={(v) => removeFromDropdownPresets('savedLocations', v)}
-                placeholder="Select or add location/bay..."
-                allowDelete={!isViewer}
-                compact={true}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setIsProductModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md"
-              >
-                Save Product
-              </button>
-            </div>
-          </form>
-        </div>
+      {/* ============ MODALS ============ */}
+      {modal.type === 'newShipment' && (
+        <NewShipmentModal
+          onClose={closeModal}
+          onSave={(input) => {
+            const res = wh.addShipment(input);
+            if (res.ok) {
+              logActivity('SHIPMENT_REGISTERED', `Incoming shipment from ${input.supplier} registered`, undefined, 'inventory');
+              closeModal();
+            }
+            return res;
+          }}
+        />
       )}
 
-      {/* MODAL: ADD SHIPMENT */}
-      {isShipmentModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setIsShipmentModalOpen(false)}
-        >
-          <form
-            onSubmit={handleSaveShipment}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl space-y-4"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Dispatch New Pipeline Shipment
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsShipmentModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {modal.type === 'allocate' && (() => {
+        const sh = wh.shipments.find((x) => x.id === modal.shipmentId);
+        const item = sh?.items.find((i) => i.id === modal.itemId);
+        if (!sh || !item) return null;
+        const left = Math.max(0, item.receivedQty - allocatedQtyForItem(wh.allocations, sh.id, item.id));
+        return (
+          <AllocateModal
+            title={`Allocate ${item.description}`}
+            subtitle={`${sh.batchCode} - ${fmtQty(left)} ${item.unit} left to put away`}
+            max={left}
+            unit={item.unit}
+            locations={wh.locations.filter((l) => l.kind === 'storage')}
+            onClose={closeModal}
+            onSave={(locationId, qty) => {
+              const res = wh.allocateFromShipment(sh.id, item.id, locationId, qty, userName);
+              if (res.ok) closeModal();
+              return res;
+            }}
+          />
+        );
+      })()}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Tracking Code
-                </label>
-                <input
-                  type="text"
-                  value={shipTracking}
-                  onChange={(e) => setShipTracking(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  value={shipQty}
-                  onChange={(e) => setShipQty(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Destination City / Client Site
-              </label>
-              <input
-                type="text"
-                value={shipDest}
-                onChange={(e) => setShipDest(e.target.value)}
-                placeholder="e.g. Erbil Central Warehouse / Sulaymaniyah Project"
-                className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Cargo Summary / Content
-              </label>
-              <textarea
-                rows={2}
-                value={shipSummary}
-                onChange={(e) => setShipSummary(e.target.value)}
-                placeholder="e.g. 50x Green MR MDF sheets + PVC edge rolls"
-                className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Initial Status
-              </label>
-              <select
-                value={shipStatus}
-                onChange={(e) => setShipStatus(e.target.value as ShipmentStatus)}
-                className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-              >
-                <option value="pending">Pending</option>
-                <option value="in_transit">In Transit</option>
-                <option value="delivered">Delivered</option>
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setIsShipmentModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md"
-              >
-                Dispatch Shipment
-              </button>
-            </div>
-          </form>
-        </div>
+      {modal.type === 'openingStock' && (
+        <OpeningStockModal
+          locations={wh.locations}
+          onClose={closeModal}
+          onSave={(name, unit, qty, locationId) => {
+            const res = wh.addManualAllocation(name, unit, qty, locationId, userName);
+            if (res.ok) closeModal();
+            return res;
+          }}
+        />
       )}
 
-      {/* DROPDOWN OPTIONS MANAGER MODAL */}
-      <DropdownManagerModal
-        isOpen={isDropdownManagerOpen}
-        onClose={() => setIsDropdownManagerOpen(false)}
-        initialTab="savedCategories"
-      />
+      {modal.type === 'transfer' && (() => {
+        const src = wh.allocations.find((a) => a.id === modal.allocationId);
+        if (!src) return null;
+        return (
+          <TransferModal
+            source={src}
+            fromLabel={wh.locationLabel(src.locationId)}
+            locations={wh.locations.filter((l) => l.id !== src.locationId)}
+            onClose={closeModal}
+            onSave={(toId, qty, reason, note) => {
+              const res = wh.transferStock(src.id, toId, qty, reason, note, userName);
+              if (res.ok) {
+                logActivity('STOCK_TRANSFER', `${fmtQty(qty)} ${src.unit} ${src.itemName}: ${wh.locationLabel(src.locationId)} to ${wh.locationLabel(toId)} (${reason})`, undefined, 'inventory');
+                closeModal();
+              }
+              return res;
+            }}
+          />
+        );
+      })()}
     </div>
+  );
+};
+
+// =====================================================================
+// Location manager (add / remove racks and bays)
+// =====================================================================
+const LocationManager: React.FC<{ canWrite: boolean }> = ({ canWrite }) => {
+  const wh = useWarehouseOps();
+  const [warehouse, setWarehouse] = useState('');
+  const [rack, setRack] = useState('');
+  const [row, setRow] = useState('');
+  const [error, setError] = useState('');
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = wh.addLocation(autoCapitalizeFirstLetter(warehouse), autoCapitalizeFirstLetter(rack), autoCapitalizeFirstLetter(row));
+    if (res.ok) {
+      setRack('');
+      setRow('');
+      setError('');
+    } else {
+      setError(res.error);
+    }
+  };
+
+  const warehouses = useMemo(() => Array.from(new Set(wh.locations.map((l) => l.warehouse))), [wh.locations]);
+
+  return (
+    <aside className="space-y-4">
+      <h2 className="text-sm font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">Storage Zones</h2>
+      {canWrite && (
+        <form onSubmit={submit} className="p-4 rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div>
+            <label className={labelCls} htmlFor="loc-wh">Warehouse</label>
+            <input id="loc-wh" list="loc-wh-list" className={inputCls} value={warehouse} onChange={(e) => setWarehouse(e.target.value)} placeholder="Warehouse A" />
+            <datalist id="loc-wh-list">
+              {warehouses.map((w) => (
+                <option key={w} value={w} />
+              ))}
+            </datalist>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls} htmlFor="loc-rack">Rack / Bay</label>
+              <input id="loc-rack" className={inputCls} value={rack} onChange={(e) => setRack(e.target.value)} placeholder="Rack 04" />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="loc-row">Row</label>
+              <input id="loc-row" className={inputCls} value={row} onChange={(e) => setRow(e.target.value)} placeholder="Row 2" />
+            </div>
+          </div>
+          <FormError message={error} />
+          <button type="submit" className={`${primaryBtn} w-full`}>
+            <Plus className="w-4 h-4" /> Add Location
+          </button>
+        </form>
+      )}
+      <ul className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+        {wh.locations.map((l) => (
+          <li key={l.id} className="px-4 py-2.5 flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{formatLocationLabel(l)}</span>
+            {canWrite && l.kind === 'storage' && (
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                onClick={() => {
+                  const res = wh.removeLocation(l.id);
+                  if (!res.ok) setError(res.error);
+                }}
+                aria-label={`Remove ${formatLocationLabel(l)}`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+};
+
+// =====================================================================
+// Modals
+// =====================================================================
+interface DraftItem {
+  key: number;
+  description: string;
+  unit: string;
+  expectedQty: string;
+  receivedQty: string;
+}
+
+const NewShipmentModal: React.FC<{
+  onClose: () => void;
+  onSave: (input: {
+    supplier: string;
+    supplierContact: string;
+    originCountry: string;
+    arrivalDate: string;
+    status: InboundStatus;
+    notes: string;
+    items: Array<{ description: string; unit: string; expectedQty: number; receivedQty: number }>;
+  }) => { ok: true } | { ok: false; error: string };
+}> = ({ onClose, onSave }) => {
+  const [supplier, setSupplier] = useState('');
+  const [contact, setContact] = useState('');
+  const [origin, setOrigin] = useState('');
+  const [arrival, setArrival] = useState(new Date().toISOString().slice(0, 10));
+  const [status, setStatus] = useState<InboundStatus>('pending');
+  const [notes, setNotes] = useState('');
+  const [items, setItems] = useState<DraftItem[]>([{ key: 1, description: '', unit: 'pcs', expectedQty: '', receivedQty: '' }]);
+  const [error, setError] = useState('');
+
+  const updateItem = (key: number, patch: Partial<DraftItem>) =>
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = onSave({
+      supplier: autoCapitalizeFirstLetter(supplier),
+      supplierContact: contact,
+      originCountry: autoCapitalizeFirstLetter(origin),
+      arrivalDate: arrival,
+      status,
+      notes,
+      items: items.map((i) => {
+        const expected = toNum(i.expectedQty);
+        const received = i.receivedQty === '' ? (status === 'received' || status === 'inspected' ? expected : 0) : toNum(i.receivedQty);
+        return { description: autoCapitalizeFirstLetter(i.description), unit: i.unit, expectedQty: expected, receivedQty: received };
+      }),
+    });
+    if (!res.ok) setError(res.error);
+  };
+
+  return (
+    <ModalShell title="New Incoming Shipment" onClose={onClose} wide>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls} htmlFor="ns-supplier">Supplier</label>
+            <input id="ns-supplier" className={inputCls} value={supplier} onChange={(e) => setSupplier(e.target.value)} autoFocus />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="ns-contact">Supplier Contact</label>
+            <input id="ns-contact" className={inputCls} value={contact} onChange={(e) => setContact(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="ns-origin">Origin Country</label>
+            <input id="ns-origin" className={inputCls} value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Turkey" />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="ns-arrival">Arrival Date</label>
+            <input id="ns-arrival" type="date" className={inputCls} value={arrival} onChange={(e) => setArrival(e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls} htmlFor="ns-status">Customs / Arrival Status</label>
+            <select id="ns-status" className={inputCls} value={status} onChange={(e) => setStatus(e.target.value as InboundStatus)}>
+              {INBOUND_STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_META[s].label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className={labelCls}>Items</span>
+            <button
+              type="button"
+              className={ghostBtn}
+              onClick={() => setItems((p) => [...p, { key: Math.max(...p.map((x) => x.key)) + 1, description: '', unit: 'pcs', expectedQty: '', receivedQty: '' }])}
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Item
+            </button>
+          </div>
+          {items.map((i) => (
+            <div key={i.key} className="grid grid-cols-12 gap-2 items-end p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+              <div className="col-span-12 sm:col-span-5">
+                <label className={labelCls}>Description</label>
+                <input className={inputCls} value={i.description} onChange={(e) => updateItem(i.key, { description: e.target.value })} />
+              </div>
+              <div className="col-span-3 sm:col-span-2">
+                <label className={labelCls}>Unit</label>
+                <input className={inputCls} value={i.unit} onChange={(e) => updateItem(i.key, { unit: e.target.value })} />
+              </div>
+              <div className="col-span-4 sm:col-span-2">
+                <label className={labelCls}>Expected</label>
+                <input type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={i.expectedQty} onChange={(e) => updateItem(i.key, { expectedQty: e.target.value })} />
+              </div>
+              <div className="col-span-4 sm:col-span-2">
+                <label className={labelCls}>Received</label>
+                <input type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={i.receivedQty} onChange={(e) => updateItem(i.key, { receivedQty: e.target.value })} />
+              </div>
+              <div className="col-span-1 flex justify-end">
+                {items.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setItems((p) => p.filter((x) => x.key !== i.key))}
+                    className="w-10 h-10 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 inline-flex items-center justify-center cursor-pointer"
+                    aria-label="Remove item"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <label className={labelCls} htmlFor="ns-notes">Notes</label>
+          <textarea id="ns-notes" rows={2} className={`${inputCls} h-auto py-2`} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+
+        <FormError message={error} />
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" className={ghostBtn} onClick={onClose}>Cancel</button>
+          <button type="submit" className={primaryBtn}>Register Shipment</button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+};
+
+type SaveResult = { ok: true } | { ok: false; error: string };
+
+const AllocateModal: React.FC<{
+  title: string;
+  subtitle: string;
+  max: number;
+  unit: string;
+  locations: Array<{ id: string; warehouse: string; rack: string; row: string }>;
+  onClose: () => void;
+  onSave: (locationId: string, qty: number) => SaveResult;
+}> = ({ title, subtitle, max, unit, locations, onClose, onSave }) => {
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? '');
+  const [qty, setQty] = useState(String(max));
+  const [error, setError] = useState('');
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = onSave(locationId, toNum(qty));
+    if (!res.ok) setError(res.error);
+  };
+
+  return (
+    <ModalShell title={title} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{subtitle}</p>
+        <div>
+          <label className={labelCls} htmlFor="al-loc">Storage Location</label>
+          <select id="al-loc" className={inputCls} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {formatLocationLabel(l)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="al-qty">Quantity ({unit})</label>
+          <input id="al-qty" type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
+        </div>
+        <FormError message={error} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className={ghostBtn} onClick={onClose}>Cancel</button>
+          <button type="submit" className={primaryBtn}>Put Away</button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+};
+
+const OpeningStockModal: React.FC<{
+  locations: Array<{ id: string; warehouse: string; rack: string; row: string }>;
+  onClose: () => void;
+  onSave: (name: string, unit: string, qty: number, locationId: string) => SaveResult;
+}> = ({ locations, onClose, onSave }) => {
+  const [name, setName] = useState('');
+  const [unit, setUnit] = useState('pcs');
+  const [qty, setQty] = useState('');
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? '');
+  const [error, setError] = useState('');
+
+  return (
+    <ModalShell title="Record Opening Stock" onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const res = onSave(autoCapitalizeFirstLetter(name), unit, toNum(qty), locationId);
+          if (!res.ok) setError(res.error);
+        }}
+        className="space-y-4"
+      >
+        <p className="text-xs text-slate-500 dark:text-slate-400">For stock that was in the warehouse before shipment tracking. Logged as an Audit Adjustment.</p>
+        <div>
+          <label className={labelCls} htmlFor="os-name">Item</label>
+          <input id="os-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls} htmlFor="os-qty">Quantity</label>
+            <input id="os-qty" type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="os-unit">Unit</label>
+            <input id="os-unit" className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="os-loc">Location</label>
+          <select id="os-loc" className={inputCls} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {formatLocationLabel(l)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <FormError message={error} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className={ghostBtn} onClick={onClose}>Cancel</button>
+          <button type="submit" className={primaryBtn}>Record</button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+};
+
+const TransferModal: React.FC<{
+  source: StockAllocation;
+  fromLabel: string;
+  locations: Array<{ id: string; warehouse: string; rack: string; row: string }>;
+  onClose: () => void;
+  onSave: (toLocationId: string, qty: number, reason: TransferReason | '', note: string) => SaveResult;
+}> = ({ source, fromLabel, locations, onClose, onSave }) => {
+  const [toId, setToId] = useState(locations[0]?.id ?? '');
+  const [qty, setQty] = useState(String(source.quantity));
+  const [reason, setReason] = useState<TransferReason | ''>('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+
+  return (
+    <ModalShell title={`Move ${source.itemName}`} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const res = onSave(toId, toNum(qty), reason, note);
+          if (!res.ok) setError(res.error);
+        }}
+        className="space-y-4"
+      >
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs">
+          <div className="font-bold text-slate-500 uppercase text-[10px] tracking-wide">From</div>
+          <div className="font-semibold text-slate-900 dark:text-white">{fromLabel}</div>
+          <div className="mt-1 font-mono text-slate-500">{fmtQty(source.quantity)} {source.unit} available</div>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="tr-to">Destination</label>
+          <select id="tr-to" className={inputCls} value={toId} onChange={(e) => setToId(e.target.value)}>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {formatLocationLabel(l)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls} htmlFor="tr-qty">Quantity ({source.unit})</label>
+            <input id="tr-qty" type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="tr-reason">Reason (required)</label>
+            <select id="tr-reason" className={inputCls} value={reason} onChange={(e) => setReason(e.target.value as TransferReason | '')} required>
+              <option value="">Select reason...</option>
+              {TRANSFER_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="tr-note">Note</label>
+          <input id="tr-note" className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        <FormError message={error} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className={ghostBtn} onClick={onClose}>Cancel</button>
+          <button type="submit" className={primaryBtn}>Confirm Transfer</button>
+        </div>
+      </form>
+    </ModalShell>
   );
 };
 

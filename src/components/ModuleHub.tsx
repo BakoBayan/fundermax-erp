@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import {
   Layers,
@@ -22,6 +23,7 @@ import {
   Lock
 } from 'lucide-react';
 import { PlatformModule } from '../types/inventory';
+import { useWarehouseOps } from '../hooks/useWarehouseOps';
 
 interface ModuleHubProps {
   onSelectModule?: (module: PlatformModule) => void;
@@ -38,8 +40,6 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     language,
     stats,
     transactions,
-    products,
-    shipments,
     activityLogs,
     backups,
     openVisualCharts,
@@ -158,121 +158,142 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     (sum, tx) => sum + (tx.combinedTotalDebt || tx.amountOwed || 0),
     0
   );
-  const activeShipmentsCount = shipments.filter((s) => s.status !== 'delivered').length;
-  const lowStockGoodsCount = products.filter(
-    (p) => p.currentStock <= p.minStock || p.lane === 'lowStock' || p.lane === 'outOfStock'
-  ).length;
+  const warehouseOps = useWarehouseOps();
+  const customsShipmentsCount = warehouseOps.activeShipments.filter((s) => s.status === 'customs').length;
+  const rackedUnitsCount = warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
 
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0, normX: 0, normY: 0 });
-  const [isHovering, setIsHovering] = useState(false);
+  // Ambient background: pointer tracking is written straight to CSS variables via
+  // requestAnimationFrame (no React re-render per mouse event, no layout thrashing).
+  const containerRef = useRef<HTMLDivElement>(null);
+  const ambientRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const pointerRef = useRef({ clientX: 0, clientY: 0, active: false });
+
+  const flushPointer = useCallback(() => {
+    rafRef.current = null;
+    const container = containerRef.current;
+    const ambient = ambientRef.current;
+    if (!container || !ambient) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const { clientX, clientY, active } = pointerRef.current;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const normX = active ? Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1)) : 0;
+    const normY = active ? Math.max(-1, Math.min(1, (y / rect.height) * 2 - 1)) : 0;
+    ambient.style.setProperty('--mouse-x', normX.toFixed(3));
+    ambient.style.setProperty('--mouse-y', normY.toFixed(3));
+    ambient.style.setProperty('--spot-x', active ? `${x.toFixed(0)}px` : '50%');
+    ambient.style.setProperty('--spot-y', active ? `${y.toFixed(0)}px` : '30%');
+    ambient.style.setProperty('--spot-opacity', active ? '1' : '0.45');
+  }, []);
+
+  const schedulePointerFlush = useCallback(() => {
+    if (rafRef.current === null) {
+      rafRef.current = window.requestAnimationFrame(flushPointer);
+    }
+  }, [flushPointer]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const normX = Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1));
-    const normY = Math.max(-1, Math.min(1, (y / rect.height) * 2 - 1));
-    setMousePos({ x, y, normX, normY });
-    if (!isHovering) setIsHovering(true);
+    pointerRef.current = { clientX: e.clientX, clientY: e.clientY, active: true };
+    schedulePointerFlush();
   };
 
   const handleMouseLeave = () => {
-    setIsHovering(false);
-    setMousePos((prev) => ({ ...prev, normX: 0, normY: 0 }));
+    pointerRef.current.active = false;
+    schedulePointerFlush();
   };
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   return (
     <div
+      ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className="relative w-full overflow-hidden min-h-[calc(100vh-100px)] bg-white dark:bg-slate-900"
     >
       {/* ========================================================================= */}
-      {/* REFINED AMBIENT BACKGROUND (Clean, White Primary, Subtle & Balanced)      */}
+      {/* DYNAMIC AMBIENT BACKGROUND (GPU-composited, pointer-events-none, z-0)       */}
       {/* ========================================================================= */}
-      <div className="absolute inset-0 pointer-events-none select-none overflow-hidden z-0" aria-hidden="true">
-        {/* Soft, Delicate Interactive Cursor Mesh (Subtle Soft Lighting Accent, Not Harsh or Distracting) */}
-        <div
-          className="absolute inset-0 pointer-events-none transition-opacity duration-500 ease-out z-0"
-          style={{
-            opacity: isHovering ? 0.65 : 0.2,
-            background: `radial-gradient(360px circle at ${mousePos.x || '50%'}px ${mousePos.y || '30%'}px, rgba(16, 185, 129, 0.05), rgba(14, 165, 233, 0.035), transparent 70%)`,
-          }}
-        />
+      <div ref={ambientRef} className="ambient-layer pointer-events-none select-none z-0" aria-hidden="true">
+        {/* Cursor spotlight */}
+        <div className="ambient-spot absolute inset-0 pointer-events-none" />
 
-        {/* Ambient Orb 1: Soft Emerald Whisper (Traverses Left-to-Right in & out of screen borders) */}
-        <div
-          className="absolute top-0 left-0 pointer-events-none transition-transform duration-700 ease-out"
-          style={{
-            transform: `translate3d(${mousePos.normX * -20}px, ${mousePos.normY * -15}px, 0)`,
-          }}
-        >
+        {/* Vibrant orb 1: emerald (traverses left to right) */}
+        <div className="absolute top-0 left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': -26, '--depth-y': -18 } as React.CSSProperties}>
           <div className="animate-traverse-lr-1 pointer-events-none">
-            <div className="w-[480px] sm:w-[620px] h-[480px] sm:h-[620px] rounded-full bg-gradient-to-br from-emerald-500/[0.05] via-teal-400/[0.025] to-transparent blur-3xl animate-float-slow" />
+            <div className="w-[480px] sm:w-[640px] h-[480px] sm:h-[640px] rounded-full bg-gradient-to-br from-emerald-500/30 via-teal-400/15 to-transparent dark:from-emerald-500/25 dark:via-teal-400/12 blur-3xl animate-float-slow" />
           </div>
         </div>
 
-        {/* Ambient Orb 2: Soft Sky Whisper (Traverses Right-to-Left in & out of screen borders) */}
-        <div
-          className="absolute top-16 left-0 pointer-events-none transition-transform duration-700 ease-out"
-          style={{
-            transform: `translate3d(${mousePos.normX * 20}px, ${mousePos.normY * 18}px, 0)`,
-          }}
-        >
+        {/* Vibrant orb 2: sky (traverses right to left) */}
+        <div className="absolute top-16 left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': 28, '--depth-y': 20 } as React.CSSProperties}>
           <div className="animate-traverse-rl-1 pointer-events-none">
-            <div className="w-[440px] sm:w-[560px] h-[440px] sm:h-[560px] rounded-full bg-gradient-to-bl from-sky-500/[0.04] via-slate-400/[0.015] to-transparent blur-3xl animate-float-reverse" />
+            <div className="w-[440px] sm:w-[580px] h-[440px] sm:h-[580px] rounded-full bg-gradient-to-bl from-sky-500/28 via-indigo-400/12 to-transparent dark:from-sky-500/22 dark:via-indigo-400/10 blur-3xl animate-float-reverse" />
           </div>
         </div>
 
-        {/* Ambient Orb 3: Light Neutral Gradient (Traverses Top-to-Bottom in & out of screen borders) */}
-        <div
-          className="absolute top-0 left-1/4 pointer-events-none transition-transform duration-700 ease-out"
-          style={{
-            transform: `translate3d(${mousePos.normX * -15}px, ${mousePos.normY * 15}px, 0)`,
-          }}
-        >
+        {/* Vibrant orb 3: amber/violet (traverses top to bottom) */}
+        <div className="absolute top-0 left-1/4 pointer-events-none ambient-parallax" style={{ '--depth-x': -18, '--depth-y': 22 } as React.CSSProperties}>
           <div className="animate-traverse-tb-1 pointer-events-none">
-            <div className="w-[400px] sm:w-[500px] h-[400px] sm:h-[500px] rounded-full bg-gradient-to-r from-emerald-500/[0.035] via-sky-500/[0.025] to-transparent blur-3xl animate-float-diag" />
+            <div className="w-[380px] sm:w-[500px] h-[380px] sm:h-[500px] rounded-full bg-gradient-to-r from-amber-400/22 via-fuchsia-400/12 to-transparent dark:from-amber-400/16 dark:via-fuchsia-400/10 blur-3xl animate-float-diag" />
           </div>
         </div>
 
-        {/* Delicate Architectural Frosted Shape 1 (Glides in & out across horizontal borders) */}
-        <div
-          className="absolute top-[22%] left-0 pointer-events-none transition-transform duration-500 ease-out"
-          style={{
-            transform: `translate3d(${mousePos.normX * 30}px, ${mousePos.normY * 25}px, 0)`,
-          }}
-        >
+        {/* Architectural grid: fine blueprint lines */}
+        <div className="ambient-blueprint absolute inset-0 pointer-events-none ambient-parallax" style={{ '--depth-x': 5, '--depth-y': 5 } as React.CSSProperties} />
+
+        {/* Dot grid */}
+        <div className="ambient-dots absolute inset-0 pointer-events-none ambient-parallax text-slate-900 dark:text-white" style={{ '--depth-x': 9, '--depth-y': 9 } as React.CSSProperties} />
+
+        {/* Floating geometric diamond (large, outlined) */}
+        <div className="absolute top-[14%] right-[10%] pointer-events-none ambient-parallax" style={{ '--depth-x': -34, '--depth-y': 30 } as React.CSSProperties}>
+          <div className="animate-drift-up-1 pointer-events-none">
+            <div className="w-28 h-28 rotate-45 rounded-2xl border-2 border-emerald-500/35 dark:border-emerald-400/30 bg-gradient-to-br from-emerald-400/15 to-transparent" />
+          </div>
+        </div>
+
+        {/* Floating diamond (small, filled) */}
+        <div className="absolute top-[58%] left-[7%] pointer-events-none ambient-parallax" style={{ '--depth-x': 32, '--depth-y': -26 } as React.CSSProperties}>
+          <div className="animate-drift-up-2 pointer-events-none">
+            <div className="w-14 h-14 rotate-45 rounded-lg bg-gradient-to-br from-sky-500/30 to-indigo-500/10 border border-sky-500/30" />
+          </div>
+        </div>
+
+        {/* Glass orb with inner ring */}
+        <div className="absolute top-[30%] left-[12%] pointer-events-none ambient-parallax" style={{ '--depth-x': -40, '--depth-y': -32 } as React.CSSProperties}>
+          <div className="animate-orbit-slow pointer-events-none">
+            <div className="w-20 h-20 rounded-full border border-amber-500/35 bg-gradient-to-br from-amber-400/25 to-transparent flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full border border-amber-500/30" />
+            </div>
+          </div>
+        </div>
+
+        {/* Architectural frosted slab */}
+        <div className="absolute top-[22%] left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': 30, '--depth-y': 25 } as React.CSSProperties}>
           <div className="animate-traverse-lr-2 pointer-events-none">
-            <div className="w-20 h-20 rounded-2xl border border-slate-200/50 dark:border-slate-700/40 bg-white/30 dark:bg-slate-800/20 backdrop-blur-xs shadow-2xs rotate-6 flex items-center justify-center">
-              <div className="w-10 h-10 rounded-xl border border-slate-200/35 dark:border-slate-700/25" />
+            <div className="w-24 h-24 rounded-2xl border border-slate-300/60 dark:border-slate-600/50 bg-white/35 dark:bg-slate-800/30 shadow-2xs rotate-6 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl border border-slate-300/50 dark:border-slate-600/40" />
             </div>
           </div>
         </div>
 
-        {/* Delicate Architectural Frosted Shape 2 (Glides across opposing borders) */}
-        <div
-          className="absolute top-[36%] left-0 pointer-events-none transition-transform duration-500 ease-out"
-          style={{
-            transform: `translate3d(${mousePos.normX * -30}px, ${mousePos.normY * -25}px, 0)`,
-          }}
-        >
-          <div className="animate-traverse-rl-2 pointer-events-none">
-            <div className="w-18 h-18 rounded-full border border-slate-200/50 dark:border-slate-700/40 bg-white/30 dark:bg-slate-800/20 backdrop-blur-xs shadow-2xs flex items-center justify-center">
-              <div className="w-9 h-9 rounded-full border border-slate-200/35 dark:border-slate-700/25" />
+        {/* Frosted ring */}
+        <div className="absolute top-[40%] right-[6%] pointer-events-none ambient-parallax" style={{ '--depth-x': -30, '--depth-y': -25 } as React.CSSProperties}>
+          <div className="animate-orbit-reverse pointer-events-none">
+            <div className="w-24 h-24 rounded-full border-2 border-dashed border-sky-500/30 dark:border-sky-400/25 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400/25 to-transparent" />
             </div>
           </div>
         </div>
 
-        {/* Architectural Subtle Grid Overlay (Ultra-Low Contrast for Clean White Feel) */}
-        <div
-          className="absolute inset-0 opacity-[0.025] dark:opacity-[0.05] pointer-events-none transition-transform duration-300 ease-out"
-          style={{
-            backgroundImage: `radial-gradient(currentColor 1px, transparent 1px)`,
-            backgroundSize: '24px 24px',
-            transform: `translate3d(${mousePos.normX * 5}px, ${mousePos.normY * 5}px, 0)`,
-          }}
-        />
+        {/* Light beam sweep */}
+        <div className="absolute left-1/2 top-1/2 w-[140%] h-24 bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent pointer-events-none animate-light-sweep" />
       </div>
 
       {/* ========================================================================= */}
@@ -315,7 +336,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               )}
             </span>
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-wide font-mono">
-              Bako&apos;s Master System • v1.3
+              Bako&apos;s Master System • {APP_CONFIG.version}
             </span>
             <span className="text-slate-300 dark:text-slate-600">|</span>
             <span
@@ -377,7 +398,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
               title={isKu ? 'داواکردنی پڕۆژە لە باکۆ بەیان' : 'Commission Custom Projects with Bako'}
             >
-              <span>v1.3</span>
+              <span>{APP_CONFIG.version}</span>
               <span className="text-[10px] text-slate-400 font-mono">({isKu ? 'مافەکان' : 'All Rights Reserved'})</span>
             </button>
           </div>
@@ -398,8 +419,8 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
 
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-slate-200/70 dark:border-slate-700/70 text-slate-700 dark:text-slate-300 shadow-2xs">
               <Package className="w-3.5 h-3.5 text-amber-500" />
-              <span className="font-bold text-slate-900 dark:text-white font-mono">{products.length}</span>
-              <span>Hardware</span>
+              <span className="font-bold text-slate-900 dark:text-white font-mono">{warehouseOps.activeShipments.length}</span>
+              <span>Shipments</span>
             </div>
 
             {/* 4. SQLite WAL Health & Latency Pill (Shortened by Default, Expands on Click) */}
@@ -795,8 +816,8 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                 {isKu
-                  ? 'پێداویستی، قەراغ (PVC Edging)، پۆلێنکردنی خانەکان، و بەدواداچوونی بارە گەیشتووەکان.'
-                  : 'PVC edge banding, joinery hardware, warehouse bay locations, and shipping transit pipeline.'}
+                  ? 'بارە گەیشتووەکانی کۆمپانیا، دابەشکردنی شوێنی کۆگا، و تۆماری گواستنەوەی چاودێریکراو.'
+                  : 'Incoming company shipments, warehouse rack and bay allocation, and audited stock transfers.'}
               </p>
             </div>
 
@@ -805,21 +826,21 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 mb-5 text-center">
                 <div>
                   <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                    {products.length}
+                    {warehouseOps.activeShipments.length}
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'کەلوپەل' : 'Products'}</div>
+                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'بارە گەیشتووەکان' : 'Shipments'}</div>
                 </div>
                 <div className="border-x border-slate-200 dark:border-slate-800">
                   <div className="text-base sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
-                    {lowStockGoodsCount}
+                    {customsShipmentsCount}
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'کەمبووەوە' : 'Low Stock'}</div>
+                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'گومرگ' : 'In Customs'}</div>
                 </div>
                 <div>
                   <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                    {activeShipmentsCount}
+                    {rackedUnitsCount.toLocaleString()}
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'لە ڕێگایە' : 'In Transit'}</div>
+                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'لە کۆگادا' : 'Units Racked'}</div>
                 </div>
               </div>
 

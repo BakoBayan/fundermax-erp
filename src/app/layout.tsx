@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { APP_CONFIG } from "@/config/appConfig";
 
 export const metadata: Metadata = {
-  title: "Bako's Master System v1.3",
-  description: "Bako's Master System v1.3 - Professional Warehouse & Operations Platform",
+  title: `${APP_CONFIG.name} ${APP_CONFIG.version}`,
+  description: `${APP_CONFIG.name} ${APP_CONFIG.version} - Professional Warehouse & Operations Platform`,
   icons: {
     icon: "/icon.svg",
     apple: "/icon.svg",

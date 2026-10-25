@@ -471,3 +471,71 @@
   }
 }
 
+
+/* ========================================================================= */
+/* AMBIENT BACKGROUND SYSTEM (v1.5) - mouse parallax via CSS variables       */
+/* ========================================================================= */
+.ambient-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  contain: layout paint;
+  --mouse-x: 0;
+  --mouse-y: 0;
+  --spot-x: 50%;
+  --spot-y: 30%;
+  --spot-opacity: 0.45;
+}
+
+.ambient-parallax {
+  --depth-x: 10;
+  --depth-y: 10;
+  will-change: transform;
+  transform: translate3d(calc(var(--mouse-x) * var(--depth-x) * 1px), calc(var(--mouse-y) * var(--depth-y) * 1px), 0);
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ambient-spot {
+  opacity: var(--spot-opacity);
+  background: radial-gradient(
+    420px circle at var(--spot-x) var(--spot-y),
+    rgba(16, 185, 129, 0.2),
+    rgba(14, 165, 233, 0.12) 45%,
+    transparent 72%
+  );
+  transition: opacity 0.5s ease-out;
+}
+
+.ambient-blueprint {
+  opacity: 0.55;
+  background-image:
+    linear-gradient(to right, rgba(100, 116, 139, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100, 116, 139, 0.12) 1px, transparent 1px);
+  background-size: 96px 96px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+}
+
+.ambient-dots {
+  opacity: 0.07;
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.dark .ambient-dots {
+  opacity: 0.1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-layer * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+/* Suspends transitions for one frame while the theme flips (prevents mixed-theme flicker) */
+.no-theme-transition,
+.no-theme-transition *,
+.no-theme-transition *::before,
+.no-theme-transition *::after {
+  transition: none !important;
+}

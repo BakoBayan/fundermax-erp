@@ -1,3 +1,4 @@
+import { APP_CONFIG, APP_VERSION_NUMBER } from '../config/appConfig';
 import { Language } from "../types/inventory";
 
 export const translations = {
@@ -72,7 +73,7 @@ export const translations = {
     dragToPan: "Drag to look around • Scroll to zoom",
     print: "Print",
     printSheetTitle: "BAKO'S PANEL MANAGER — INVENTORY & ORDERS SHEET",
-    copyright: "© 2026 Bako Bayan Madhhar. All rights reserved. • Bako's Master System (v1.3)",
+    copyright: `© 2026 Bako Bayan Madhhar. All rights reserved. • Bako's Master System (${APP_CONFIG.version})`,
     contact: "Contact",
     insufficientStock: "Not enough panels in stock!",
     networkLink: "Network URL",
@@ -223,7 +224,7 @@ export const translations = {
     tableView: "Spreadsheet Table",
 
     // Footprint & Licensing
-    attribution: "Engineered & Maintained by Bako Bayan Madhhar — Version 1.3 (Official Contact: 07705488654)"
+    attribution: `Engineered & Maintained by Bako Bayan Madhhar — Version ${APP_VERSION_NUMBER} (Official Contact: 07705488654)`
   },
   ku: {
     appTitle: "سیستەمی سەرەکی باکۆ (Bako's Master System)",
@@ -296,7 +297,7 @@ export const translations = {
     dragToPan: "ڕابکێشە بۆ جووڵە • سکڕۆڵ بۆ زووم",
     print: "چاپ",
     printSheetTitle: "BAKO'S PANEL MANAGER — ڕاپۆرتی پانێڵەکان",
-    copyright: "© ٢٠٢٦ باکۆ بەیان مەزهەر. هەموو مافەکان پارێزراون • سیستەمی سەرەکی باکۆ (v1.3)",
+    copyright: `© ٢٠٢٦ باکۆ بەیان مەزهەر. هەموو مافەکان پارێزراون • سیستەمی سەرەکی باکۆ (${APP_CONFIG.version})`,
     contact: "پەیوەندی",
     insufficientStock: "پانێڵی پێویست لە کۆگا نییە!",
     networkLink: "بەستەری تۆڕ",
