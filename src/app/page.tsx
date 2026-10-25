@@ -533,9 +533,13 @@ function WarehouseApp() {
   return (
     <div className="relative min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors w-full max-w-full overflow-x-hidden">
       {/* Global Ambient Background Motion Elements (Subtle & Clean on White Primary) */}
-      <div className="fixed inset-0 pointer-events-none select-none overflow-hidden z-0 no-print" aria-hidden="true">
-        <div className="absolute -top-32 -left-32 w-[460px] h-[460px] rounded-full bg-emerald-500/[0.035] dark:bg-emerald-500/[0.08] blur-3xl animate-float-slow" />
-        <div className="absolute top-1/3 -right-32 w-[460px] h-[460px] rounded-full bg-sky-500/[0.03] dark:bg-sky-500/[0.07] blur-3xl animate-float-reverse" />
+      <div
+        className="fixed inset-0 pointer-events-none select-none overflow-hidden z-0 no-print"
+        style={{ contain: 'strict', transform: 'translateZ(0)' }}
+        aria-hidden="true"
+      >
+        <div className="absolute -top-32 -left-32 w-[460px] h-[460px] rounded-full [background:radial-gradient(circle,rgba(16,185,129,0.06)_0%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(16,185,129,0.12)_0%,transparent_70%)] animate-float-slow" />
+        <div className="absolute top-1/3 -right-32 w-[460px] h-[460px] rounded-full [background:radial-gradient(circle,rgba(14,165,233,0.05)_0%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(14,165,233,0.11)_0%,transparent_70%)] animate-float-reverse" />
       </div>
 
       {/* Universal Master Header */}

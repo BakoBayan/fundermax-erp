@@ -163,14 +163,19 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   const rackedUnitsCount = warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
 
   // Ambient background: pointer tracking is written straight to CSS variables via
-  // requestAnimationFrame (no React re-render per mouse event, no layout thrashing).
+  // requestAnimationFrame with dirty-flag checking so it does not recalculate when idle.
   const containerRef = useRef<HTMLDivElement>(null);
   const ambientRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const pointerRef = useRef({ clientX: 0, clientY: 0, active: false });
+  const isDirtyRef = useRef(false);
+  const lastCoordsRef = useRef({ x: -9999, y: -9999, active: false });
 
   const flushPointer = useCallback(() => {
     rafRef.current = null;
+    if (!isDirtyRef.current) return;
+    isDirtyRef.current = false;
+
     const container = containerRef.current;
     const ambient = ambientRef.current;
     if (!container || !ambient) return;
@@ -179,6 +184,13 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     const { clientX, clientY, active } = pointerRef.current;
     const x = clientX - rect.left;
     const y = clientY - rect.top;
+
+    const dx = Math.abs(x - lastCoordsRef.current.x);
+    const dy = Math.abs(y - lastCoordsRef.current.y);
+    if (!active && !lastCoordsRef.current.active) return;
+    if (active && dx < 3 && dy < 3) return;
+
+    lastCoordsRef.current = { x, y, active };
     const normX = active ? Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1)) : 0;
     const normY = active ? Math.max(-1, Math.min(1, (y / rect.height) * 2 - 1)) : 0;
     ambient.style.setProperty('--mouse-x', normX.toFixed(3));
@@ -196,11 +208,13 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     pointerRef.current = { clientX: e.clientX, clientY: e.clientY, active: true };
+    isDirtyRef.current = true;
     schedulePointerFlush();
   };
 
   const handleMouseLeave = () => {
     pointerRef.current.active = false;
+    isDirtyRef.current = true;
     schedulePointerFlush();
   };
 
@@ -227,21 +241,21 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
         {/* Vibrant orb 1: emerald (traverses left to right) */}
         <div className="absolute top-0 left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': -26, '--depth-y': -18 } as React.CSSProperties}>
           <div className="animate-traverse-lr-1 pointer-events-none">
-            <div className="w-[480px] sm:w-[640px] h-[480px] sm:h-[640px] rounded-full bg-gradient-to-br from-emerald-500/30 via-teal-400/15 to-transparent dark:from-emerald-500/25 dark:via-teal-400/12 blur-3xl animate-float-slow" />
+            <div className="w-[480px] sm:w-[640px] h-[480px] sm:h-[640px] rounded-full [background:radial-gradient(circle,rgba(16,185,129,0.22)_0%,rgba(20,184,166,0.1)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(16,185,129,0.18)_0%,rgba(20,184,166,0.08)_45%,transparent_70%)] animate-float-slow" />
           </div>
         </div>
 
         {/* Vibrant orb 2: sky (traverses right to left) */}
         <div className="absolute top-16 left-0 pointer-events-none ambient-parallax" style={{ '--depth-x': 28, '--depth-y': 20 } as React.CSSProperties}>
           <div className="animate-traverse-rl-1 pointer-events-none">
-            <div className="w-[440px] sm:w-[580px] h-[440px] sm:h-[580px] rounded-full bg-gradient-to-bl from-sky-500/28 via-indigo-400/12 to-transparent dark:from-sky-500/22 dark:via-indigo-400/10 blur-3xl animate-float-reverse" />
+            <div className="w-[440px] sm:w-[580px] h-[440px] sm:h-[580px] rounded-full [background:radial-gradient(circle,rgba(14,165,233,0.20)_0%,rgba(99,102,241,0.08)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(14,165,233,0.16)_0%,rgba(99,102,241,0.06)_45%,transparent_70%)] animate-float-reverse" />
           </div>
         </div>
 
         {/* Vibrant orb 3: amber/violet (traverses top to bottom) */}
         <div className="absolute top-0 left-1/4 pointer-events-none ambient-parallax" style={{ '--depth-x': -18, '--depth-y': 22 } as React.CSSProperties}>
           <div className="animate-traverse-tb-1 pointer-events-none">
-            <div className="w-[380px] sm:w-[500px] h-[380px] sm:h-[500px] rounded-full bg-gradient-to-r from-amber-400/22 via-fuchsia-400/12 to-transparent dark:from-amber-400/16 dark:via-fuchsia-400/10 blur-3xl animate-float-diag" />
+            <div className="w-[380px] sm:w-[500px] h-[380px] sm:h-[500px] rounded-full [background:radial-gradient(circle,rgba(251,191,36,0.18)_0%,rgba(232,121,249,0.08)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(251,191,36,0.14)_0%,rgba(232,121,249,0.06)_45%,transparent_70%)] animate-float-diag" />
           </div>
         </div>
 

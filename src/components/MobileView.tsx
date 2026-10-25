@@ -314,8 +314,8 @@ export const MobileView: React.FC<MobileViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Top Action Buttons: Comfortable Touch Targets */}
-                  <div className="flex items-center gap-1 shrink-0">
+                  {/* Top Action Buttons: Comfortable 48px Touch Targets for Workshop Gloves */}
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {/* Print Slip or Toggle Queue */}
                     {(() => {
                       const inQueue = selectedPrintItemIds?.has(`panel-${mat.id}`);
@@ -328,14 +328,14 @@ export const MobileView: React.FC<MobileViewProps> = ({
                               onPrintIndividualItem({ type: "panel", material: mat });
                             }
                           }}
-                          className={`p-2 rounded-xl border transition-colors active:scale-90 ${
+                          className={`min-w-[48px] min-h-[48px] p-2.5 rounded-xl border transition-colors active:scale-90 flex items-center justify-center cursor-pointer ${
                             inQueue
                               ? "bg-emerald-100 text-emerald-800 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200"
                               : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750 border-slate-200 dark:border-slate-700"
                           }`}
                           title={inQueue ? "Remove from Print Queue" : t.printIndividualSlip}
                         >
-                          <Printer className="w-4 h-4" />
+                          <Printer className="w-5 h-5" />
                         </button>
                       );
                     })()}
@@ -344,10 +344,10 @@ export const MobileView: React.FC<MobileViewProps> = ({
                     {!isViewer && (
                       <button
                         onClick={() => onOpenMaterialModal(mat)}
-                        className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 transition-colors active:scale-90"
+                        className="min-w-[48px] min-h-[48px] p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 transition-colors active:scale-90 flex items-center justify-center cursor-pointer"
                         title={t.edit}
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-5 h-5" />
                       </button>
                     )}
 
@@ -363,10 +363,10 @@ export const MobileView: React.FC<MobileViewProps> = ({
                             onConfirm: () => deleteMaterial(mat.id),
                           });
                         }}
-                        className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition-colors active:scale-90"
+                        className="min-w-[48px] min-h-[48px] p-2.5 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition-colors active:scale-90 flex items-center justify-center cursor-pointer"
                         title={t.delete}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     )}
                   </div>
@@ -374,23 +374,23 @@ export const MobileView: React.FC<MobileViewProps> = ({
 
                 {/* 2. Stock Deduction Dashboard: Large clear steppers & high-contrast badges */}
                 <div className="p-3 bg-slate-50/80 dark:bg-slate-850/60 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60">
-                  {/* On-hand Stock with Large Stepper Buttons */}
+                  {/* On-hand Stock with Large Stepper Buttons (48px tap targets for workshop safety) */}
                   <div className="flex items-center gap-2.5">
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                       {t.currentStock}:
                     </span>
                     {!isViewer ? (
-                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1 rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xs">
+                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xs">
                         <button
                           onClick={() => quickStepStock(mat.id, -1)}
                           disabled={mat.availableStock === 0}
-                          className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 disabled:opacity-30 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center active:scale-90 transition-transform hover:bg-slate-200 dark:hover:bg-slate-600"
+                          className="min-w-[48px] min-h-[48px] w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 disabled:opacity-30 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center active:scale-90 transition-transform hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer"
                           title="-1"
                         >
-                          <Minus className="w-4 h-4" />
+                          <Minus className="w-5 h-5" />
                         </button>
                         <span
-                          className={`font-black text-base sm:text-lg min-w-[28px] text-center font-mono ${
+                          className={`font-black text-lg sm:text-xl min-w-[36px] text-center font-mono ${
                             isOutOfStock ? "text-slate-600 dark:text-slate-400" : "text-emerald-800 dark:text-emerald-300"
                           }`}
                         >
@@ -398,10 +398,10 @@ export const MobileView: React.FC<MobileViewProps> = ({
                         </span>
                         <button
                           onClick={() => quickStepStock(mat.id, 1)}
-                          className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center active:scale-90 transition-transform hover:bg-slate-200 dark:hover:bg-slate-600"
+                          className="min-w-[48px] min-h-[48px] w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center active:scale-90 transition-transform hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer"
                           title="+1"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-5 h-5" />
                         </button>
                       </div>
                     ) : (
@@ -622,9 +622,9 @@ export const MobileView: React.FC<MobileViewProps> = ({
                     <button
                       onClick={() => onOpenOrderModal(mat.id)}
                       disabled={isOutOfStock}
-                      className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all"
+                      className="w-full min-h-[48px] py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all cursor-pointer"
                     >
-                      <PackagePlus className="w-4 h-4" />
+                      <PackagePlus className="w-5 h-5" />
                       <span>{t.addOrder}</span>
                     </button>
                   </div>

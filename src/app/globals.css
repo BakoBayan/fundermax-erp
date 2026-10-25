@@ -471,6 +471,61 @@
   }
 }
 
+/* ========================================================================= */
+/* 80mm THERMAL RECEIPT (ESC/POS) PRINT STYLES                               */
+/* ========================================================================= */
+@media print {
+  body.invoice-print-thermal {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.invoice-print-thermal #print-mount-root {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.invoice-print-thermal #print-mount-root > div {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  body.invoice-print-thermal #printable-invoice {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    margin: 0 auto !important;
+    padding: 1.5mm !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 10.5px !important;
+    line-height: 1.25 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  body.invoice-print-thermal * {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #000000 !important;
+    border-color: #000000 !important;
+  }
+
+  body.invoice-print-thermal img {
+    filter: grayscale(100%) contrast(150%) !important;
+    max-width: 68mm !important;
+  }
+}
+
 
 /* ========================================================================= */
 /* AMBIENT BACKGROUND SYSTEM (v1.5) - mouse parallax via CSS variables       */
@@ -479,7 +534,9 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  contain: layout paint;
+  contain: strict;
+  transform: translateZ(0);
+  pointer-events: none;
   --mouse-x: 0;
   --mouse-y: 0;
   --spot-x: 50%;

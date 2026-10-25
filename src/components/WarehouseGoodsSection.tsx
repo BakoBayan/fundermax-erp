@@ -104,18 +104,20 @@ const ModalShell: React.FC<{ title: string; onClose: () => void; children: React
   wide,
 }) => (
   <div
-    className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150 no-print"
+    className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150 no-print select-none"
     onMouseDown={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}
   >
     <div
-      className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[90dvh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl`}
+      className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[85dvh] sm:max-h-[90dvh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150 flex flex-col`}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+      {/* Mobile Pull Pill Indicator */}
+      <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10 shrink-0">
         <h2 className="text-base font-black text-slate-900 dark:text-white">{title}</h2>
         <button
           type="button"
@@ -502,6 +504,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                                 <input
                                   type="number"
                                   inputMode="decimal"
+                                  pattern="[0-9]*"
                                   min={0}
                                   step="any"
                                   defaultValue={it.receivedQty}
@@ -924,11 +927,11 @@ const NewShipmentModal: React.FC<{
               </div>
               <div className="col-span-4 sm:col-span-2">
                 <label className={labelCls}>Expected</label>
-                <input type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={i.expectedQty} onChange={(e) => updateItem(i.key, { expectedQty: e.target.value })} />
+                <input type="number" inputMode="decimal" pattern="[0-9]*" min={0} step="any" className={inputCls} value={i.expectedQty} onChange={(e) => updateItem(i.key, { expectedQty: e.target.value })} />
               </div>
               <div className="col-span-4 sm:col-span-2">
                 <label className={labelCls}>Received</label>
-                <input type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={i.receivedQty} onChange={(e) => updateItem(i.key, { receivedQty: e.target.value })} />
+                <input type="number" inputMode="decimal" pattern="[0-9]*" min={0} step="any" className={inputCls} value={i.receivedQty} onChange={(e) => updateItem(i.key, { receivedQty: e.target.value })} />
               </div>
               <div className="col-span-1 flex justify-end">
                 {items.length > 1 && (
@@ -998,7 +1001,7 @@ const AllocateModal: React.FC<{
         </div>
         <div>
           <label className={labelCls} htmlFor="al-qty">Quantity ({unit})</label>
-          <input id="al-qty" type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
+          <input id="al-qty" type="number" inputMode="decimal" pattern="[0-9]*" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
         </div>
         <FormError message={error} />
         <div className="flex justify-end gap-2">
@@ -1039,7 +1042,7 @@ const OpeningStockModal: React.FC<{
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls} htmlFor="os-qty">Quantity</label>
-            <input id="os-qty" type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
+            <input id="os-qty" type="number" inputMode="decimal" pattern="[0-9]*" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
           </div>
           <div>
             <label className={labelCls} htmlFor="os-unit">Unit</label>
@@ -1107,7 +1110,7 @@ const TransferModal: React.FC<{
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls} htmlFor="tr-qty">Quantity ({source.unit})</label>
-            <input id="tr-qty" type="number" inputMode="decimal" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
+            <input id="tr-qty" type="number" inputMode="decimal" pattern="[0-9]*" min={0} step="any" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
           </div>
           <div>
             <label className={labelCls} htmlFor="tr-reason">Reason (required)</label>

@@ -662,6 +662,8 @@ export const SalesSection: React.FC = () => {
               </label>
               <input
                 type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 step="any"
                 value={manualUsdToIqd}
                 onChange={(e) => setManualUsdToIqd(e.target.value)}
@@ -676,6 +678,8 @@ export const SalesSection: React.FC = () => {
               </label>
               <input
                 type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 step="any"
                 value={manualEurToUsd}
                 onChange={(e) => setManualEurToUsd(e.target.value)}
@@ -690,6 +694,8 @@ export const SalesSection: React.FC = () => {
               </label>
               <input
                 type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 step="any"
                 value={manualEurToIqd}
                 onChange={(e) => setManualEurToIqd(e.target.value)}
@@ -982,11 +988,13 @@ export const SalesSection: React.FC = () => {
               <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Qty</label>
               <input
                 type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 min="1"
                 step="any"
                 value={posDraft.rowQuantity}
                 onChange={(e) => setPosDraft({ ...posDraft, rowQuantity: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                className="w-full min-h-[34px] px-3 py-1 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+                className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
               />
             </div>
 
@@ -996,13 +1004,15 @@ export const SalesSection: React.FC = () => {
               </label>
               <input
                 type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 step="any"
                 value={posDraft.rowPrice}
                 onChange={(e) => setPosDraft({ ...posDraft, rowPrice: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                 placeholder="0.00"
                 readOnly={!userPermissions.canOverridePrice && !userPermissions.canCreateSales}
                 disabled={!userPermissions.canOverridePrice && !userPermissions.canCreateSales}
-                className="w-full min-h-[34px] px-3 py-1 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono disabled:opacity-60"
+                className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono disabled:opacity-60"
               />
             </div>
 
@@ -1084,23 +1094,27 @@ export const SalesSection: React.FC = () => {
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 step="any"
                 value={posDraft.discountDollars}
                 onChange={(e) =>
                   handleDiscountDollarsChange(e.target.value === '' ? '' : parseFloat(e.target.value))
                 }
                 placeholder="Amt"
-                className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono"
+                className="w-full px-2.5 py-2 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono"
               />
               <input
                 type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 step="any"
                 value={posDraft.discountPercentage}
                 onChange={(e) =>
                   handleDiscountPercentChange(e.target.value === '' ? '' : parseFloat(e.target.value))
                 }
                 placeholder="%"
-                className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono"
+                className="w-full px-2.5 py-2 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono"
               />
             </div>
           </div>
@@ -1111,6 +1125,8 @@ export const SalesSection: React.FC = () => {
             </label>
             <input
               type="number"
+              inputMode="decimal"
+              pattern="[0-9]*"
               step="any"
               value={posDraft.amountPaidNow}
               onChange={(e) =>
@@ -1120,7 +1136,7 @@ export const SalesSection: React.FC = () => {
                 })
               }
               placeholder="0.00"
-              className="w-full px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold"
+              className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold"
             />
           </div>
 
@@ -1130,6 +1146,8 @@ export const SalesSection: React.FC = () => {
             </label>
             <input
               type="number"
+              inputMode="decimal"
+              pattern="[0-9]*"
               step="any"
               value={posDraft.oldUnpaidDebt}
               onChange={(e) =>
@@ -1139,7 +1157,7 @@ export const SalesSection: React.FC = () => {
                 })
               }
               placeholder="0.00"
-              className="w-full px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+              className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
             />
           </div>
         </div>
@@ -1377,8 +1395,8 @@ export const SalesSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Ledger Table */}
-        <div className="overflow-x-auto rounded-3xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-850 shadow-xs">
+        {/* Dual Adaptive Layout: Desktop Dense Table (W >= 1024px) */}
+        <div className="hidden lg:block overflow-x-auto rounded-3xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-850 shadow-xs">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
               <tr>
@@ -1455,7 +1473,7 @@ export const SalesSection: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setPrintingTx(tx)}
-                              className="p-1.5 text-slate-500 hover:text-sky-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                              className="p-2 text-slate-500 hover:text-sky-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                               title="Print Invoice Slip"
                             >
                               <Printer className="w-4 h-4" />
@@ -1463,7 +1481,7 @@ export const SalesSection: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => toggleExpandTx(tx.id)}
-                              className="p-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                              className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                               title="Expand line items"
                             >
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1472,7 +1490,7 @@ export const SalesSection: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleEditTx(tx)}
-                                className="p-1.5 text-slate-500 hover:text-amber-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                                className="p-2 text-slate-500 hover:text-amber-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                                 title="Edit Invoice"
                               >
                                 <Edit3 className="w-4 h-4" />
@@ -1486,7 +1504,7 @@ export const SalesSection: React.FC = () => {
                                     deleteTransaction(tx.id);
                                   }
                                 }}
-                                className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                                className="p-2 text-slate-500 hover:text-rose-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                                 title="Delete Invoice"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1541,6 +1559,157 @@ export const SalesSection: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Dual Adaptive Layout: Mobile Cards (W < 1024px) with Oversized Tap Targets (Min 48px) */}
+        <div className="block lg:hidden space-y-3.5">
+          {filteredTransactions.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
+              No sales invoices recorded yet.
+            </div>
+          ) : (
+            filteredTransactions.map((tx) => {
+              const txCur = tx.currency || 'USD';
+              const isExpanded = expandedTxIds.has(tx.id);
+              const isDebt = (tx.combinedTotalDebt || tx.amountOwed || 0) > 0;
+
+              return (
+                <div
+                  key={tx.id}
+                  className="p-4 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-xs space-y-3"
+                >
+                  {/* Top Bar: Code, Date & Status */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-750 pb-2.5">
+                    <div>
+                      <span className="font-mono font-black text-sm text-sky-700 dark:text-sky-400">
+                        #{tx.code || tx.id.slice(-6)}
+                      </span>
+                      <span className="text-xs text-slate-400 ms-2">
+                        {new Date(tx.timestamp).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <span
+                      className={`px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider ${
+                        tx.status === 'completed'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300'
+                          : tx.status === 'partial'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300'
+                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300'
+                      }`}
+                    >
+                      {tx.status}
+                    </span>
+                  </div>
+
+                  {/* Customer / Seller Strip */}
+                  <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 dark:text-slate-400 gap-1.5">
+                    <div>
+                      <span className="text-slate-400 me-1">Seller:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{tx.seller || 'Bako Bayan'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 me-1">Pay:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{tx.bank || tx.paymentType || 'Cash'}</span>
+                    </div>
+                  </div>
+
+                  {/* Summary / Items Preview */}
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs space-y-1.5">
+                    <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                      <span>{tx.material || tx.panelType}</span>
+                      <span className="font-mono text-slate-500 font-medium">
+                        {tx.quantity} {tx.unit} ({tx.sellingType})
+                      </span>
+                    </div>
+                    {tx.items && tx.items.length > 0 && isExpanded && (
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-750 space-y-1.5">
+                        {tx.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-[11px]">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">{item.product}</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">
+                              {item.quantity} × {formatMoney(item.price, txCur)} = {formatMoney(item.total, txCur)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {tx.notes && (
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 italic pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                        {tx.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Financial Breakdown Grid */}
+                  <div className="grid grid-cols-3 gap-2 text-center p-2.5 rounded-2xl bg-slate-100/70 dark:bg-slate-800/80">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Net Total</div>
+                      <div className="font-mono font-black text-xs sm:text-sm text-slate-950 dark:text-white">
+                        {formatMoney(tx.totalAfterDiscount, txCur)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Paid</div>
+                      <div className="font-mono font-black text-xs sm:text-sm text-emerald-700 dark:text-emerald-400">
+                        {formatMoney(tx.amountPaidNow, txCur)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Debt</div>
+                      <div className={`font-mono font-black text-xs sm:text-sm ${isDebt ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                        {isDebt ? formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur) : '0'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Oversized Touch Action Buttons (Min 48px x 48px) */}
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setPrintingTx(tx)}
+                      className="min-h-[48px] px-4 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-2 flex-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>Print Voucher</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandTx(tx.id)}
+                      className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                      title="Expand items"
+                    >
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      <span className="text-[11px]">{isExpanded ? 'Hide' : 'Items'}</span>
+                    </button>
+                    {userPermissions.canEditSales && (
+                      <button
+                        type="button"
+                        onClick={() => handleEditTx(tx)}
+                        className="min-w-[48px] min-h-[48px] rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                        title="Edit Invoice"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {userPermissions.canDeleteSales && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(isKu ? 'ئەم پسوولەیە بسڕدرێتەوە؟' : 'Delete this invoice?')) {
+                            deleteTransaction(tx.id);
+                          }
+                        }}
+                        className="min-w-[48px] min-h-[48px] rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                        title="Delete Invoice"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

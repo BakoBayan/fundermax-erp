@@ -128,27 +128,30 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto select-none"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-0 sm:my-6 max-h-[85dvh] sm:max-h-none flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
       >
+        {/* Mobile Pull Pill Indicator */}
+        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
+
         {/* Header */}
-        <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between">
+        <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between mt-1 sm:mt-0">
           <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">
             {materialToEdit ? t.edit : t.addPanel}
           </h3>
           <button
             onClick={onClose}
-            className="p-1 text-emerald-100 hover:text-white rounded-lg hover:bg-emerald-800 transition-colors"
+            className="p-1.5 text-emerald-100 hover:text-white rounded-lg hover:bg-emerald-800 transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form: Stable typing, no auto-erasing */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3 text-xs sm:text-sm overflow-y-auto flex-1">
           {/* Code & Type */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -255,30 +258,36 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
               <div>
                 <input
                   type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
                   value={length}
                   onChange={(e) => setLength(e.target.value)}
                   placeholder="2440"
-                  className="w-full h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-10 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <span className="block text-[10px] text-center text-slate-400 mt-0.5">L (mm)</span>
               </div>
               <div>
                 <input
                   type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
                   value={width}
                   onChange={(e) => setWidth(e.target.value)}
                   placeholder="1220"
-                  className="w-full h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-10 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <span className="block text-[10px] text-center text-slate-400 mt-0.5">W (mm)</span>
               </div>
               <div>
                 <input
                   type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
                   value={thickness}
                   onChange={(e) => setThickness(e.target.value)}
                   placeholder="18"
-                  className="w-full h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-10 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <span className="block text-[10px] text-center text-slate-400 mt-0.5">T (mm)</span>
               </div>
@@ -292,10 +301,12 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
             </label>
             <input
               type="number"
+              inputMode="decimal"
+              pattern="[0-9]*"
               value={totalStock}
               onChange={(e) => setTotalStock(e.target.value)}
               placeholder="0"
-              className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-10 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
@@ -309,22 +320,22 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="..."
-              className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-10 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          {/* Action Buttons: Oversized tap targets for workshop ergonomic safety */}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold text-xs sm:text-sm transition-colors"
+              className="min-h-[48px] px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-5 py-2 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm"
+              className="min-h-[48px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm cursor-pointer"
             >
               {t.save}
             </button>
@@ -482,27 +493,30 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto select-none"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-0 sm:my-6 max-h-[85dvh] sm:max-h-none flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
       >
+        {/* Mobile Pull Pill Indicator */}
+        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
+
         {/* Header */}
-        <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between">
+        <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between mt-1 sm:mt-0">
           <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">
             {orderToEdit ? t.edit : t.addOrder}
           </h3>
           <button
             onClick={onClose}
-            className="p-1 text-emerald-100 hover:text-white rounded-lg hover:bg-emerald-800 transition-colors"
+            className="p-1.5 text-emerald-100 hover:text-white rounded-lg hover:bg-emerald-800 transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form: Stable typing */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3 text-xs sm:text-sm overflow-y-auto flex-1">
           {errorMsg && (
             <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 text-xs font-bold">
               {errorMsg}
@@ -559,13 +573,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
             <input
               type="number"
+              inputMode="decimal"
+              pattern="[0-9]*"
               required
               min="1"
               max={maxAvailable}
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               placeholder="0"
-              className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-10 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
@@ -635,18 +651,18 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          {/* Action Buttons: Oversized tap targets */}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold text-xs sm:text-sm transition-colors"
+              className="min-h-[48px] px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-5 py-2 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm"
+              className="min-h-[48px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm cursor-pointer"
             >
               {t.save}
             </button>

@@ -785,17 +785,17 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                   </div>
                 )}
 
-                {/* Footer Actions: Comfortable touch targets */}
+                {/* Footer Actions: Oversized 48px touch targets for workshop ergonomics */}
                 <div
-                  className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-750 flex-wrap gap-2"
+                  className="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-750 flex-wrap gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => onSelectOrderForDetails({ order, material })}
-                      className="px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-bold text-xs flex items-center gap-1.5 shadow-2xs active:scale-95 transition-all"
+                      className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-bold text-xs flex items-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
                     >
-                      <Eye className="w-3.5 h-3.5" />
+                      <Eye className="w-4 h-4" />
                       <span>{t.viewDetails}</span>
                     </button>
 
@@ -810,9 +810,9 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                             onConfirm: () => finalizeOrder(material.id, order.id),
                           });
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 text-white font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                        className="flex items-center gap-1.5 min-h-[48px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white font-bold text-xs shadow-2xs active:scale-95 transition-all cursor-pointer"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-4 h-4" />
                         <span>{t.finalize}</span>
                       </button>
                     )}
@@ -831,14 +831,14 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                               onPrintIndividualItem({ type: "order", order, material });
                             }
                           }}
-                          className={`p-2 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center ${
+                          className={`min-w-[48px] min-h-[48px] p-2.5 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center cursor-pointer ${
                             inQueue
                               ? "bg-sky-100 text-sky-800 border-sky-400 dark:bg-sky-950 dark:text-sky-200"
                               : "bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200"
                           }`}
                           title={inQueue ? "Remove from Print Queue" : t.printOrder}
                         >
-                          <Printer className="w-4 h-4" />
+                          <Printer className="w-5 h-5" />
                         </button>
                       );
                     })()}
@@ -847,21 +847,21 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                     {userPermissions.canEditPanels && (
                       <button
                         onClick={() => onOpenOrderModal(material.id, { materialId: material.id, order })}
-                        className="p-2 rounded-xl bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs active:scale-95"
+                        className="min-w-[48px] min-h-[48px] p-2.5 rounded-xl bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs active:scale-95 flex items-center justify-center cursor-pointer"
                         title={t.edit}
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-5 h-5" />
                       </button>
                     )}
 
                     {/* Delete: Strictly unmounted unless canDeletePanels */}
                     {canDeleteMaterial && userPermissions.canDeletePanels && (
-                          <button
-                            onClick={() => {
-                              const confirmMsg = isFinalized
-                                ? t.confirmDeleteFinalizedOrder
-                                : t.confirmDeleteOrder;
-                              requestConfirm({
+                      <button
+                        onClick={() => {
+                          const confirmMsg = isFinalized
+                            ? t.confirmDeleteFinalizedOrder
+                            : t.confirmDeleteOrder;
+                          requestConfirm({
                             title: t.delete,
                             message: confirmMsg,
                             confirmLabel: t.delete,
@@ -869,10 +869,10 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                             onConfirm: () => deleteOrder(material.id, order.id),
                           });
                         }}
-                        className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 shadow-2xs active:scale-95"
+                        className="min-w-[48px] min-h-[48px] p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 shadow-2xs active:scale-95 flex items-center justify-center cursor-pointer"
                         title={t.delete}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     )}
                   </div>

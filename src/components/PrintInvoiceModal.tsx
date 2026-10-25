@@ -60,6 +60,9 @@ export default function PrintInvoiceModal({
   const [resizingImgId, setResizingImgId] = useState<string | null>(null);
   const resizeStartRef = useRef<{ startX: number; startWidth: number; id: string } | null>(null);
 
+  // Print Format: "a4" (Standard Full Voucher) or "thermal80" (80mm ESC/POS thermal counter printer)
+  const [printFormat, setPrintFormat] = useState<'a4' | 'thermal80'>('a4');
+
   // Client hydration check for React Portal
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -112,11 +115,17 @@ export default function PrintInvoiceModal({
   useEffect(() => {
     if (tx) {
       document.body.classList.add('invoice-print-active');
+      if (printFormat === 'thermal80') {
+        document.body.classList.add('invoice-print-thermal');
+      } else {
+        document.body.classList.remove('invoice-print-thermal');
+      }
       return () => {
         document.body.classList.remove('invoice-print-active');
+        document.body.classList.remove('invoice-print-thermal');
       };
     }
-  }, [tx]);
+  }, [tx, printFormat]);
 
   // 1-click helper: auto-shrink images to fit within 1 page
   const handleFitToOnePage = () => {
@@ -275,7 +284,7 @@ export default function PrintInvoiceModal({
   const modalContent = (
     <div 
       id="print-mount-root"
-      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xs flex flex-col items-center justify-start sm:justify-center p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xs flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-150 select-none"
       onClick={(e) => {
         // Clicking backdrop directly exits modal
         if (e.target === e.currentTarget) onClose();
@@ -298,9 +307,11 @@ export default function PrintInvoiceModal({
       {/* MODAL DIALOG CONTAINER                                                    */}
       {/* ========================================================================= */}
       <div 
-        className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl shadow-2xl border overflow-hidden transition-all bg-white text-slate-900 border-slate-200 dark:bg-[#272a33] dark:text-zinc-100 dark:border-[#3b3f4d] print:border-none print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible print:bg-white print:text-black my-auto"
+        className="w-full max-w-2xl max-h-[85dvh] sm:max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border overflow-hidden transition-all bg-white text-slate-900 border-slate-200 dark:bg-[#272a33] dark:text-zinc-100 dark:border-[#3b3f4d] print:border-none print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible print:bg-white print:text-black my-0 sm:my-auto pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Pull Pill Indicator */}
+        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0 print-hide" />
         
         {/* ========================================================================= */}
         {/* 1. TOP CONTROL BAR (Screen Only - Bright, Ultra-Visible Print & Close)    */}
@@ -338,7 +349,35 @@ export default function PrintInvoiceModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Format Switcher: A4 Voucher vs 80mm Thermal ESC/POS */}
+            <div className="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setPrintFormat('a4')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                  printFormat === 'a4'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Standard A4 Voucher"
+              >
+                A4 Voucher
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintFormat('thermal80')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                  printFormat === 'thermal80'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="80mm Thermal Receipt (ESC/POS)"
+              >
+                80mm Thermal
+              </button>
+            </div>
+
             {/* Toggle Image Manager Drawer */}
             <button
               type="button"
@@ -589,49 +628,174 @@ export default function PrintInvoiceModal({
         {/* ========================================================================= */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100 dark:bg-[#1a1c23] print:p-0 print:bg-white print:overflow-visible">
           
-          {/* Warning Banner when contents exceed 1 page (e.g. if images are resized too large) */}
-          {!isSinglePage && invoiceHeight > 0 && (
-            <div className="max-w-xl mx-auto mb-3 p-3 rounded-xl bg-amber-500/15 dark:bg-amber-950/50 border border-amber-500/40 text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2.5 text-xs shadow-xs print-hide animate-in fade-in duration-150">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span className="font-semibold leading-tight">
-                  {lang === 'en' 
-                    ? `Notice: Order contents won't fit on 1 page and will split onto ${pageCount} pages (large images or long notes).` 
-                    : `ئاگاداری: بەهۆی گەورەیی وێنەکان یان تێبینی، چاپەکە دەبێتە ${pageCount} پەڕە.`}
-                </span>
-              </div>
-              {printableImages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleFitToOnePage}
-                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 ml-auto"
-                  title="Automatically shrink images so order fits on 1 page"
-                >
-                  <Minimize2 className="w-3.5 h-3.5" />
-                  <span>{lang === 'en' ? 'Shrink to 1 Page' : 'بیکە بە ١ پەڕە'}</span>
-                </button>
-              )}
-            </div>
-          )}
-
-          <div 
-            id="printable-invoice" 
-            ref={invoiceRef}
-            className="w-full max-w-xl mx-auto p-6 sm:p-7 text-slate-900 bg-white rounded-xl shadow-md border border-slate-200 text-xs print:p-0 print:m-0 print:text-[11px] print:leading-tight print:shadow-none print:border-none print:w-full print:max-w-none print:rounded-none relative"
-          >
-            {/* Visual Page Break Marker in Screen Preview (only when height > 960px) */}
-            {!isSinglePage && invoiceHeight > PAGE_HEIGHT_PX && (
-              <div 
-                className="absolute left-0 right-0 pointer-events-none flex items-center justify-center print-hide z-20"
-                style={{ top: `${PAGE_HEIGHT_PX}px` }}
-              >
-                <div className="w-full border-t-2 border-dashed border-amber-500/80 relative">
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-black shadow-md whitespace-nowrap">
-                    {lang === 'en' ? '✂ PAGE 1 ENDS HERE • PAGE 2 STARTS' : '✂ کۆتایی پەڕەی ١ • دەستپێکی پەڕەی ٢'}
-                  </span>
+          {/* Format Notice: 80mm ESC/POS Thermal Receipt Layout */}
+          {printFormat === 'thermal80' ? (
+            <div 
+              id="printable-invoice" 
+              ref={invoiceRef}
+              className="w-[80mm] max-w-[80mm] mx-auto p-3.5 text-black bg-white rounded-none shadow-md border border-slate-300 font-mono text-[11px] leading-snug print:p-0 print:m-0 print:text-[10.5px] print:leading-tight print:shadow-none print:border-none print:w-[72mm] print:max-w-[72mm] relative select-text"
+            >
+              {/* Thermal Header */}
+              <div className="text-center pb-2.5 mb-2.5 border-b-2 border-dashed border-black">
+                <h2 className="text-base font-black uppercase tracking-wider text-black">
+                  BAKO&apos;S MASTER SYSTEM
+                </h2>
+                <p className="text-[11px] font-bold text-black mt-0.5">
+                  Shaswar Ahmad Shaswar Co.
+                </p>
+                <p className="text-[10.5px] font-semibold text-black mt-0.5">
+                  Official Contact: 07705488654
+                </p>
+                <div className="text-[10px] font-black uppercase tracking-widest mt-1.5 border-t border-black pt-1">
+                  SALES RECEIPT / پسوولەی فرۆشتن
                 </div>
               </div>
-            )}
+
+              {/* Thermal Meta */}
+              <div className="text-[10px] space-y-0.5 pb-2 mb-2 border-b border-dashed border-black font-mono">
+                <div className="flex justify-between">
+                  <span>INV: #{tx.code || tx.id.slice(-6)}</span>
+                  <span>{invoiceDateStr}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SELLER: {tx.seller || 'Bako Bayan'}</span>
+                  <span>PAY: {tx.paymentType || 'Cash'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CURRENCY: {tx.currency || 'USD'}</span>
+                  {tx.bank && <span>BANK: {tx.bank}</span>}
+                </div>
+              </div>
+
+              {/* Thermal Items Table */}
+              <div className="pb-2 mb-2 border-b-2 border-dashed border-black">
+                <div className="flex justify-between text-[10px] font-black border-b border-black pb-1 mb-1">
+                  <span className="w-1/2">ITEM</span>
+                  <span className="w-10 text-center">QTY</span>
+                  <span className="w-16 text-right">PRICE</span>
+                  <span className="w-16 text-right">TOTAL</span>
+                </div>
+                {tx.items && tx.items.length > 0 ? (
+                  tx.items.map((it, idx) => (
+                    <div key={idx} className="flex justify-between items-start text-[10px] py-0.5">
+                      <div className="w-1/2 font-bold truncate">
+                        {it.product || it.type}
+                      </div>
+                      <div className="w-10 text-center font-bold">{it.quantity}</div>
+                      <div className="w-16 text-right">{formatMoney(it.price, tx.currency)}</div>
+                      <div className="w-16 text-right font-black">{formatMoney(it.total, tx.currency)}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-between items-start text-[10px] py-0.5">
+                    <div className="w-1/2 font-bold truncate">{tx.material || tx.panelType}</div>
+                    <div className="w-10 text-center font-bold">{tx.quantity}</div>
+                    <div className="w-16 text-right">{formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}</div>
+                    <div className="w-16 text-right font-black">{formatMoney(tx.sellingAmount, tx.currency)}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Thermal Financial Breakdown */}
+              <div className="text-[10.5px] space-y-1 pb-2 mb-2 border-b-2 border-dashed border-black font-mono">
+                <div className="flex justify-between">
+                  <span>SUBTOTAL:</span>
+                  <span>{formatMoney(tx.sellingAmount, tx.currency)}</span>
+                </div>
+                {tx.discountDollars !== undefined && tx.discountDollars > 0 && (
+                  <div className="flex justify-between font-bold">
+                    <span>DISCOUNT:</span>
+                    <span>-{formatMoney(tx.discountDollars, tx.currency)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xs font-black border-t border-black pt-1">
+                  <span>TOTAL NET:</span>
+                  <span>{formatMoney(tx.totalAfterDiscount, tx.currency)}</span>
+                </div>
+                <div className="flex justify-between font-bold">
+                  <span>PAID NOW:</span>
+                  <span>{formatMoney(tx.amountPaidNow || 0, tx.currency)}</span>
+                </div>
+                <div className="flex justify-between font-black">
+                  <span>REMAINING DEBT:</span>
+                  <span>{formatMoney(tx.combinedTotalDebt || 0, tx.currency)}</span>
+                </div>
+              </div>
+
+              {/* Thermal Notes */}
+              {tx.notes && (
+                <div className="text-[10px] pb-2 mb-2 border-b border-dashed border-black break-words font-mono">
+                  <span className="font-bold">NOTES: </span>
+                  <span>{tx.notes}</span>
+                </div>
+              )}
+
+              {/* Thermal Attached Photos */}
+              {printableImages.length > 0 && (
+                <div className="space-y-2 pb-2 mb-2 border-b border-dashed border-black">
+                  {printableImages.map((img) => (
+                    <div key={img.id} className="text-center">
+                      <img src={img.url} alt="Receipt attachment" className="w-full max-w-[68mm] mx-auto filter grayscale contrast-150" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Thermal Cut Line & Footer */}
+              <div className="text-center text-[9.5px] pt-1.5 space-y-1 font-mono">
+                <p className="font-black uppercase tracking-wider">THANK YOU FOR YOUR BUSINESS</p>
+                <p>Bako&apos;s Master System • v{APP_CONFIG.version}</p>
+                <div className="pt-2 text-center text-[9px] text-slate-700 font-mono">
+                  - - - - - - - - - - - - - - - - - - - - - - - -
+                  <span className="block mt-0.5 font-bold">[ CUT HERE / لێرە بیبڕە ]</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Warning Banner when contents exceed 1 page (A4 layout) */}
+              {!isSinglePage && invoiceHeight > 0 && (
+                <div className="max-w-xl mx-auto mb-3 p-3 rounded-xl bg-amber-500/15 dark:bg-amber-950/50 border border-amber-500/40 text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2.5 text-xs shadow-xs print-hide animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="font-semibold leading-tight">
+                      {lang === 'en' 
+                        ? `Notice: Order contents won't fit on 1 page and will split onto ${pageCount} pages (large images or long notes).` 
+                        : `ئاگاداری: بەهۆی گەورەیی وێنەکان یان تێبینی، چاپەکە دەبێتە ${pageCount} پەڕە.`}
+                    </span>
+                  </div>
+                  {printableImages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleFitToOnePage}
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 ml-auto cursor-pointer"
+                      title="Automatically shrink images so order fits on 1 page"
+                    >
+                      <Minimize2 className="w-3.5 h-3.5" />
+                      <span>{lang === 'en' ? 'Shrink to 1 Page' : 'بیکە بە ١ پەڕە'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div 
+                id="printable-invoice" 
+                ref={invoiceRef}
+                className="w-full max-w-xl mx-auto p-6 sm:p-7 text-slate-900 bg-white rounded-xl shadow-md border border-slate-200 text-xs print:p-0 print:m-0 print:text-[11px] print:leading-tight print:shadow-none print:border-none print:w-full print:max-w-none print:rounded-none relative"
+              >
+                {/* Visual Page Break Marker in Screen Preview (only when height > 960px) */}
+                {!isSinglePage && invoiceHeight > PAGE_HEIGHT_PX && (
+                  <div 
+                    className="absolute left-0 right-0 pointer-events-none flex items-center justify-center print-hide z-20"
+                    style={{ top: `${PAGE_HEIGHT_PX}px` }}
+                  >
+                    <div className="w-full border-t-2 border-dashed border-amber-500/80 relative">
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-black shadow-md whitespace-nowrap">
+                        {lang === 'en' ? '✂ PAGE 1 ENDS HERE • PAGE 2 STARTS' : '✂ کۆتایی پەڕەی ١ • دەستپێکی پەڕەی ٢'}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
             {/* Header: Company Name, Voucher title, Code, Date & Time (Region removed) */}
             <div className="flex items-start justify-between border-b pb-3 mb-3 border-slate-300 print-avoid-break">
@@ -901,9 +1065,10 @@ export default function PrintInvoiceModal({
                   <span>07705488654</span>
                 </span>
               </p>
+              </div>
             </div>
-
-          </div>
+            </>
+          )}
         </div>
 
         {/* ========================================================================= */}
@@ -918,18 +1083,22 @@ export default function PrintInvoiceModal({
 
           <div className="flex items-center gap-2">
             <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
-              isSinglePage 
+              printFormat === 'thermal80'
+                ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                : isSinglePage 
                 ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800' 
                 : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
             }`}>
-              {isSinglePage 
+              {printFormat === 'thermal80'
+                ? '80mm ESC/POS Roll'
+                : isSinglePage 
                 ? (lang === 'en' ? '✓ Fits on 1 Page' : '✓ ١ پەڕەیە') 
                 : (lang === 'en' ? `⚠️ Splits in ${pageCount} Pages` : `⚠️ دەبێتە ${pageCount} پەڕە`)}
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-zinc-200 font-bold text-xs sm:text-sm transition active:scale-95"
+              className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-zinc-200 font-bold text-xs sm:text-sm transition active:scale-95 cursor-pointer"
             >
               {lang === 'en' ? 'Exit / Close' : 'داخستن'}
             </button>
