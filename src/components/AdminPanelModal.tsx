@@ -1,7 +1,7 @@
 'use client';
 
 import { APP_CONFIG } from '@/config/appConfig';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   useInventory,
   ROLE_PRESETS,
@@ -19,7 +19,9 @@ import {
   RolePresetName,
   UserAccount,
 } from '@/types/inventory';
+import type { MigrationAuditSummary, MigrationCommitResult } from '@/lib/importer';
 import {
+  UploadCloud,
   X,
   Usb,
   Smartphone,
@@ -345,6 +347,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [restoreConfirmSnapshot, setRestoreConfirmSnapshot] = useState<string | null>(null);
   const [optimizationResult, setOptimizationResult] = useState<string | null>(null);
 
+  // Legacy Migration Engine State
+  const [migrationFile, setMigrationFile] = useState<File | null>(null);
+  const [isDraggingMigration, setIsDraggingMigration] = useState(false);
+  const [migrationParsing, setMigrationParsing] = useState(false);
+  const [migrationSummary, setMigrationSummary] = useState<MigrationAuditSummary | null>(null);
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [migrationCommitting, setMigrationCommitting] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<MigrationCommitResult | null>(null);
+  const [migrationPreviewTab, setMigrationPreviewTab] = useState<'materials' | 'shipments' | 'invoices'>('materials');
+  const migrationFileInputRef = useRef<HTMLInputElement | null>(null);
+
   // Network & Telemetry State
   const [serverInfo, setServerInfo] = useState<{
     ip: string;
@@ -509,6 +522,81 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       onToast('Error restoring snapshot');
     } finally {
       setRestoreConfirmSnapshot(null);
+    }
+  };
+
+  // Legacy Migration Engine Handlers
+  const handleSelectMigrationFile = async (file: File) => {
+    setMigrationFile(file);
+    setMigrationSummary(null);
+    setMigrationResult(null);
+    setMigrationParsing(true);
+    setShowMigrationModal(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('action', 'preview');
+      formData.append('actor', currentUser?.displayName || currentUser?.username || 'Super Admin');
+
+      const res = await fetch('/api/migrate', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data && data.success && data.summary) {
+        setMigrationSummary(data.summary);
+      } else {
+        onToast(data?.error || (lang === 'en' ? 'Failed to parse legacy file' : 'نەتوانرا فایلی داتای کۆن بخوێنرێتەوە'));
+      }
+    } catch {
+      onToast(lang === 'en' ? 'Error scanning legacy file' : 'هەڵە لە پشکنینی فایلی کۆن');
+    } finally {
+      setMigrationParsing(false);
+    }
+  };
+
+  const handleCommitMigration = async () => {
+    if (!migrationFile) return;
+    setMigrationCommitting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', migrationFile);
+      formData.append('action', 'commit');
+      formData.append('actor', currentUser?.displayName || currentUser?.username || 'Super Admin');
+
+      const res = await fetch('/api/migrate', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (data && data.success && data.result) {
+        setMigrationResult(data.result);
+        fetchBackupsInfo();
+        onToast(
+          lang === 'en'
+            ? 'Legacy data absorbed and integrated successfully!'
+            : 'داتای کۆن بە سەرکەوتوویی تێکەڵ بە سیستەم کرا!'
+        );
+      } else {
+        onToast(data?.error || (lang === 'en' ? 'Migration transaction failed' : 'تێکەڵکردنی داتا سەرکەوتوو نەبوو'));
+      }
+    } catch {
+      onToast(lang === 'en' ? 'Error executing migration transaction' : 'هەڵە لە جێبەجێکردنی هاوردەکردن');
+    } finally {
+      setMigrationCommitting(false);
+    }
+  };
+
+  const handleClearMigration = () => {
+    setMigrationFile(null);
+    setMigrationSummary(null);
+    setMigrationResult(null);
+    setShowMigrationModal(false);
+    if (migrationFileInputRef.current) {
+      migrationFileInputRef.current.value = '';
     }
   };
 
@@ -1355,6 +1443,123 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
+              {/* ======================================================================= */}
+              {/* LEGACY DATA INGESTION & MIGRATION ENGINE (EAT & ABSORB LEGACY DATA)    */}
+              {/* ======================================================================= */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                      <UploadCloud className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                          {lang === 'en' ? 'Legacy Database Migration & Ingestion' : 'هاوردەکردنی داتای کۆن'}
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                          {lang === 'en' ? 'Eat & Absorb' : 'هەڵمژین و تێکەڵکردن'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          {lang === 'en' ? 'Atomic Safe Snapshot' : 'باکئەپی سەلامەتی ئۆتۆماتیکی'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {lang === 'en'
+                          ? 'Absorb legacy business records (.sqlite, .db, .json, .csv) into the v1.5 SQLite schema with zero risk to admin accounts.'
+                          : 'هەڵمژین و تێکەڵکردنی تۆمارەکانی سیستەمی کۆن (SQLite, DB, JSON, CSV) بۆ ناو سیستەمی نوێ بە شێوازێکی تەواو پارێزراو.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* File Upload Dropzone */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingMigration(true);
+                  }}
+                  onDragLeave={() => setIsDraggingMigration(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingMigration(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleSelectMigrationFile(file);
+                  }}
+                  onClick={() => migrationFileInputRef.current?.click()}
+                  className={`relative p-6 sm:p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-3 ${
+                    isDraggingMigration
+                      ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 scale-[0.99]'
+                      : 'border-slate-300 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-500 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-purple-50/20'
+                  }`}
+                >
+                  <input
+                    type="file"
+                    ref={migrationFileInputRef}
+                    accept=".sqlite,.db,.json,.csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleSelectMigrationFile(file);
+                    }}
+                  />
+
+                  <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                    <UploadCloud className="w-6 h-6" />
+                  </div>
+
+                  <div>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                      {lang === 'en'
+                        ? 'Drag & drop legacy database file here, or click to browse'
+                        : 'فایلی داتابەیسی کۆن لێرە دابنێ یان کلیک بکە بۆ دیاریکردن'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {lang === 'en'
+                        ? 'Wood Panels Catalog • FunderMax Shipments & Payables • Customer Invoices & Directory'
+                        : 'کەتەلۆکی تەختە و مەواد • کاروان و پارەی فاندەرمەکس • پسوولە و قەرزی کڕیاران'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap justify-center pt-1">
+                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      .SQLITE
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      .DB
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      .JSON
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      .CSV
+                    </span>
+                  </div>
+                </div>
+
+                {/* Pre-Import Safety Guarantee Highlights */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="text-slate-700 dark:text-slate-300 text-[11px]">
+                      {lang === 'en' ? 'Pre-import safety snapshot (pre-import-*.sqlite.gz)' : 'وێنەی سەلامەتی پێشوەختە (pre-import-*.sqlite.gz)'}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2.5">
+                    <RefreshCw className="w-4 h-4 text-sky-500 shrink-0" />
+                    <span className="text-slate-700 dark:text-slate-300 text-[11px]">
+                      {lang === 'en' ? 'Float-safe sanitization (IQD integers, USD 2 decimals)' : 'ژمێریاری پارێزراو (دینار بێ کەرت، دۆلار بە دوو کەرت)'}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-purple-500 shrink-0" />
+                    <span className="text-slate-700 dark:text-slate-300 text-[11px]">
+                      {lang === 'en' ? 'Non-destructive: Zero admin or password changes' : 'پارێزراوە: هیچ دەستکاری هەژماری بەڕێوەبەر ناکات'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Tiered Categorized Snapshot History */}
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2169,6 +2374,402 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         onConfirm={handleSeedDemoData}
         onClose={() => setShowSeedConfirm(false)}
       />
+
+      {/* ======================================================================= */}
+      {/* DRY-RUN MIGRATION INSPECTION PREVIEW MODAL                              */}
+      {/* ======================================================================= */}
+      {showMigrationModal && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-5 animate-in fade-in duration-200 select-none">
+          <div className="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-850/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                  <UploadCloud className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>{lang === 'en' ? 'Legacy Migration Inspection Audit' : 'پشکنینی داتای کۆن پێش هاوردەکردن'}</span>
+                    {migrationSummary && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                        {migrationSummary.format}
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {migrationFile ? `${migrationFile.name} (${Math.round(migrationFile.size / 1024)} KB)` : ''}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleClearMigration}
+                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+              {/* Scanning / In-Progress Animation */}
+              {migrationParsing && (
+                <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
+                  <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-transparent animate-spin" />
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    {lang === 'en' ? 'Inspecting legacy file structure...' : 'پشکنین و شیتاڵکردنی فایلی داتابەیسی کۆن...'}
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-md">
+                    {lang === 'en'
+                      ? 'Verifying table schemas, wood dimensions, supplier balances, and currency precision.'
+                      : 'خوێندنەوەی خشتەکانی تەختە، کاروانەکانی فاندەرمەکس، ژمارەی کڕیاران و دراوەکان.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Migration Success Breakdown */}
+              {migrationResult && (
+                <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 text-emerald-900 dark:text-emerald-100 space-y-4 animate-in zoom-in-95 duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h5 className="text-sm font-black">
+                        {lang === 'en' ? 'Legacy Data Ingested & Integrated!' : 'هاوردەکردن و تێکەڵکردن بە سەرکەوتوویی ئەنجامدرا!'}
+                      </h5>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                        {lang === 'en'
+                          ? `Processed in ${migrationResult.durationMs}ms inside an atomic SQLite transaction.`
+                          : `لە ماوەی ${migrationResult.durationMs}ms بە شێوازی ئەتۆمی جێبەجێکرا.`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-xs">
+                    <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-emerald-500/20">
+                      <span className="text-[10px] text-slate-400 block">{lang === 'en' ? 'Materials Added' : 'مەوادی نوێ'}</span>
+                      <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                        +{migrationResult.importedCounts.materialsInserted}
+                      </span>
+                      {migrationResult.importedCounts.materialsUpdated > 0 && (
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          ({migrationResult.importedCounts.materialsUpdated} updated)
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-emerald-500/20">
+                      <span className="text-[10px] text-slate-400 block">{lang === 'en' ? 'Shipments' : 'کاروانی کۆگا'}</span>
+                      <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                        +{migrationResult.importedCounts.shipmentsInserted}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-emerald-500/20">
+                      <span className="text-[10px] text-slate-400 block">{lang === 'en' ? 'Invoices' : 'پسوولەی فرۆشتن'}</span>
+                      <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                        +{migrationResult.importedCounts.invoicesInserted}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-emerald-500/20">
+                      <span className="text-[10px] text-slate-400 block">{lang === 'en' ? 'Customers' : 'کڕیاری نوێ'}</span>
+                      <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                        +{migrationResult.importedCounts.customersAdded}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-emerald-100/60 dark:bg-emerald-900/30 text-xs font-mono flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 truncate">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">Safety Snapshot: {migrationResult.snapshotName}</span>
+                    </div>
+                    <span className="shrink-0 font-bold text-[11px]">
+                      {Math.round(migrationResult.snapshotSizeBytes / 1024)} KB
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Inspection Preview Summary */}
+              {migrationSummary && !migrationResult && (
+                <div className="space-y-4">
+                  {/* KPI Detection Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Materials */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
+                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                        <Layers className="w-4 h-4" />
+                        <span className="text-xs font-bold">{lang === 'en' ? 'Wood Panels Catalog' : 'کەتەلۆکی تەختە و مەواد'}</span>
+                      </div>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white">
+                        {migrationSummary.totalMaterials}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {lang === 'en' ? 'Panel dimensions, finishes, stock balances' : 'درێژی، پانی، ئەستووری، و باڵانسی مەخزەن'}
+                      </p>
+                    </div>
+
+                    {/* Shipments & Payables */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
+                      <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
+                        <Truck className="w-4 h-4" />
+                        <span className="text-xs font-bold">{lang === 'en' ? 'FunderMax / Shipments' : 'کاروانی کۆگا و فاندەرمەکس'}</span>
+                      </div>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white">
+                        {migrationSummary.totalShipments}
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">
+                        {migrationSummary.totalFinancials.supplierPayablesEUR > 0
+                          ? `Payable: €${migrationSummary.totalFinancials.supplierPayablesEUR.toLocaleString()} EUR`
+                          : `Payable: $${migrationSummary.totalFinancials.supplierPayablesUSD.toLocaleString()} USD`}
+                      </p>
+                    </div>
+
+                    {/* Customer Invoices */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
+                      <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                        <ReceiptText className="w-4 h-4" />
+                        <span className="text-xs font-bold">{lang === 'en' ? 'Sales Invoices & Debt' : 'پسوولە و قەرزی کڕیاران'}</span>
+                      </div>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white">
+                        {migrationSummary.totalInvoices}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {lang === 'en'
+                          ? `${migrationSummary.totalCustomers} Customer Contacts Detected`
+                          : `${migrationSummary.totalCustomers} کڕیار تۆمار دەکرێت لە لیست`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Pre-Import Safety Snapshot Guarantee Banner */}
+                  <div className="p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-500/30 text-purple-900 dark:text-purple-200 flex items-center gap-3 text-xs leading-relaxed">
+                    <ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block">
+                        {lang === 'en' ? 'Safety Snapshot & Transaction Isolation Guarantee' : 'پارێزراوی تەواو لە ڕێگەی وێنەی سەلامەتی و ترانزاکشن'}
+                      </span>
+                      <span className="text-[11px] text-purple-700 dark:text-purple-300">
+                        {lang === 'en'
+                          ? 'An atomic backup (pre-import-<timestamp>.sqlite.gz) will be saved prior to writing. If any query fails, the entire transaction rolls back completely.'
+                          : 'پێش دەستپێکردن وێنەیەکی پارێزراو بە ناوی pre-import دەگیرێت، و تەواوی کرداری هاوردەکردن لە یەک ترانزاکشندا بەڕێوەدەچێت بە گەرەنتی پاشگەزبوونەوە لەکاتی هەڵەدا.'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sample Preview Tabs */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        {lang === 'en' ? 'Audit Sample Preview:' : 'نموونەی داتا دۆزراوەکان:'}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setMigrationPreviewTab('materials')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            migrationPreviewTab === 'materials'
+                              ? 'bg-purple-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          Materials ({migrationSummary.sampleItems.materials.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMigrationPreviewTab('shipments')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            migrationPreviewTab === 'shipments'
+                              ? 'bg-purple-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          Shipments ({migrationSummary.sampleItems.shipments.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMigrationPreviewTab('invoices')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            migrationPreviewTab === 'invoices'
+                              ? 'bg-purple-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          Invoices ({migrationSummary.sampleItems.invoices.length})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Table: Materials */}
+                    {migrationPreviewTab === 'materials' && (
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
+                            <tr>
+                              <th className="p-2.5">Code</th>
+                              <th className="p-2.5">Panel Name</th>
+                              <th className="p-2.5">Dimensions (mm)</th>
+                              <th className="p-2.5">Type</th>
+                              <th className="p-2.5 text-right">Stock</th>
+                              <th className="p-2.5 text-right">Price</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {migrationSummary.sampleItems.materials.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="p-4 text-center text-slate-400">
+                                  No material records found in this section
+                                </td>
+                              </tr>
+                            ) : (
+                              migrationSummary.sampleItems.materials.map((m, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-850">
+                                  <td className="p-2.5 font-mono text-[11px] text-slate-500">{m.code || 'Auto'}</td>
+                                  <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200">{m.name}</td>
+                                  <td className="p-2.5 text-slate-600 dark:text-slate-400">
+                                    {m.length} × {m.width} × {m.thickness}
+                                  </td>
+                                  <td className="p-2.5 text-slate-500">{m.type || 'MDF'}</td>
+                                  <td className="p-2.5 text-right font-black text-emerald-600">{m.stockQuantity}</td>
+                                  <td className="p-2.5 text-right font-mono">${m.unitPrice || 0}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Table: Shipments */}
+                    {migrationPreviewTab === 'shipments' && (
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
+                            <tr>
+                              <th className="p-2.5">Batch / Ref</th>
+                              <th className="p-2.5">Supplier</th>
+                              <th className="p-2.5">Currency</th>
+                              <th className="p-2.5 text-right">Invoiced</th>
+                              <th className="p-2.5 text-right">Paid</th>
+                              <th className="p-2.5 text-right">Remaining Balance</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {migrationSummary.sampleItems.shipments.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="p-4 text-center text-slate-400">
+                                  No supplier shipment records found in this section
+                                </td>
+                              </tr>
+                            ) : (
+                              migrationSummary.sampleItems.shipments.map((s, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-850">
+                                  <td className="p-2.5 font-mono text-[11px] text-sky-600 font-bold">{s.batchCode}</td>
+                                  <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200">{s.supplier}</td>
+                                  <td className="p-2.5 font-mono">{s.currency}</td>
+                                  <td className="p-2.5 text-right font-mono">{s.invoicedTotal.toLocaleString()}</td>
+                                  <td className="p-2.5 text-right font-mono text-emerald-600">{s.amountPaid.toLocaleString()}</td>
+                                  <td className="p-2.5 text-right font-mono font-bold text-rose-600">
+                                    {s.remainingBalance.toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Table: Invoices */}
+                    {migrationPreviewTab === 'invoices' && (
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
+                            <tr>
+                              <th className="p-2.5">Client Name</th>
+                              <th className="p-2.5">Phone</th>
+                              <th className="p-2.5">Currency</th>
+                              <th className="p-2.5 text-right">Total</th>
+                              <th className="p-2.5 text-right">Paid</th>
+                              <th className="p-2.5 text-right">Debt Balance</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {migrationSummary.sampleItems.invoices.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="p-4 text-center text-slate-400">
+                                  No customer invoice records found in this section
+                                </td>
+                              </tr>
+                            ) : (
+                              migrationSummary.sampleItems.invoices.map((inv, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-850">
+                                  <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200">{inv.clientName}</td>
+                                  <td className="p-2.5 font-mono text-[11px] text-slate-500">{inv.clientPhone || '—'}</td>
+                                  <td className="p-2.5 font-mono">{inv.currency}</td>
+                                  <td className="p-2.5 text-right font-mono">{inv.sellingAmount.toLocaleString()}</td>
+                                  <td className="p-2.5 text-right font-mono text-emerald-600">{inv.amountPaidNow.toLocaleString()}</td>
+                                  <td className="p-2.5 text-right font-mono font-bold text-rose-600">
+                                    {inv.amountOwed.toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-850/80">
+              <button
+                type="button"
+                onClick={handleClearMigration}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                {migrationResult ? (lang === 'en' ? 'Close' : 'داخستن') : lang === 'en' ? 'Cancel' : 'پەشیمانبوونەوە'}
+              </button>
+
+              {migrationResult ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleClearMigration();
+                    window.location.reload();
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs inline-flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>{lang === 'en' ? 'Reload System' : 'تەواو و نوێکردنەوەی سیستەم'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!migrationSummary || migrationCommitting || migrationParsing}
+                  onClick={handleCommitMigration}
+                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 active:scale-95 text-white font-black text-xs inline-flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                >
+                  <RefreshCw className={`w-4 h-4 ${migrationCommitting ? 'animate-spin' : ''}`} />
+                  <span>
+                    {migrationCommitting
+                      ? lang === 'en'
+                        ? 'Absorbing Legacy Data...'
+                        : 'خەریکی تێکەڵکردنی داتاکانە...'
+                      : lang === 'en'
+                      ? 'Absorb & Integrate (1-Click)'
+                      : 'هاوردەکردن و تێکەڵکردن'}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

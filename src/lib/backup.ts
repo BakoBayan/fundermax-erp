@@ -28,7 +28,7 @@ export interface SnapshotInfo {
   isCompressed: boolean;
 }
 
-const SNAPSHOT_RE = /^backup-[A-Za-z0-9_-]+\.sqlite(\.gz)?$/;
+const SNAPSHOT_RE = /^(?:backup|pre-import)-[A-Za-z0-9_-]+\.sqlite(\.gz)?$/;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const WEEK_MS = 7 * DAY_MS;
@@ -43,7 +43,7 @@ export function isValidSnapshotName(name: string): boolean {
 
 /** Parses timestamp from snapshot filename or falls back to stat mtime */
 function parseSnapshotTimestamp(name: string, mtime: Date): Date {
-  const match = name.match(/^backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}(?:-\d+)?Z?)/);
+  const match = name.match(/^(?:backup|pre-import)-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}(?:-\d+)?Z?)/);
   if (match) {
     const parts = match[1].split('T');
     if (parts.length === 2) {
@@ -231,6 +231,57 @@ export async function executeScheduledBackup(db: DatabaseSync): Promise<Snapshot
   }
 
   // 5. Enforce Tiered Retention Schedule
+  pruneSnapshots();
+
+  const st = fs.statSync(gzTarget);
+  return {
+    name: path.basename(gzTarget),
+    path: gzTarget,
+    sizeBytes: st.size,
+    createdAt: new Date().toISOString(),
+    tier: 'recent',
+    isCompressed: true,
+  };
+}
+
+/**
+ * Creates an atomic pre-import safety snapshot before any data migration write.
+ * Naming convention: pre-import-<timestamp>.sqlite.gz
+ */
+export async function createPreImportSafetySnapshot(db: DatabaseSync): Promise<SnapshotInfo> {
+  const backupDir = getBackupDir();
+  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const tempTarget = path.join(backupDir, `temp-pre-import-${timestamp}.sqlite`);
+  const gzTarget = path.join(backupDir, `pre-import-${timestamp}.sqlite.gz`);
+
+  // 1. Write uncompressed snapshot via VACUUM INTO
+  db.prepare('VACUUM INTO ?').run(tempTarget);
+
+  // 2. Verify snapshot integrity before compression
+  try {
+    verifySnapshot(tempTarget);
+  } catch (err) {
+    try {
+      if (fs.existsSync(tempTarget)) fs.unlinkSync(tempTarget);
+    } catch {}
+    throw err;
+  }
+
+  // 3. Built-in GZIP Compression
+  try {
+    const source = fs.createReadStream(tempTarget);
+    const destination = fs.createWriteStream(gzTarget);
+    const gzip = zlib.createGzip({ level: 9 });
+    await pipeline(source, gzip, destination);
+  } finally {
+    try {
+      if (fs.existsSync(tempTarget)) fs.unlinkSync(tempTarget);
+    } catch {}
+  }
+
+  // 4. Enforce Tiered Retention Schedule
   pruneSnapshots();
 
   const st = fs.statSync(gzTarget);

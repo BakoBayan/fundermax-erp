@@ -43,6 +43,7 @@ import {
 } from "./money";
 import {
   executeScheduledBackup,
+  createPreImportSafetySnapshot,
   listSnapshots,
   getLatestSnapshot,
   copySnapshotToDirectory,
@@ -1664,6 +1665,7 @@ export {
 } from "./money";
 export {
   executeScheduledBackup,
+  createPreImportSafetySnapshot,
   listSnapshots,
   getLatestSnapshot,
   copySnapshotToDirectory,
