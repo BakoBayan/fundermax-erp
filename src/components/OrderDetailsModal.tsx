@@ -18,6 +18,7 @@ import {
   ArrowRightLeft,
   CheckCircle2,
   Clock,
+  Share2,
 } from "lucide-react";
 
 interface OrderDetailsModalProps {
@@ -49,6 +50,24 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
   const handlePrintSlip = () => {
     printCuttingSlip(order, material);
+  };
+
+  const handleWhatsAppShareCutting = () => {
+    const formattedDim = material.dimensions?.formatted || `${material.dimensions?.length || 2440} × ${material.dimensions?.width || 1220} × ${material.dimensions?.thickness || 18} mm`;
+    const text = `*پسوولەی بڕینی تەختە / Cutting Slip*
+*داواکاری:* ${order.orderNumber}
+*کڕیار:* ${order.client}
+*تەختە:* ${material.name} (${material.code || ''})
+*قەبارە:* ${formattedDim}
+*دانەی داواکراو:* ${order.quantity} تەختە
+*بەروار:* ${order.date}
+*دۆخ:* ${order.status === 'finalized' ? 'تەواوکراو' : 'لە کاردایە (حجز)'}
+${order.notes ? `*تێبینی:* ${order.notes}\n` : ''}
+کۆمپانیای شەسواری ئەحمەد شەسوار
+Bako's Master System`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
   };
 
   return (
@@ -335,14 +354,25 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               </button>
             )}
 
+            {/* WhatsApp 1-Tap Sharing */}
+            <button
+              type="button"
+              onClick={handleWhatsAppShareCutting}
+              className="flex items-center gap-1.5 min-h-[44px] sm:min-h-[38px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs active:scale-95 transition-all cursor-pointer"
+              title={isKu ? 'ناردن بۆ وەتسئەپ' : 'Send via WhatsApp'}
+            >
+              <Share2 className="w-4 h-4" />
+              <span>{isKu ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}</span>
+            </button>
+
             {/* One Dedicated Print Cutting Slip Button */}
             <button
               onClick={handlePrintSlip}
               className="flex items-center gap-1.5 min-h-[44px] sm:min-h-[38px] px-3.5 py-2 rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-650 border border-slate-200 dark:border-slate-600 font-bold text-xs transition-colors cursor-pointer"
-              title={isKu ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip'}
+              title={isKu ? 'چاپی پسوولەی بڕین' : 'Print Cutting Slip'}
             >
               <Printer className="w-4 h-4" />
-              <span>{isKu ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip'}</span>
+              <span>{isKu ? 'چاپی پسوولە' : 'Print Slip'}</span>
             </button>
 
             {/* Close Button */}

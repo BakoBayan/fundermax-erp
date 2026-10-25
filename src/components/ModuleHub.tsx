@@ -22,7 +22,7 @@ import {
   ShieldCheck,
   Lock
 } from 'lucide-react';
-import { PlatformModule } from '../types/inventory';
+import { PlatformModule, OrderAllocation } from '../types/inventory';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
 
 interface ModuleHubProps {
@@ -51,6 +51,10 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     hasModulePermission,
     userPermissions,
     openCopyrightModal,
+    openAdminModal,
+    materials,
+    setSalesStatusFilter,
+    setSalesTimeframeFilter,
   } = useInventory();
 
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
@@ -166,10 +170,47 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
 
   // Key metrics
   const totalInvoicesCount = transactions.length;
-  const totalUnpaidDebt = transactions.reduce(
+  const totalUnpaidDebt = transactions.filter(tx => tx.isDeleted !== 1).reduce(
     (sum, tx) => sum + (tx.combinedTotalDebt || tx.amountOwed || 0),
     0
   );
+
+  // Boss Mode: Today's Cash Intake & Active Orders Calculations
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const todayTxs = transactions.filter(tx => {
+    if (tx.isDeleted === 1) return false;
+    const dateStr = (tx.timestamp || '').split('T')[0];
+    return dateStr === todayDateStr;
+  });
+  let todayIqd = 0;
+  let todayUsd = 0;
+  todayTxs.forEach(tx => {
+    const cur = tx.currency || tx.chargedCurrency || 'USD';
+    const paid = typeof tx.amountPaidNow === 'number' ? tx.amountPaidNow : 0;
+    if (cur === 'IQD') todayIqd += paid;
+    else todayUsd += paid;
+  });
+
+  const activeCuttingOrdersCount = materials.reduce((acc, mat) => {
+    return acc + (mat.activeOrders ? mat.activeOrders.filter((o: OrderAllocation) => o.status !== 'finalized').length : 0);
+  }, 0);
+
+  const handleGlanceTodayCash = () => {
+    setSalesTimeframeFilter('today');
+    setSalesStatusFilter('all');
+    handleSelectDivision('sales');
+  };
+
+  const handleGlanceDebts = () => {
+    setSalesStatusFilter('debt');
+    setSalesTimeframeFilter('all');
+    handleSelectDivision('sales');
+  };
+
+  const handleGlanceActiveOrders = () => {
+    handleSelectDivision('orders', 'panels');
+  };
+
   const warehouseOps = useWarehouseOps();
   const customsShipmentsCount = warehouseOps.activeShipments.filter((s) => s.status === 'customs').length;
   const rackedUnitsCount = warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
@@ -260,8 +301,461 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
       {/* ========================================================================= */}
       {/* MAIN CONTENT AREA                                                         */}
       {/* ========================================================================= */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 animate-in fade-in duration-300">
+      <div className="relative z-10 w-full max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-12 animate-in fade-in duration-300 overflow-x-hidden">
         
+        {/* ========================================================================= */}
+        {/* MOBILE-FIRST EXECUTIVE DASHBOARD (< 768px)                                */}
+        {/* ========================================================================= */}
+        <div className="block md:hidden space-y-4 pb-6 overflow-x-hidden max-w-full">
+          {/* Executive Header & Greeting Card */}
+          <div className="p-4 rounded-3xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-750 shadow-md">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
+                  {currentUser?.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'B'}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-none mb-1">
+                    {isKu ? 'بەخێربێیتەوە' : 'Welcome back'}
+                  </div>
+                  <div className="text-sm font-black text-slate-900 dark:text-white truncate">
+                    {currentUser?.displayName || currentUser?.username || 'Executive Operator'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Role Badge */}
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold font-mono uppercase bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
+                {currentUser?.role || 'Admin'}
+              </span>
+            </div>
+
+            {/* Official Client Attribution Pill (Shaswar Ahmad Shaswar Co.) */}
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/70 dark:border-slate-800 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate text-[11px]">
+                  {isKu ? 'کۆمپانیای شەسواری ئەحمەد شەسوار' : 'Shaswar Ahmad Shaswar Co.'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={openCopyrightModal}
+                className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold text-[10px] hover:bg-emerald-100 active:scale-95 cursor-pointer shrink-0 border border-emerald-200/60 dark:border-emerald-800/40"
+              >
+                {isKu ? 'مافەکان' : 'Licensure'}
+              </button>
+            </div>
+
+            {/* WAL & Sync Status Pill (Mobile) */}
+            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono">
+              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                <HardDrive className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                <span>SQLite WAL:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {walHealth.isWalActive ? `${walHealth.latencyMs}ms` : 'Offline Cache'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCheckHealth}
+                disabled={isCheckingHealth}
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+              >
+                <RefreshCw className={`w-3 h-3 ${isCheckingHealth ? 'animate-spin' : ''}`} />
+                <span>{isCheckingHealth ? 'Pinging...' : 'Ping'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Executive Glance Card (Boss Mode Widget - 3 High-Contrast Metrics) */}
+          <div className="p-3.5 rounded-3xl bg-slate-900 dark:bg-black text-white border border-slate-800 shadow-xl">
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <span className="text-[11px] font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{isKu ? 'پوختەی کارگێڕی (Boss Mode)' : 'Executive Glance (Boss Mode)'}</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {isKu ? 'کرتە بکە بۆ کردنەوە' : 'Tap to inspect'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {/* Metric 1: Today's Cash Intake */}
+              <button
+                type="button"
+                onClick={handleGlanceTodayCash}
+                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 active:scale-95 transition-all text-left flex flex-col justify-between border border-slate-700/60 cursor-pointer min-h-[74px]"
+                title="View Today's Cash Intake"
+              >
+                <div className="text-[10px] font-bold text-slate-400 flex items-center justify-between w-full">
+                  <span>{isKu ? 'ئەمڕۆ' : "Today's Cash"}</span>
+                  <ArrowRight className="w-3 h-3 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-black text-emerald-400 font-mono truncate">
+                    ${todayUsd.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-300 font-mono truncate">
+                    {todayIqd > 0 ? `${todayIqd.toLocaleString()} د.ع` : '0 د.ع'}
+                  </div>
+                </div>
+              </button>
+
+              {/* Metric 2: Total Outstanding Customer Debts */}
+              <button
+                type="button"
+                onClick={handleGlanceDebts}
+                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 active:scale-95 transition-all text-left flex flex-col justify-between border border-slate-700/60 cursor-pointer min-h-[74px]"
+                title="View Outstanding Customer Debts"
+              >
+                <div className="text-[10px] font-bold text-slate-400 flex items-center justify-between w-full">
+                  <span>{isKu ? 'قەرزەکان' : 'Total Debts'}</span>
+                  <ArrowRight className="w-3 h-3 text-rose-400" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-black text-rose-400 font-mono truncate">
+                    ${totalUnpaidDebt.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] font-medium text-slate-400 truncate">
+                    {isKu ? 'قەرزی ماوە' : 'Pending'}
+                  </div>
+                </div>
+              </button>
+
+              {/* Metric 3: Active Board Cutting Orders */}
+              <button
+                type="button"
+                onClick={handleGlanceActiveOrders}
+                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 active:scale-95 transition-all text-left flex flex-col justify-between border border-slate-700/60 cursor-pointer min-h-[74px]"
+                title="View Active Cutting Orders"
+              >
+                <div className="text-[10px] font-bold text-slate-400 flex items-center justify-between w-full">
+                  <span>{isKu ? 'داواکاری کارا' : 'Active Orders'}</span>
+                  <ArrowRight className="w-3 h-3 text-sky-400" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-black text-sky-400 font-mono truncate">
+                    {activeCuttingOrdersCount} {isKu ? 'داواکاری' : 'Active'}
+                  </div>
+                  <div className="text-[10px] font-medium text-slate-400 truncate">
+                    {isKu ? 'لە کاردایە' : 'In Workshop'}
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Section Divider Title */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              {isKu ? 'بەشە سەرەکییەکان' : 'Operational Divisions'}
+            </span>
+            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+              {isKu ? '٣ بەشی کارگێڕی' : '3 Divisions'}
+            </span>
+          </div>
+
+          {/* 3 Operational Divisions as Large Full-Width Touch Cards */}
+          {/* DIVISION 1: Wood Panels */}
+          <div
+            onClick={() => handleSelectDivision('panels', 'orders')}
+            className={`group w-full p-4.5 rounded-3xl backdrop-blur-xl border shadow-md transition-all duration-200 active:scale-[0.98] cursor-pointer touch-manipulation ${
+              canAccessPanels
+                ? 'bg-white/95 dark:bg-slate-850/95 border-slate-200 dark:border-slate-750'
+                : 'bg-white/80 dark:bg-slate-850/80 border-rose-200/70 dark:border-rose-900/40 opacity-85'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${
+                  canAccessPanels
+                    ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/20'
+                    : 'bg-slate-200 dark:bg-slate-750 text-slate-500'
+                }`}>
+                  <Layers className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
+                    {isKu ? 'بڕینی تەختە' : 'Wood Panels & Orders'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isKu ? 'کۆگا، بڕین و داواکاری کڕیاران' : 'Live stock, custom cuts & slip printing'}
+                  </p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full font-mono shrink-0 ${
+                canAccessPanels
+                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+              }`}>
+                {canAccessPanels ? (isKu ? 'بەشی یەکەم' : 'Div 01') : (isKu ? 'قوفڵ' : 'Locked')}
+              </span>
+            </div>
+
+            {/* KPI Badges */}
+            {canAccessPanels || userPermissions.canViewRestrictedMetrics ? (
+              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 mb-3 text-center text-xs">
+                <div>
+                  <div className="font-black text-slate-900 dark:text-white font-mono text-sm">{stats.totalStock.toLocaleString()}</div>
+                  <div className="text-[10px] text-slate-500">{t.totalStockCount}</div>
+                </div>
+                <div className="border-x border-slate-200 dark:border-slate-800">
+                  <div className="font-black text-amber-600 dark:text-amber-400 font-mono text-sm">{stats.totalAllocated.toLocaleString()}</div>
+                  <div className="text-[10px] text-slate-500">{t.reserved}</div>
+                </div>
+                <div>
+                  <div className="font-black text-emerald-600 dark:text-emerald-400 font-mono text-sm">{stats.totalAvailable.toLocaleString()}</div>
+                  <div className="text-[10px] text-slate-500">{t.available}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 mb-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                <span>{isKu ? 'ئامار قوفڵکراوە' : 'Metrics Protected'}</span>
+              </div>
+            )}
+
+            {/* Min 48px Touch Button */}
+            <button
+              type="button"
+              className={`w-full min-h-[48px] px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
+                canAccessPanels
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-emerald-600/20 active:scale-[0.98]'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <span>{canAccessPanels ? (isKu ? 'چوونە ناو بەشی تەختەکان' : 'Open Wood Panels') : (isKu ? 'دەسەڵات سنووردارە' : 'Access Restricted')}</span>
+              {canAccessPanels ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* DIVISION 2: Sales POS */}
+          <div
+            onClick={() => handleSelectDivision('sales')}
+            className={`group w-full p-4.5 rounded-3xl backdrop-blur-xl border shadow-md transition-all duration-200 active:scale-[0.98] cursor-pointer touch-manipulation ${
+              canAccessSales
+                ? 'bg-white/95 dark:bg-slate-850/95 border-slate-200 dark:border-slate-750'
+                : 'bg-white/80 dark:bg-slate-850/80 border-rose-200/70 dark:border-rose-900/40 opacity-85'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${
+                  canAccessSales
+                    ? 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-sky-500/20'
+                    : 'bg-slate-200 dark:bg-slate-750 text-slate-500'
+                }`}>
+                  <ReceiptText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
+                    {isKu ? 'فرۆشتن و وەسڵ' : 'Sales POS & Invoices'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isKu ? 'پسوولەی چەند دراو، قەرز و وەسڵ' : 'Multi-currency POS, debt & receipts'}
+                  </p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full font-mono shrink-0 ${
+                canAccessSales
+                  ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+              }`}>
+                {canAccessSales ? (isKu ? 'بەشی دووەم' : 'Div 02') : (isKu ? 'قوفڵ' : 'Locked')}
+              </span>
+            </div>
+
+            {/* KPI Badges */}
+            {canAccessSales || userPermissions.canViewRestrictedMetrics ? (
+              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 mb-3 text-center text-xs">
+                <div>
+                  <div className="font-black text-slate-900 dark:text-white font-mono text-sm">{totalInvoicesCount}</div>
+                  <div className="text-[10px] text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
+                </div>
+                <div className="border-x border-slate-200 dark:border-slate-800">
+                  <div className="font-black text-rose-600 dark:text-rose-400 font-mono text-sm">${totalUnpaidDebt.toLocaleString()}</div>
+                  <div className="text-[10px] text-slate-500">{isKu ? 'قەرز' : 'Debt'}</div>
+                </div>
+                <div>
+                  <div className="font-black text-sky-600 dark:text-sky-400 font-mono text-sm">3 Rates</div>
+                  <div className="text-[10px] text-slate-500">USD/IQD/EUR</div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 mb-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                <span>{isKu ? 'دارایی قوفڵکراوە' : 'Financials Protected'}</span>
+              </div>
+            )}
+
+            {/* Min 48px Touch Button */}
+            <button
+              type="button"
+              className={`w-full min-h-[48px] px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
+                canAccessSales
+                  ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sky-600/20 active:scale-[0.98]'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <span>{canAccessSales ? (isKu ? 'چوونە ناو بەشی فرۆشتن' : 'Open Sales POS') : (isKu ? 'دەسەڵات سنووردارە' : 'Access Restricted')}</span>
+              {canAccessSales ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* DIVISION 3: Warehouse Goods */}
+          <div
+            onClick={() => handleSelectDivision('goods', 'shipping')}
+            className={`group w-full p-4.5 rounded-3xl backdrop-blur-xl border shadow-md transition-all duration-200 active:scale-[0.98] cursor-pointer touch-manipulation ${
+              canAccessGoods
+                ? 'bg-white/95 dark:bg-slate-850/95 border-slate-200 dark:border-slate-750'
+                : 'bg-white/80 dark:bg-slate-850/80 border-rose-200/70 dark:border-rose-900/40 opacity-85'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${
+                  canAccessGoods
+                    ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-500/20'
+                    : 'bg-slate-200 dark:bg-slate-750 text-slate-500'
+                }`}>
+                  <Truck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
+                    {isKu ? 'مەخزەن' : 'Warehouse & Logistics'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isKu ? 'بارە گەیشتووەکان، کۆگا و گواستنەوە' : 'Shipments, rack bays & stock transfers'}
+                  </p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full font-mono shrink-0 ${
+                canAccessGoods
+                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+              }`}>
+                {canAccessGoods ? (isKu ? 'بەشی سێیەم' : 'Div 03') : (isKu ? 'قوفڵ' : 'Locked')}
+              </span>
+            </div>
+
+            {/* KPI Badges */}
+            {canAccessGoods || userPermissions.canViewRestrictedMetrics ? (
+              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 mb-3 text-center text-xs">
+                <div>
+                  <div className="font-black text-slate-900 dark:text-white font-mono text-sm">{warehouseOps.activeShipments.length}</div>
+                  <div className="text-[10px] text-slate-500">{isKu ? 'بارەکان' : 'Shipments'}</div>
+                </div>
+                <div className="border-x border-slate-200 dark:border-slate-800">
+                  <div className="font-black text-amber-600 dark:text-amber-400 font-mono text-sm">{customsShipmentsCount}</div>
+                  <div className="text-[10px] text-slate-500">{isKu ? 'گومرگ' : 'Customs'}</div>
+                </div>
+                <div>
+                  <div className="font-black text-emerald-600 dark:text-emerald-400 font-mono text-sm">{rackedUnitsCount.toLocaleString()}</div>
+                  <div className="text-[10px] text-slate-500">{isKu ? 'کۆگا' : 'Racked'}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 mb-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                <span>{isKu ? 'لۆجستی قوفڵکراوە' : 'Logistics Protected'}</span>
+              </div>
+            )}
+
+            {/* Min 48px Touch Button */}
+            <button
+              type="button"
+              className={`w-full min-h-[48px] px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
+                canAccessGoods
+                  ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-amber-600/20 active:scale-[0.98]'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <span>{canAccessGoods ? (isKu ? 'چوونە ناو بەشی کەلوپەل' : 'Open Warehouse Goods') : (isKu ? 'دەسەڵات سنووردارە' : 'Access Restricted')}</span>
+              {canAccessGoods ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* Section Divider Title: Ergonomic Quick-Action Bar */}
+          <div className="pt-2 flex items-center justify-between px-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              {isKu ? 'کۆنتڕۆڵ و شیکاری خێرا' : 'Quick Controls & Tools'}
+            </span>
+            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+              {isKu ? 'دەستپێگەیشتنی خێرا' : 'Ergonomic Grid'}
+            </span>
+          </div>
+
+          {/* Ergonomic Bottom Grid (Analytics, Backups, Admin Settings) with Touch Targets >= 48px */}
+          <div className="grid grid-cols-3 gap-2.5">
+            {/* 1. Visual Analytics */}
+            <button
+              type="button"
+              onClick={handleOpenAnalytics}
+              className="min-h-[58px] p-2.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm hover:border-purple-500/80 active:scale-[0.98] transition-all flex flex-col items-center justify-center text-center cursor-pointer touch-manipulation"
+            >
+              <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-1">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">
+                {isKu ? 'شیکاری' : 'Analytics'}
+              </span>
+              <span className="text-[9px] text-slate-400 font-medium">
+                {isKu ? 'چارتەکان' : 'Visual BI'}
+              </span>
+            </button>
+
+            {/* 2. Database Backups */}
+            <button
+              type="button"
+              onClick={() => handleSelectDivision('audit')}
+              className="min-h-[58px] p-2.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm hover:border-emerald-500/80 active:scale-[0.98] transition-all flex flex-col items-center justify-center text-center cursor-pointer touch-manipulation"
+            >
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-1">
+                <Database className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">
+                {isKu ? 'باکئەپ' : 'Backups'}
+              </span>
+              <span className="text-[9px] text-slate-400 font-medium">
+                {isKu ? 'داتابەیس' : 'SQLite Vault'}
+              </span>
+            </button>
+
+            {/* 3. Admin & Settings */}
+            <button
+              type="button"
+              onClick={() => {
+                if (userPermissions.canAccessAdmin) {
+                  openAdminModal();
+                } else {
+                  setDeniedModal({
+                    moduleName: isKu ? 'ڕێکخستنی ئەدمین و دەسەڵاتەکان' : 'Admin Settings & Team Permissions',
+                    description: isKu
+                      ? 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی ڕێکخستنی ئەدمینی پێنەدراوە.'
+                      : 'Your account does not have authorization to access Admin Settings & Team Permissions.'
+                  });
+                }
+              }}
+              className="min-h-[58px] p-2.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm hover:border-sky-500/80 active:scale-[0.98] transition-all flex flex-col items-center justify-center text-center cursor-pointer touch-manipulation"
+            >
+              <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-1">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">
+                {isKu ? 'ئەدمین' : 'Admin'}
+              </span>
+              <span className="text-[9px] text-slate-400 font-medium">
+                {isKu ? 'دەسەڵاتەکان' : 'Roles & Settings'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* DESKTOP OPERATIONS HUB (>= 768px)                                         */}
+        {/* ========================================================================= */}
+        <div className="hidden md:block">
         {/* Hero Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
           {/* Master Title with Fancy Shimmering "Master" Typography */}
@@ -525,7 +1019,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                {isKu ? 'تەختەکان و داواکارییەکان' : 'Wood Panels & Orders'}
+                {isKu ? 'بڕینی تەختە' : 'Wood Panels & Orders'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                 {isKu
@@ -570,7 +1064,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   type="button"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-sm shadow-md shadow-emerald-600/20 active:scale-98 transition-all"
                 >
-                  <span>{isKu ? 'چوونە ناو بەشی تەختەکان' : 'Open Wood Panels'}</span>
+                  <span>{isKu ? 'کردنەوەی تەختەکان' : 'Open Wood Panels'}</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               ) : (
@@ -622,7 +1116,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-                {isKu ? 'فرۆشتن و پسوولە (POS)' : 'Sales POS & Invoices'}
+                {isKu ? 'فرۆشتن و وەسڵ' : 'Sales POS & Invoices'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                 {isKu
@@ -667,7 +1161,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   type="button"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white font-bold text-sm shadow-md shadow-sky-600/20 active:scale-98 transition-all"
                 >
-                  <span>{isKu ? 'چوونە ناو بەشی فرۆشتن' : 'Open Sales POS'}</span>
+                  <span>{isKu ? 'کردنەوەی فرۆشتن' : 'Open Sales POS'}</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               ) : (
@@ -719,7 +1213,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                {isKu ? 'کەلوپەل و لۆجستی کۆگا' : 'Warehouse Goods & Logistics'}
+                {isKu ? 'مەخزەن' : 'Warehouse Goods & Logistics'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                 {isKu
@@ -764,7 +1258,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   type="button"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 text-white font-bold text-sm shadow-md shadow-amber-600/20 active:scale-98 transition-all"
                 >
-                  <span>{isKu ? 'چوونە ناو بەشی کەلوپەل' : 'Open Warehouse Goods'}</span>
+                  <span>{isKu ? 'کردنەوەی مەخزەن' : 'Open Warehouse Goods'}</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               ) : (
@@ -816,7 +1310,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                {isKu ? 'شیکاری بینراو و ڕاپۆرتەکان' : 'Visual Analytics & Reports'}
+                {isKu ? 'ئامار و حسابات' : 'Visual Analytics & Reports'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                 {isKu
@@ -861,7 +1355,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   type="button"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white font-bold text-sm shadow-md shadow-purple-600/20 active:scale-98 transition-all"
                 >
-                  <span>{isKu ? 'کردنەوەی چارت و ڕاپۆرتەکان' : 'Open Visual Analytics & Charts'}</span>
+                  <span>{isKu ? 'کردنەوەی ئامار' : 'Open Visual Analytics & Charts'}</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               ) : (
@@ -873,6 +1367,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
           </div>
 
+        </div>
         </div>
       </div>
 

@@ -667,17 +667,28 @@ export const UnifiedPrintMount: React.FC = () => {
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, [clearPrintJob]);
 
-  // When activePrintJob changes, trigger print after small render tick
+  // When activePrintJob changes, trigger print after DOM portal has fully painted
   useEffect(() => {
-    if (activePrintJob) {
+    if (activePrintJob && mounted) {
+      let animId1: number;
+      let animId2: number;
       const timer = setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          window.print();
-        }
-      }, 100);
-      return () => clearTimeout(timer);
+        animId1 = requestAnimationFrame(() => {
+          animId2 = requestAnimationFrame(() => {
+            if (typeof window !== 'undefined') {
+              window.print();
+            }
+          });
+        });
+      }, 150);
+
+      return () => {
+        clearTimeout(timer);
+        if (animId1) cancelAnimationFrame(animId1);
+        if (animId2) cancelAnimationFrame(animId2);
+      };
     }
-  }, [activePrintJob]);
+  }, [activePrintJob, mounted]);
 
   if (!mounted || !activePrintJob) return null;
 

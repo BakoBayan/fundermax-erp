@@ -67,11 +67,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
     exchangeRates,
     openVisualCharts,
     userPermissions,
+    isAdminModalOpen,
+    openAdminModal,
+    closeAdminModal,
   } = useInventory();
 
   const [mounted, setMounted] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isDropdownModalOpen, setIsDropdownModalOpen] = useState(false);
   const [headerToast, setHeaderToast] = useState<string | null>(null);
   const [isPinging, setIsPinging] = useState(false);
@@ -101,8 +103,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
   };
 
   const openAdminPanel = useCallback(() => {
-    setIsAdminModalOpen(true);
-  }, []);
+    openAdminModal();
+  }, [openAdminModal]);
 
   const openCharts = useCallback(() => {
     openVisualCharts();
@@ -454,7 +456,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
 
       <AdminPanelModal
         isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
+        onClose={closeAdminModal}
       />
 
       <DropdownManagerModal

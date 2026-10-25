@@ -4,6 +4,7 @@ import { APP_CONFIG } from '@/config/appConfig';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   useInventory,
+  ROLE_PRESETS,
   resolveUserPermissions,
   DEFAULT_ADMIN_PERMISSIONS,
   DEFAULT_MANAGER_PERMISSIONS,
@@ -15,6 +16,7 @@ import {
   PanelTransaction,
   UserModulePermissions,
   UserRole,
+  RolePresetName,
   UserAccount,
 } from '@/types/inventory';
 import {
@@ -57,6 +59,9 @@ import {
   ShieldAlert,
   ArrowRight,
   ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  TrendingUp,
 } from 'lucide-react';
 import ConfirmModal from '@/components/ConfirmModal';
 import {
@@ -89,14 +94,17 @@ const ToggleSwitch: React.FC<{
   description?: string;
   badge?: string;
   highlight?: boolean;
-}> = ({ checked, onChange, disabled, label, description, badge, highlight }) => (
+  danger?: boolean;
+}> = ({ checked, onChange, disabled, label, description, badge, highlight, danger }) => (
   <div
     onClick={() => !disabled && onChange(!checked)}
     className={`flex items-center justify-between p-3.5 rounded-xl border transition-all select-none ${
       disabled
         ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
         : checked
-        ? highlight
+        ? danger
+          ? 'bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 hover:border-rose-500/60 cursor-pointer shadow-xs'
+          : highlight
           ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/40 hover:border-amber-500/60 cursor-pointer shadow-xs'
           : 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500/60 cursor-pointer shadow-xs'
         : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer'
@@ -109,7 +117,9 @@ const ToggleSwitch: React.FC<{
           <span
             className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
               checked
-                ? highlight
+                ? danger
+                  ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200'
+                  : highlight
                   ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'
                   : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -123,7 +133,7 @@ const ToggleSwitch: React.FC<{
     </div>
     <div
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out ${
-        checked ? (highlight ? 'bg-amber-500' : 'bg-emerald-600') : 'bg-slate-300 dark:bg-slate-700'
+        checked ? (danger ? 'bg-rose-600' : highlight ? 'bg-amber-500' : 'bg-emerald-600') : 'bg-slate-300 dark:bg-slate-700'
       }`}
     >
       <span
@@ -134,6 +144,107 @@ const ToggleSwitch: React.FC<{
     </div>
   </div>
 );
+
+
+interface PresetCardDef {
+  id: RolePresetName;
+  role: UserRole;
+  titleEn: string;
+  titleKu: string;
+  descEn: string;
+  descKu: string;
+  badge: string;
+  color: string;
+  summary: { text: string; allowed: boolean }[];
+}
+
+const ROLE_PRESET_CARDS: PresetCardDef[] = [
+  {
+    id: 'Super Admin',
+    role: 'Admin',
+    titleEn: 'Super Admin',
+    titleKu: 'بەڕێوەبەری باڵا',
+    descEn: 'Full executive control across all divisions & databases',
+    descKu: 'دەسەڵاتی بێ سنوور لەسەرجەم بەشەکان و داتابەیس',
+    badge: 'Executive',
+    color: 'emerald',
+    summary: [
+      { text: '✓ Full System Control & Settings', allowed: true },
+      { text: '✓ Financial & Workshop Analytics', allowed: true },
+      { text: '✓ Create, Edit, Delete & Restore All', allowed: true },
+      { text: '✓ Database Backups & Vault Maintenance', allowed: true },
+    ],
+  },
+  {
+    id: 'Accountant',
+    role: 'Staff',
+    titleEn: 'Accountant',
+    titleKu: 'ژمێریاری دارایی',
+    descEn: 'Sales POS, receipts, customer debt & multi-currency billing',
+    descKu: 'فرۆشتن، پسوولە، قەرزی کڕیاران و دراوەکان',
+    badge: 'Finance',
+    color: 'sky',
+    summary: [
+      { text: '✓ POS Invoices, Billing & Receipts', allowed: true },
+      { text: '✓ Multi-Currency & Debt Ledgers', allowed: true },
+      { text: '✓ Financial Analytics & Revenue Trends', allowed: true },
+      { text: '✕ Cannot Delete Wood Panels', allowed: false },
+      { text: '✕ No Database Engine Administration', allowed: false },
+    ],
+  },
+  {
+    id: 'Sales Representative',
+    role: 'Staff',
+    titleEn: 'Sales Representative',
+    titleKu: 'نوێنەری فرۆشتن',
+    descEn: 'POS checkout & customer cutting order booking',
+    descKu: 'تۆمارکردنی فرۆشتن و داواکاری کڕیاران',
+    badge: 'Commercial',
+    color: 'indigo',
+    summary: [
+      { text: '✓ POS Sales Checkout & Invoices', allowed: true },
+      { text: '✓ Book Client Cutting Orders', allowed: true },
+      { text: '✕ No Financial Analytics or Margins', allowed: false },
+      { text: '✕ Cannot Delete Orders or Materials', allowed: false },
+      { text: '✕ General Stock Numbers Shielded', allowed: false },
+    ],
+  },
+  {
+    id: 'Workshop Floor',
+    role: 'Staff',
+    titleEn: 'Machine Operator',
+    titleKu: 'وەستای بڕینی کارگە',
+    descEn: 'Factory wood dimensions, cutting queue & slip printing',
+    descKu: 'ئەندازەی تەختە، تەواوکردنی بڕین و چاپکردنی پسوڵە',
+    badge: 'Workshop',
+    color: 'amber',
+    summary: [
+      { text: '✓ Wood Panels & Cut Specifications', allowed: true },
+      { text: '✓ Finalize Workshop Cutting Queue', allowed: true },
+      { text: '✓ Print Factory Cutting Slips', allowed: true },
+      { text: '✓ Workshop Yield & Queue Analytics', allowed: true },
+      { text: '✕ No Sales POS or Pricing Visibility', allowed: false },
+      { text: '✕ No Financial Charts Access', allowed: false },
+    ],
+  },
+  {
+    id: 'Read-Only Viewer',
+    role: 'Viewer',
+    titleEn: 'Read-Only Viewer',
+    titleKu: 'بینەری سنووردار',
+    descEn: 'Safe inspection without modification or delete privileges',
+    descKu: 'تەنها سەیرکردنی سەلامەت بەبێ دەستکاری یان سڕینەوە',
+    badge: 'View-Only',
+    color: 'slate',
+    summary: [
+      { text: '✓ Safe Read-Only Catalog View', allowed: true },
+      { text: '✕ Cannot Create or Modify Any Data', allowed: false },
+      { text: '✕ Cannot Delete Anything', allowed: false },
+      { text: '✕ Confidential Financial Numbers Shielded', allowed: false },
+      { text: '✕ All Visual Analytics Charts Blocked', allowed: false },
+    ],
+  },
+];
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   isOpen,
@@ -228,6 +339,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
   const [isExportingUsb, setIsExportingUsb] = useState(false);
+  const [showCustomTuning, setShowCustomTuning] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState<RolePresetName>('Super Admin');
+
   const [restoreConfirmSnapshot, setRestoreConfirmSnapshot] = useState<string | null>(null);
   const [optimizationResult, setOptimizationResult] = useState<string | null>(null);
 
@@ -561,8 +675,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-2 sm:p-4 overflow-hidden select-none animate-in fade-in duration-200">
+      <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col h-[90vh] max-h-[90vh] overflow-hidden box-border">
         
         {/* ========================================================================= */}
         {/* HEADER BAR: Executive Title, Quick Status Chips & Close Button            */}
@@ -677,7 +791,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         {/* ========================================================================= */}
         {/* CONTENT BODY: Clean, Structured Scrollable Viewport                       */}
         {/* ========================================================================= */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 overscroll-contain">
 
           {/* ======================================================================= */}
           {/* TAB 1: TEAM & ACCESS CONTROL                                            */}
@@ -782,241 +896,311 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 1-Click Role Template Selector */}
-                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-2.5">
-                      {lang === 'en' ? '1-Click Role Template Presets:' : 'داڕشتەی خێرای دەسەڵاتەکان:'}
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {(['Admin', 'Manager', 'Staff', 'Viewer'] as UserRole[]).map((r) => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => applyRolePreset(r)}
-                          className="px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 text-slate-800 dark:text-slate-200 transition-all cursor-pointer text-left flex items-center justify-between"
-                        >
-                          <span>{r}</span>
-                          <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-                        </button>
-                      ))}
+                  {/* 5 PROMINENT ROLE PRESET CARDS */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-500" />
+                        <span>{lang === 'en' ? 'Select Operational Role Preset:' : 'هەڵبژاردنی پلە و ڕۆڵی بەکارهێنەر:'}</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {lang === 'en' ? 'Click to apply instant baseline' : 'کلیک بکە بۆ دیاریکردنی خێرا'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+                      {ROLE_PRESET_CARDS.map((preset) => {
+                        const isSelected = selectedPresetId === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPresetId(preset.id);
+                              setActiveUserPerms({
+                                ...ROLE_PRESETS[preset.id],
+                                canViewRestrictedMetrics: preset.id === 'Super Admin' || preset.id === 'Accountant',
+                              });
+                              onToast(
+                                lang === 'en'
+                                  ? `Applied "${preset.titleEn}" baseline. Click "Save Account Permissions" to commit.`
+                                  : `داڕشتەی "${preset.titleKu}" دیاریکرا. پاشەکەوت بکە بۆ جێبەجێکردن.`
+                              );
+                            }}
+                            className={`relative p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 min-h-[110px] ${
+                              isSelected
+                                ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
+                                : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="text-xs font-black text-slate-900 dark:text-white block">
+                                  {lang === 'en' ? preset.titleEn : preset.titleKu}
+                                </span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                  {lang === 'en' ? preset.titleKu : preset.titleEn}
+                                </span>
+                              </div>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider ${
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-750 text-slate-500 dark:text-slate-400'
+                                }`}
+                              >
+                                {preset.badge}
+                              </span>
+                            </div>
+
+                            <p className="text-[10.5px] text-slate-600 dark:text-slate-400 leading-tight">
+                              {lang === 'en' ? preset.descEn : preset.descKu}
+                            </p>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* ⭐ NEW HIGHLIGHTED FEATURE: Confidential Numbers & Financials Privacy Protection */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-500/30 dark:border-amber-500/20 shadow-xs">
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                          {lang === 'en' ? 'Main Menu Metrics & Financial Numbers Privacy' : 'شاردنەوەی ژمارە داراییەکان لە مێنیوی سەرەکی'}
-                        </h4>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                          {lang === 'en'
-                            ? 'When turned OFF (recommended for staff/viewers), this account cannot view any numbers, revenue stats, or unpaid debts on modules they are restricted from entering. Numbers are shielded with a privacy padlock.'
-                            : 'کاتێک ئەمە ناچالاک بێت، بەکارهێنەر ناتوانێت هیچ ژمارەیەک، کۆی قەرز یان ئاماری پارە ببینێت لەو بەشانەی ڕێگەی پێنەدراوە بچێتە ژوورەوە.'}
-                        </p>
-
-                        <div className="mt-3.5 max-w-md">
-                          <ToggleSwitch
-                            highlight
-                            label={
-                              lang === 'en'
-                                ? 'Allow Viewing Confidential Menu Metrics'
-                                : 'ڕێگەپێدان بە بینینی ژمارە نهێنییەکان لە مێنیو'
-                            }
-                            description={
-                              activeUserPerms.canViewRestrictedMetrics
-                                ? lang === 'en'
-                                  ? 'Numbers are visible to this account across all cards.'
-                                  : 'ژمارەکان دەبینرێن بۆ ئەم بەکارهێنەرە.'
-                                : lang === 'en'
-                                ? '🛡️ Protected: Numbers & debts are shielded with a privacy padlock.'
-                                : '🛡️ پارێزراوە: ژمارەکان و قەرزەکان بە تەواوی شاردراونەتەوە.'
-                            }
-                            badge={activeUserPerms.canViewRestrictedMetrics ? 'Visible' : 'Shielded'}
-                            checked={!!activeUserPerms.canViewRestrictedMetrics}
-                            onChange={(val) =>
-                              setActiveUserPerms((prev) => ({ ...prev, canViewRestrictedMetrics: val }))
-                            }
-                          />
+                  {/* ACTIVE PRESET CAPABILITIES SUMMARY CLUSTER */}
+                  {(() => {
+                    const activePreset = ROLE_PRESET_CARDS.find((p) => p.id === selectedPresetId) || ROLE_PRESET_CARDS[0];
+                    return (
+                      <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/80 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            <span>{lang === 'en' ? 'Active Role Capabilities & Access Envelope:' : 'دەسەڵات و سنووری چالاکی ئەم داڕشتەیە:'}</span>
+                          </div>
+                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                            {lang === 'en' ? activePreset.titleEn : activePreset.titleKu}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {activePreset.summary.map((item, idx) => (
+                            <span
+                              key={idx}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border ${
+                                item.allowed
+                                  ? 'bg-emerald-50/90 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80'
+                                  : 'bg-rose-50/80 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40'
+                              }`}
+                            >
+                              {item.text}
+                            </span>
+                          ))}
                         </div>
                       </div>
-                    </div>
+                    );
+                  })()}
+
+                  {/* COLLAPSIBLE FINE-TUNING & GRANULAR OVERRIDES ACCORDION */}
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-850 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomTuning((prev) => !prev)}
+                      className="w-full p-4 flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 dark:bg-slate-800/50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                          <Sliders className="w-4 h-4" />
+                        </div>
+                        <div className="text-left">
+                          <div className="text-xs font-black text-slate-900 dark:text-white">
+                            {lang === 'en' ? 'Custom Fine-Tuning & Granular Overrides' : 'دەستکاریکردنی وردی دەسەڵاتەکان (Fine-Tuning)'}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {lang === 'en'
+                              ? 'Override individual module permissions, deletion rights & metric masking'
+                              : 'دەستکاری تایبەت بە هەر بەشێک، سڕینەوە، دەرکردنی داتا و قوفڵی ژمارەکان'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                        <span>{showCustomTuning ? (lang === 'en' ? 'Hide Details' : 'شاردنەوە') : (lang === 'en' ? 'Configure Overrides' : 'دەستکاریکردن')}</span>
+                        {showCustomTuning ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </div>
+                    </button>
+
+                    {showCustomTuning && (
+                      <div className="p-4 sm:p-5 space-y-5 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+                        {/* Confidential Numbers & Financials Privacy Protection */}
+                        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-500/30 dark:border-amber-500/20 shadow-xs">
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                              <Lock className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                                {lang === 'en' ? 'Main Menu Metrics & Financial Numbers Privacy' : 'شاردنەوەی ژمارە داراییەکان لە مێنیوی سەرەکی'}
+                              </h4>
+                              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                                {lang === 'en'
+                                  ? 'When turned OFF (recommended for staff/viewers), this account cannot view any numbers, revenue stats, or unpaid debts on modules they are restricted from entering. Numbers are shielded with a privacy padlock.'
+                                  : 'کاتێک ئەمە ناچالاک بێت، بەکارهێنەر ناتوانێت هیچ ژمارەیەک، کۆی قەرز یان ئاماری پارە ببینێت لەو بەشانەی ڕێگەی پێنەدراوە بچێتە ژوورەوە.'}
+                              </p>
+
+                              <div className="mt-3.5 max-w-md">
+                                <ToggleSwitch
+                                  highlight
+                                  label={
+                                    lang === 'en'
+                                      ? 'Allow Viewing Confidential Menu Metrics'
+                                      : 'ڕێگەپێدان بە بینینی ژمارە نهێنییەکان لە مێنیو'
+                                  }
+                                  description={
+                                    activeUserPerms.canViewRestrictedMetrics
+                                      ? lang === 'en'
+                                        ? 'Numbers are visible to this account across all cards.'
+                                        : 'ژمارەکان دەبینرێن بۆ ئەم بەکارهێنەرە.'
+                                      : lang === 'en'
+                                      ? '🛡️ Protected: Numbers & debts are shielded with a privacy padlock.'
+                                      : '🛡️ پارێزراوە: ژمارەکان و قەرزەکان بە تەواوی شاردراونەتەوە.'
+                                  }
+                                  badge={activeUserPerms.canViewRestrictedMetrics ? 'Visible' : 'Shielded'}
+                                  checked={!!activeUserPerms.canViewRestrictedMetrics}
+                                  onChange={(val) =>
+                                    setActiveUserPerms((prev) => ({ ...prev, canViewRestrictedMetrics: val }))
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Clean Modular Permissions Grid */}
+                        <div className="space-y-4">
+                          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            {lang === 'en' ? 'Granular Division Rights & Privileges' : 'دەسەڵاتی بەشەکانی سیستەم'}
+                          </h5>
+
+                          {/* Division 1: Wood Panels */}
+                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
+                              <Layers className="w-4 h-4 text-emerald-600" />
+                              <span>{lang === 'en' ? 'Division 01: Wood Panels & Cutting' : 'بەشی یەکەم: تەختە و مەواد'}</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <ToggleSwitch
+                                label="View Wood Panels Catalog"
+                                description="Access materials list, stock balances and active reservation queues"
+                                checked={!!activeUserPerms.canViewPanels}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canViewPanels: val }))}
+                              />
+                              <ToggleSwitch
+                                label="Create & Add Materials"
+                                description="Can add new wood panels, sheet codes, finishes and dimensions"
+                                checked={!!activeUserPerms.canCreatePanels}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canCreatePanels: val }))}
+                              />
+                              <ToggleSwitch
+                                label="Edit Panel Details & Stock"
+                                description="Modify dimensions, descriptions, images and manual stock count"
+                                checked={!!activeUserPerms.canEditPanels}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canEditPanels: val }))}
+                              />
+                              <ToggleSwitch
+                                danger
+                                label="Permanent Panel Deletion"
+                                description="Delete materials and historical cuts permanently from SQLite"
+                                checked={!!activeUserPerms.canDeletePanels}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canDeletePanels: val }))}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Division 2: Sales POS */}
+                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
+                              <ReceiptText className="w-4 h-4 text-sky-600" />
+                              <span>{lang === 'en' ? 'Division 02: Sales POS & Invoices' : 'بەشی دووەم: فرۆشتن و دارایی'}</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <ToggleSwitch
+                                label="View Transactions Ledger"
+                                description="View POS sales history, transaction receipts, debts and customer balances"
+                                checked={!!activeUserPerms.canViewSales}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canViewSales: val }))}
+                              />
+                              <ToggleSwitch
+                                label="Process POS Sales Checkout"
+                                description="Create invoices, record payments, apply discounts and print receipts"
+                                checked={!!activeUserPerms.canCreateSales}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canCreateSales: val }))}
+                              />
+                              <ToggleSwitch
+                                label="Edit Invoices & Payment Ledger"
+                                description="Modify past sales receipts, add installments, and update client debt balances"
+                                checked={!!activeUserPerms.canEditSales}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canEditSales: val }))}
+                              />
+                              <ToggleSwitch
+                                danger
+                                label="Delete Sales Transactions"
+                                description="Permanently delete financial records and receipts from the database"
+                                checked={!!activeUserPerms.canDeleteSales}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canDeleteSales: val }))}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Division 3: Warehouse Goods */}
+                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
+                              <Boxes className="w-4 h-4 text-amber-600" />
+                              <span>{lang === 'en' ? 'Division 03: Warehouse Hardware Goods & Logistics' : 'بەشی سێیەم: کەلوپەلی کۆگا'}</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <ToggleSwitch
+                                label="View Warehouse Stock"
+                                description="Access hardware fittings, SKUs, inventory bins, and warehouse locations"
+                                checked={!!activeUserPerms.canViewWarehouse}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canViewWarehouse: val }))}
+                              />
+                              <ToggleSwitch
+                                label="Manage Inbound Shipments"
+                                description="Receive purchase orders, verify supplier containers, and record manifests"
+                                checked={!!activeUserPerms.canManageShipments}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canManageShipments: val }))}
+                              />
+                              <ToggleSwitch
+                                label="Manage Stock Levels & Adjustments"
+                                description="Record physical stock counts, location transfers, and write-offs"
+                                checked={!!activeUserPerms.canManageStock}
+                                onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canManageStock: val }))}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Executive Analytics & BI Gating */}
+                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
+                              <BarChart3 className="w-4 h-4 text-purple-600" />
+                              <span>{lang === 'en' ? 'Division 04: Visual Charts & Analytics Gating' : 'بەشی چوارەم: شیکاری چارتەکان'}</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <ToggleSwitch
+                                label="Financial Analytics Access"
+                                description="Exposes profit margins, revenue graphs, customer debt ranking, & transaction turnover"
+                                checked={!!activeUserPerms.canViewFinancialAnalytics}
+                                onChange={(val) =>
+                                  setActiveUserPerms((prev) => ({ ...prev, canViewFinancialAnalytics: val }))
+                                }
+                              />
+                              <ToggleSwitch
+                                label="Workshop Analytics Access"
+                                description="Exposes cutting queue efficiency, sheet allocation, board yield & stock distribution"
+                                checked={!!activeUserPerms.canViewWorkshopAnalytics}
+                                onChange={(val) =>
+                                  setActiveUserPerms((prev) => ({ ...prev, canViewWorkshopAnalytics: val }))
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Clean Modular Permissions Grid */}
-                  <div className="space-y-4">
-                    <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      {lang === 'en' ? 'Granular Division Rights & Privileges' : 'دەسەڵاتی بەشەکانی سیستەم'}
-                    </h5>
-
-                    {/* Division 1: Wood Panels */}
-                    <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <Layers className="w-4 h-4 text-emerald-600" />
-                        <span>{lang === 'en' ? 'Division 01: Wood Panels & Cutting' : 'بەشی یەکەم: تەختە و مەواد'}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <ToggleSwitch
-                          label="Access & View Panels"
-                          description="Can enter Wood Panels module"
-                          checked={activeUserPerms.canViewPanels}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canViewPanels: val, panels: val }))
-                          }
-                        />
-                        <ToggleSwitch
-                          label="Create & Add Panels"
-                          description="Can add new panel stocks"
-                          checked={activeUserPerms.canCreatePanels}
-                          onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canCreatePanels: val }))}
-                        />
-                        <ToggleSwitch
-                          label="Edit & Modify Stock"
-                          description="Can change quantities and names"
-                          checked={activeUserPerms.canEditPanels}
-                          onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canEditPanels: val }))}
-                        />
-                        <ToggleSwitch
-                          label="Delete Panel Records"
-                          description="Can permanently delete materials"
-                          checked={activeUserPerms.canDeletePanels}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canDeletePanels: val, canDelete: val }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {/* Division 2: Sales POS & Invoices */}
-                    <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <ReceiptText className="w-4 h-4 text-emerald-600" />
-                        <span>{lang === 'en' ? 'Division 02: Sales POS & Financial Invoicing' : 'بەشی دووەم: فرۆشتن و وەسڵ'}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <ToggleSwitch
-                          label="Access & View Sales POS"
-                          description="Can enter Sales billing module"
-                          checked={activeUserPerms.canViewSales}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canViewSales: val, sales: val }))
-                          }
-                        />
-                        <ToggleSwitch
-                          label="Create Invoices"
-                          description="Can issue sales receipts"
-                          checked={activeUserPerms.canCreateSales}
-                          onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canCreateSales: val }))}
-                        />
-                        <ToggleSwitch
-                          label="Edit Past Invoices"
-                          description="Can modify debts and line items"
-                          checked={activeUserPerms.canEditSales}
-                          onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canEditSales: val }))}
-                        />
-                        <ToggleSwitch
-                          label="Delete Invoices"
-                          description="Can remove transaction records"
-                          checked={activeUserPerms.canDeleteSales}
-                          onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canDeleteSales: val }))}
-                        />
-                        <ToggleSwitch
-                          label="Override Unit Prices"
-                          description="Can enter custom selling prices at POS"
-                          checked={activeUserPerms.canOverridePrice}
-                          onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canOverridePrice: val }))}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Division 3: Warehouse & Logistics */}
-                    <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <Boxes className="w-4 h-4 text-emerald-600" />
-                        <span>{lang === 'en' ? 'Division 03: Warehouse Hardware & Shipping' : 'بەشی سێیەم: کاڵا و گەیاندن'}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <ToggleSwitch
-                          label="Access Warehouse Goods"
-                          description="Can view hardware catalog"
-                          checked={activeUserPerms.canViewWarehouse}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canViewWarehouse: val, goods: val }))
-                          }
-                        />
-                        <ToggleSwitch
-                          label="Manage Stock & SKUs"
-                          description="Can adjust inventory quantities"
-                          checked={activeUserPerms.canManageStock}
-                          onChange={(val) => setActiveUserPerms((prev) => ({ ...prev, canManageStock: val }))}
-                        />
-                        <ToggleSwitch
-                          label="Logistics & Shipments"
-                          description="Can create and track shipments"
-                          checked={activeUserPerms.canManageShipments}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canManageShipments: val, shipping: val }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {/* System Privileges */}
-                    <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span>{lang === 'en' ? 'Administrative Privileges' : 'دەسەڵاتی ئیداری سەرەکی'}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <ToggleSwitch
-                          label="Access Admin Panel"
-                          description="Can open and configure this administration panel"
-                          checked={activeUserPerms.canAccessAdmin}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canAccessAdmin: val, audit: val }))
-                          }
-                        />
-                        <ToggleSwitch
-                          label="Export Data & Backups"
-                          description="Can download CSVs and database backups"
-                          checked={activeUserPerms.canExportBackups}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canExportBackups: val, canExport: val }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {/* Analytics & Business Intelligence Isolation */}
-                    <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <BarChart3 className="w-4 h-4 text-purple-600" />
-                        <span>{lang === 'en' ? 'Executive Analytics & BI Gating' : 'شیکاری دارایی و ڕاپۆرتی بینراو'}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <ToggleSwitch
-                          label="Financial Analytics & Revenue"
-                          description="Exposes profit margins, revenue graphs, debt summaries & customer balances"
-                          checked={!!activeUserPerms.canViewFinancialAnalytics}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canViewFinancialAnalytics: val }))
-                          }
-                        />
-                        <ToggleSwitch
-                          label="Workshop Operations Analytics"
-                          description="Exposes cutting queue efficiency, sheet allocation, board yield & stock distribution"
-                          checked={!!activeUserPerms.canViewWorkshopAnalytics}
-                          onChange={(val) =>
-                            setActiveUserPerms((prev) => ({ ...prev, canViewWorkshopAnalytics: val }))
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Save Permissions Bottom Action */}
                   <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
                     <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -1141,14 +1325,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <div>
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white mb-1">
                       <Usb className="w-4 h-4 text-blue-500" />
-                      <span>{lang === 'en' ? 'Physical Flash Drive' : 'باکئەپ بۆ میمۆری USB'}</span>
+                      <span>{lang === 'en' ? 'Physical Flash Drive' : 'کۆپی بۆ فلاش (USB)'}</span>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {usbDrives.length > 0
                         ? `Detected: ${usbDrives.join(', ')}`
                         : lang === 'en'
                         ? 'Auto-detects USB flash drives (E:\\, F:\\) for 1-click physical offsite vaulting.'
-                        : 'دەستنیشانکردنی ئۆتۆماتیکی فلاش میمۆری بۆ بردنە دەرەوەی داتاکان.'}
+                        : 'دەستنیشانکردنی خۆکاری فلاش بۆ پاراستنی دەرەکی داتابەیس.'}
                     </p>
                   </div>
                   <button
@@ -1158,7 +1342,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     className="w-full px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs inline-flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95"
                   >
                     <Usb className={`w-4 h-4 ${isExportingUsb ? 'animate-pulse' : ''}`} />
-                    <span>{isExportingUsb ? 'Copying...' : lang === 'en' ? 'Export to USB' : 'ناردن بۆ USB'}</span>
+                    <span>{isExportingUsb ? 'Copying...' : lang === 'en' ? 'Export to USB' : 'کۆپی بۆ فلاش (USB)'}</span>
                   </button>
                 </div>
               </div>

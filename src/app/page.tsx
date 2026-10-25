@@ -2,6 +2,7 @@
 
 import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { InventoryProvider, useInventory } from '@/context/InventoryContext';
 import { Header } from '@/components/Header';
 import { ModuleHub } from '@/components/ModuleHub';
@@ -111,6 +112,7 @@ function WarehouseApp() {
     searchQuery,
     setSearchQuery,
     openVisualCharts,
+    activePrintJob,
   } = useInventory();
 
   // Print Image Option: "none" (ink-saver text only), "small", "medium", "large"
@@ -883,46 +885,46 @@ function WarehouseApp() {
       {/* Unified Dedicated Print Mount (Direct Portal into #print-mount-root) */}
       <UnifiedPrintMount />
 
-      {/* Dedicated High-Fidelity Slip Print View */}
-      <div className="hidden print:block print:w-full bg-white text-slate-900 font-sans text-xs p-0 print-sheet-root print-section-active">
-        {selectedPrintQueue.length > 0 ? (
-          <div>
-            {selectedPrintQueue.map((item, index) => {
-              if (item.type === 'panel') {
-                return renderPanelSlip(item.material, false, index + 1, selectedPrintQueue.length);
-              } else if (item.order) {
-                return renderOrderSlip(item.order, item.material, false, index + 1, selectedPrintQueue.length);
-              }
-              return null;
-            })}
-          </div>
-        ) : individualPrintTarget ? (
-          <div>
-            {individualPrintTarget.type === 'panel' && individualPrintTarget.material && (
-              renderPanelSlip(individualPrintTarget.material, false)
-            )}
-            {individualPrintTarget.type === 'order' && individualPrintTarget.order && individualPrintTarget.material && (
-              renderOrderSlip(individualPrintTarget.order, individualPrintTarget.material, false)
-            )}
-          </div>
-        ) : (
-          <div>
-            {shouldPrintPanels &&
-              materials.map((m, idx) =>
-                renderPanelSlip(m, printScope === 'individual-panels', idx + 1, materials.length)
-              )}
-            {shouldPrintOrders &&
-              allFlattenedOrders.map(({ order, material }, idx) =>
-                renderOrderSlip(order, material, printScope === 'individual-orders', idx + 1, allFlattenedOrders.length)
-              )}
-            {!shouldPrintPanels && !shouldPrintOrders && (
-              <div className="text-center py-12 text-slate-400">
-                No items to print.
+      {/* Dedicated High-Fidelity Slip Print View (Portals directly into #print-mount-root) */}
+      {typeof document !== 'undefined' && document.getElementById('print-mount-root') && !activePrintJob && (
+        createPortal(
+          <div className="w-full bg-white text-slate-900 font-sans text-xs p-0 print-sheet-root">
+            {selectedPrintQueue.length > 0 ? (
+              <div>
+                {selectedPrintQueue.map((item, index) => {
+                  if (item.type === 'panel') {
+                    return renderPanelSlip(item.material, false, index + 1, selectedPrintQueue.length);
+                  } else if (item.order) {
+                    return renderOrderSlip(item.order, item.material, false, index + 1, selectedPrintQueue.length);
+                  }
+                  return null;
+                })}
+              </div>
+            ) : individualPrintTarget ? (
+              <div>
+                {individualPrintTarget.type === 'panel' && individualPrintTarget.material && (
+                  renderPanelSlip(individualPrintTarget.material, false)
+                )}
+                {individualPrintTarget.type === 'order' && individualPrintTarget.order && individualPrintTarget.material && (
+                  renderOrderSlip(individualPrintTarget.order, individualPrintTarget.material, false)
+                )}
+              </div>
+            ) : (
+              <div>
+                {shouldPrintPanels &&
+                  materials.map((m, idx) =>
+                    renderPanelSlip(m, printScope === 'individual-panels', idx + 1, materials.length)
+                  )}
+                {shouldPrintOrders &&
+                  allFlattenedOrders.map(({ order, material }, idx) =>
+                    renderOrderSlip(order, material, printScope === 'individual-orders', idx + 1, allFlattenedOrders.length)
+                  )}
               </div>
             )}
-          </div>
-        )}
-      </div>
+          </div>,
+          document.getElementById('print-mount-root')!
+        )
+      )}
     </div>
   );
 }

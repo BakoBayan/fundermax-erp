@@ -21,7 +21,8 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
-  Minimize2
+  Minimize2,
+  Share2
 } from 'lucide-react';
 import { PanelTransaction } from '@/types/inventory';
 import { useInventory } from '../context/InventoryContext';
@@ -215,6 +216,31 @@ export default function PrintInvoiceModal({
     printInvoiceJob(updatedTx, printFormat);
   };
 
+  const handleWhatsAppShare = () => {
+    if (!tx) return;
+    const itemsText = tx.items && tx.items.length > 0
+      ? tx.items.map(it => `• ${it.product || it.type} (${it.quantity}) - ${formatMoney(it.price * it.quantity, tx.currency || tx.chargedCurrency)}`).join('\n')
+      : `• ${tx.material || tx.panelType} (${tx.quantity} ${tx.unit || ''}) - ${formatMoney(tx.sellingAmount, tx.currency || tx.chargedCurrency)}`;
+    
+    const text = `*وەسڵی فرۆشتن / Sales Invoice*
+*کۆد:* ${tx.code || tx.id.slice(-4)}
+*کڕیار:* ${tx.seller || 'کڕیاری بەڕێز'}
+*بەروار:* ${invoiceDateStr}
+
+*کاڵاکان:*
+${itemsText}
+
+*کۆی گشتی:* ${formatMoney(tx.totalAfterDiscount || tx.sellingAmount, tx.currency || tx.chargedCurrency)}
+*پارەی دراو:* ${formatMoney(tx.amountPaidNow || 0, tx.currency || tx.chargedCurrency)}
+*قەرزی ماوە:* ${formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, tx.currency || tx.chargedCurrency)}
+
+کۆمپانیای شەسواری ئەحمەد شەسوار
+Bako's Master System`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
   // Upload an additional unrelated image
   const handleUploadCustomImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -399,6 +425,17 @@ export default function PrintInvoiceModal({
               </span>
             </button>
 
+            {/* WhatsApp 1-Tap Sharing */}
+            <button
+              type="button"
+              onClick={handleWhatsAppShare}
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+              title="Send via WhatsApp (ناردن بۆ وەتسئەپ)"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>{lang === 'en' ? 'WhatsApp' : 'ناردن بۆ وەتسئەپ'}</span>
+            </button>
+
             {/* Print Button */}
             <button
               type="button"
@@ -407,7 +444,7 @@ export default function PrintInvoiceModal({
               title="Print to Paper or PDF (Ctrl+P)"
             >
               <Printer className="w-4 h-4" />
-              <span>{lang === 'en' ? 'Print Now' : 'چاپکردن'}</span>
+              <span>{lang === 'en' ? 'Print Now' : 'چاپ'}</span>
             </button>
 
             {/* Close Button */}

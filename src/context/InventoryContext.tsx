@@ -63,6 +63,11 @@ interface InventoryContextType {
   openCopyrightModal: () => void;
   closeCopyrightModal: () => void;
 
+  // Admin & System Settings Modal
+  isAdminModalOpen: boolean;
+  openAdminModal: () => void;
+  closeAdminModal: () => void;
+
   // Wood Panels & Orders
   materials: PanelMaterial[];
   customTypes: string[];
@@ -147,6 +152,10 @@ interface InventoryContextType {
   posDraft: PosDraftState;
   setPosDraft: React.Dispatch<React.SetStateAction<PosDraftState>>;
   clearPosDraft: () => void;
+  salesStatusFilter: 'all' | 'completed' | 'debt' | 'partial';
+  setSalesStatusFilter: (f: 'all' | 'completed' | 'debt' | 'partial') => void;
+  salesTimeframeFilter: 'all' | 'today' | 'yesterday' | 'week' | 'month';
+  setSalesTimeframeFilter: (f: 'all' | 'today' | 'yesterday' | 'week' | 'month') => void;
 
   // Multi-Currency
   exchangeRates: ExchangeRates;
@@ -586,6 +595,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsCopyrightOpen(false);
   }, []);
 
+  // Admin & System Settings Modal State
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const openAdminModal = useCallback(() => {
+    setIsAdminModalOpen(true);
+  }, []);
+  const closeAdminModal = useCallback(() => {
+    setIsAdminModalOpen(false);
+  }, []);
+
   // Unified Isolated Print Engine State
   const [activePrintJob, setActivePrintJob] = useState<PrintJob | null>(null);
 
@@ -663,6 +681,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return [];
     }
   });
+
+  const [salesStatusFilter, setSalesStatusFilter] = useState<'all' | 'completed' | 'debt' | 'partial'>('all');
+  const [salesTimeframeFilter, setSalesTimeframeFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>('all');
 
   const [products, setProducts] = useState<Product[]>(() => {
     if (typeof window === "undefined") return [];
@@ -2418,6 +2439,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     isCopyrightOpen,
     openCopyrightModal,
     closeCopyrightModal,
+    isAdminModalOpen,
+    openAdminModal,
+    closeAdminModal,
     materials,
     customTypes,
     stats,
@@ -2447,6 +2471,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     posDraft,
     setPosDraft,
     clearPosDraft,
+    salesStatusFilter,
+    setSalesStatusFilter,
+    salesTimeframeFilter,
+    setSalesTimeframeFilter,
 
     exchangeRates,
     setExchangeRates,

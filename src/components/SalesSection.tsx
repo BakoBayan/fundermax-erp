@@ -56,6 +56,10 @@ export const SalesSection: React.FC = () => {
     posDraft,
     setPosDraft,
     clearPosDraft,
+    salesStatusFilter,
+    setSalesStatusFilter,
+    salesTimeframeFilter,
+    setSalesTimeframeFilter,
     canModify,
     isViewer,
     userPermissions,
@@ -78,10 +82,8 @@ export const SalesSection: React.FC = () => {
   // Local UI state
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [salesSearch, setSalesSearch] = useState('');
-  const [salesStatusFilter, setSalesStatusFilter] = useState<'all' | 'completed' | 'debt' | 'partial'>('all');
   const [salesSellerFilter, setSalesSellerFilter] = useState<string>('all');
   const [salesPaymentMethodFilter, setSalesPaymentMethodFilter] = useState<string>('all');
-  const [salesTimeframeFilter, setSalesTimeframeFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>('all');
   const [salesSortBy, setSalesSortBy] = useState<'newest' | 'oldest' | 'highestTotal' | 'highestDebt'>('newest');
   const [showRateSettings, setShowRateSettings] = useState(false);
   const [manualUsdToIqd, setManualUsdToIqd] = useState<string>(String(exchangeRates.usdToIqd || 1500));
@@ -1132,10 +1134,21 @@ export const SalesSection: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-              {t.paidNow} ({posDraft.activeCurrency})
-            </label>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                {t.paidNow} ({posDraft.activeCurrency})
+              </label>
+              {typeof posDraft.amountPaidNow === 'number' && posDraft.amountPaidNow > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPosDraft((prev) => ({ ...prev, amountPaidNow: '' }))}
+                  className="text-[10px] text-rose-500 hover:underline font-mono font-bold cursor-pointer"
+                >
+                  ✕ {isKu ? 'سڕینەوە' : 'Clear'}
+                </button>
+              )}
+            </div>
             <input
               type="number"
               inputMode="decimal"
@@ -1151,6 +1164,87 @@ export const SalesSection: React.FC = () => {
               placeholder="0.00"
               className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold"
             />
+            {/* Quick-Cash Buttons in POS */}
+            <div className="pt-1 flex flex-wrap items-center gap-1.5">
+              {/* Full Payment Button */}
+              <button
+                type="button"
+                onClick={() => setPosDraft((prev) => ({ ...prev, amountPaidNow: totalAfterDiscount }))}
+                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/70 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300/60 dark:border-emerald-800/60 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                title="Set paid amount to full invoice total"
+              >
+                {isKu ? 'تەواو دراوە (Full)' : 'Full Payment'}
+              </button>
+
+              {/* Fast Cash Increments */}
+              {posDraft.activeCurrency === 'IQD' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
+                      setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 10000 }));
+                    }}
+                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                  >
+                    +10,000
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
+                      setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 25000 }));
+                    }}
+                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                  >
+                    +25,000
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
+                      setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 50000 }));
+                    }}
+                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                  >
+                    +50,000
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
+                      setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 20 }));
+                    }}
+                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                  >
+                    +$20
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
+                      setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 50 }));
+                    }}
+                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                  >
+                    +$50
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = typeof posDraft.amountPaidNow === 'number' ? posDraft.amountPaidNow : 0;
+                      setPosDraft((prev) => ({ ...prev, amountPaidNow: cur + 100 }));
+                    }}
+                    className="px-2 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono font-bold active:scale-95 transition-all cursor-pointer"
+                  >
+                    +$100
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div>

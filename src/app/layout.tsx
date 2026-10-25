@@ -57,7 +57,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased min-h-screen w-full max-w-full overflow-x-hidden">
         {children}
-        <div id="print-mount-root" className="hidden print:block print:w-full print:m-0 print:p-0"></div>
+        <div id="print-mount-root"></div>
       </body>
     </html>
   );

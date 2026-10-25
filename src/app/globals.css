@@ -738,17 +738,35 @@
 /* ========================================================================= */
 /* UNIFIED ISOLATED PRINT ENGINE STYLES (#print-mount-root)                 */
 /* ========================================================================= */
+@media screen {
+  #print-mount-root {
+    display: none !important;
+  }
+}
+
 @media print {
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
   body > *:not(#print-mount-root) {
     display: none !important;
   }
   #print-mount-root {
     display: block !important;
+    position: static !important;
+    visibility: visible !important;
     width: 100% !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: #ffffff !important;
-    color: #000000 !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  #print-mount-root * {
+    visibility: visible !important;
   }
   tr, .print-avoid-break {
     break-inside: avoid !important;
