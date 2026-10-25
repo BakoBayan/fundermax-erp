@@ -39,7 +39,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   onDelete,
   onPrintIndividualItem,
 }) => {
-  const { t, setZoomedImage, requestConfirm } = useInventory();
+  const { t, setZoomedImage, requestConfirm, printCuttingSlip, language } = useInventory();
+  const isKu = language === 'ku';
 
   if (!isOpen || !data) return null;
 
@@ -47,11 +48,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const isFinalized = order.status === "finalized";
 
   const handlePrintSlip = () => {
-    if (onPrintIndividualItem) {
-      onPrintIndividualItem({ type: "order", order, material });
-    } else {
-      window.print();
-    }
+    printCuttingSlip(order, material);
   };
 
   return (
@@ -338,14 +335,14 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               </button>
             )}
 
-            {/* Print Slip Button */}
+            {/* One Dedicated Print Cutting Slip Button */}
             <button
               onClick={handlePrintSlip}
               className="flex items-center gap-1.5 min-h-[44px] sm:min-h-[38px] px-3.5 py-2 rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-650 border border-slate-200 dark:border-slate-600 font-bold text-xs transition-colors cursor-pointer"
-              title={t.print}
+              title={isKu ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip'}
             >
               <Printer className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.print}</span>
+              <span>{isKu ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip'}</span>
             </button>
 
             {/* Close Button */}

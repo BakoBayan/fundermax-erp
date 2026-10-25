@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { AlertTriangle, CheckCircle2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Trash2, X, Info } from 'lucide-react';
 
 export interface ConfirmDialogOptions {
   isOpen: boolean;
@@ -10,6 +10,7 @@ export interface ConfirmDialogOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   type?: 'danger' | 'success' | 'warning' | 'info';
+  hideCancel?: boolean;
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -27,6 +28,7 @@ export interface ConfirmModalProps {
   cancelLabel?: string;
   isDanger?: boolean;
   danger?: boolean;
+  hideCancel?: boolean;
   lang?: 'en' | 'ku';
   isDark?: boolean;
   stepIndicator?: { current: number; total: number };
@@ -39,7 +41,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
   const isOpen = dialog ? dialog.isOpen : (props.isOpen ?? false);
   const title = dialog ? (dialog.title || 'Confirm Action') : (props.title || 'Confirm Action');
   const message = dialog ? dialog.message : (props.message || '');
-  const confirmLabel = dialog ? (dialog.confirmLabel || 'Confirm') : (props.confirmLabel || props.confirmText || 'Confirm');
+  const hideCancel = (dialog && dialog.hideCancel) || props.hideCancel;
+  const confirmLabel = dialog ? (dialog.confirmLabel || (hideCancel ? 'OK' : 'Confirm')) : (props.confirmLabel || props.confirmText || (hideCancel ? 'OK' : 'Confirm'));
   const cancelLabel = dialog ? (dialog.cancelLabel || 'Cancel') : (props.cancelLabel || props.cancelText || 'Cancel');
   const onConfirm = dialog ? dialog.onConfirm : (props.onConfirm || (() => {}));
   const onCancel = dialog ? dialog.onCancel : undefined;
@@ -100,6 +103,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
                   ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
                   : isSuccess
                   ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                  : (dialog?.type === 'info')
+                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
                   : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
               }`}
             >
@@ -107,6 +112,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
                 <Trash2 className="w-6 h-6" />
               ) : isSuccess ? (
                 <CheckCircle2 className="w-6 h-6" />
+              ) : (dialog?.type === 'info') ? (
+                <Info className="w-6 h-6" />
               ) : (
                 <AlertTriangle className="w-6 h-6" />
               )}
@@ -129,13 +136,15 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
         </div>
 
         <div className="flex items-center justify-end gap-3 px-5 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-slate-900/70 border-t border-slate-200 dark:border-slate-750 shrink-0">
-          <button
-            type="button"
-            onClick={handleCancelAction}
-            className="min-h-[48px] px-5 py-2.5 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-          >
-            {cancelLabel}
-          </button>
+          {!hideCancel && (
+            <button
+              type="button"
+              onClick={handleCancelAction}
+              className="min-h-[48px] px-5 py-2.5 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleConfirmAction}
@@ -144,6 +153,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
                 ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20 active:scale-98'
                 : isSuccess
                 ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 active:scale-98'
+                : (dialog?.type === 'info')
+                ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20 active:scale-98'
                 : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20 active:scale-98'
             }`}
           >

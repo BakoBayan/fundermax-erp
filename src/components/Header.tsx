@@ -54,6 +54,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
     currentUser,
     isAdmin,
     isViewer,
+    isImpersonating,
+    stopImpersonation,
     canUndo,
     canRedo,
     undo,
@@ -64,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
     pingHealthCheck,
     exchangeRates,
     openVisualCharts,
+    userPermissions,
   } = useInventory();
 
   const [mounted, setMounted] = useState(false);
@@ -180,6 +183,26 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
   return (
     <>
       <header dir="ltr" className="sticky top-0 z-[80] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs no-print print:hidden w-full max-w-full pointer-events-auto">
+        {/* Admin Preview Session Active Banner */}
+        {isImpersonating && (
+          <div className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white text-xs font-semibold px-4 py-2 flex items-center justify-between shadow-inner animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/20 text-xs">👁️</span>
+              <span>
+                <strong>Admin Live Preview Mode:</strong> Viewing system exactly as account <span className="underline decoration-white/40 font-bold">{currentUser?.displayName || currentUser?.username}</span> (<span className="uppercase text-[11px] font-mono tracking-wider">{currentUser?.role}</span>)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => stopImpersonation()}
+              className="px-3 py-1 rounded-lg bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs shadow-sm active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <span>Exit Preview & Return to Admin</span>
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        )}
+
         {/* Main Header Bar */}
         <div className="px-3 sm:px-6 py-2 flex items-center justify-between gap-3 w-full max-w-full box-border overflow-visible">
           {/* Left: 1-Click Main Menu Return & Breadcrumbs */}
@@ -361,19 +384,21 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             )}
 
             {/* Visual Charts & Analytics Modal Trigger */}
-            <button
-              type="button"
-              onClick={openCharts}
-              id="header-charts-button"
-              aria-label="Open visual charts and executive analytics"
-              className="relative z-20 pointer-events-auto h-9 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700/40 text-white inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 group"
-              title="View Visual Charts & Executive Analytics"
-            >
-              <BarChart3 className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
-              <span className="hidden md:inline">
-                Charts
-              </span>
-            </button>
+            {(userPermissions?.canViewFinancialAnalytics || userPermissions?.canViewWorkshopAnalytics) ? (
+              <button
+                type="button"
+                onClick={openCharts}
+                id="header-charts-button"
+                aria-label="Open visual charts and executive analytics"
+                className="relative z-20 pointer-events-auto h-9 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700/40 text-white inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 group"
+                title="View Visual Charts & Executive Analytics"
+              >
+                <BarChart3 className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                <span className="hidden md:inline">
+                  Charts
+                </span>
+              </button>
+            ) : null}
 
             {/* Persistent Admin Panel Trigger */}
             {isAdmin && (

@@ -62,6 +62,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
     effectiveMode,
     highlightedId,
     isViewer,
+    printCuttingSlip,
   } = useInventory();
 
   const [orderSearch, setOrderSearch] = useState("");
@@ -605,8 +606,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                               onClick={() => {
                                 if (selectedPrintItemIds && selectedPrintItemIds.size > 0 && onTogglePrintQueueItem) {
                                   onTogglePrintQueueItem({ id: `order-${order.id}`, type: "order", material, order });
-                                } else if (onPrintIndividualItem) {
-                                  onPrintIndividualItem({ type: "order", order, material });
+                                } else {
+                                  printCuttingSlip(order, material);
                                 }
                               }}
                               className={`p-2 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center ${
@@ -614,7 +615,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                                   ? "bg-sky-100 text-sky-800 border-sky-400 dark:bg-sky-950 dark:text-sky-200"
                                   : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700"
                               }`}
-                              title={inQueue ? "Remove from Print Queue" : t.printOrder}
+                              title={inQueue ? "Remove from Print Queue" : (language === 'ku' ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip')}
                             >
                               <Printer className="w-4 h-4" />
                             </button>
@@ -827,8 +828,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                           onClick={() => {
                             if (selectedPrintItemIds && selectedPrintItemIds.size > 0 && onTogglePrintQueueItem) {
                               onTogglePrintQueueItem({ id: `order-${order.id}`, type: "order", material, order });
-                            } else if (onPrintIndividualItem) {
-                              onPrintIndividualItem({ type: "order", order, material });
+                            } else {
+                              printCuttingSlip(order, material);
                             }
                           }}
                           className={`min-w-[48px] min-h-[48px] p-2.5 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center cursor-pointer ${
@@ -836,7 +837,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                               ? "bg-sky-100 text-sky-800 border-sky-400 dark:bg-sky-950 dark:text-sky-200"
                               : "bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200"
                           }`}
-                          title={inQueue ? "Remove from Print Queue" : t.printOrder}
+                          title={inQueue ? "Remove from Print Queue" : (language === 'ku' ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip')}
                         >
                           <Printer className="w-5 h-5" />
                         </button>

@@ -75,7 +75,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   const canAccessPanels = !!userPermissions.canViewPanels;
   const canAccessSales = !!userPermissions.canViewSales;
   const canAccessGoods = !!userPermissions.canViewWarehouse;
-  const canAccessAnalytics = !!userPermissions.canAccessAdmin || !!userPermissions.canExportBackups || !!userPermissions.canExport;
+  const canAccessAnalytics = !!(userPermissions.canViewFinancialAnalytics || userPermissions.canViewWorkshopAnalytics);
 
   const handleCheckHealth = async () => {
     setIsCheckingHealth(true);
@@ -183,21 +183,21 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
         {/* Traversing radial orb 1: emerald (left to right) */}
         <div className="absolute top-0 left-0 pointer-events-none">
           <div className="animate-traverse-lr-1 pointer-events-none">
-            <div className="w-[480px] sm:w-[640px] h-[480px] sm:h-[640px] rounded-full [background:radial-gradient(circle,rgba(16,185,129,0.22)_0%,rgba(20,184,166,0.1)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(16,185,129,0.18)_0%,rgba(20,184,166,0.08)_45%,transparent_70%)] animate-float-slow" />
+            <div className="w-[480px] sm:w-[640px] h-[480px] sm:h-[640px] rounded-full [background:radial-gradient(circle,rgba(16,185,129,0.30)_0%,rgba(20,184,166,0.14)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(16,185,129,0.18)_0%,rgba(20,184,166,0.08)_45%,transparent_70%)] animate-float-slow" />
           </div>
         </div>
 
         {/* Traversing radial orb 2: sky (right to left) */}
         <div className="absolute top-16 left-0 pointer-events-none">
           <div className="animate-traverse-rl-1 pointer-events-none">
-            <div className="w-[440px] sm:w-[580px] h-[440px] sm:h-[580px] rounded-full [background:radial-gradient(circle,rgba(14,165,233,0.20)_0%,rgba(99,102,241,0.08)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(14,165,233,0.16)_0%,rgba(99,102,241,0.06)_45%,transparent_70%)] animate-float-reverse" />
+            <div className="w-[440px] sm:w-[580px] h-[440px] sm:h-[580px] rounded-full [background:radial-gradient(circle,rgba(14,165,233,0.28)_0%,rgba(99,102,241,0.14)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(14,165,233,0.16)_0%,rgba(99,102,241,0.06)_45%,transparent_70%)] animate-float-reverse" />
           </div>
         </div>
 
         {/* Traversing radial orb 3: amber/violet (top to bottom) */}
         <div className="absolute top-0 left-1/4 pointer-events-none">
           <div className="animate-traverse-tb-1 pointer-events-none">
-            <div className="w-[380px] sm:w-[500px] h-[380px] sm:h-[500px] rounded-full [background:radial-gradient(circle,rgba(251,191,36,0.18)_0%,rgba(232,121,249,0.08)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(251,191,36,0.14)_0%,rgba(232,121,249,0.06)_45%,transparent_70%)] animate-float-diag" />
+            <div className="w-[380px] sm:w-[500px] h-[380px] sm:h-[500px] rounded-full [background:radial-gradient(circle,rgba(251,191,36,0.25)_0%,rgba(232,121,249,0.12)_45%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(251,191,36,0.14)_0%,rgba(232,121,249,0.06)_45%,transparent_70%)] animate-float-diag" />
           </div>
         </div>
 
@@ -207,38 +207,54 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
         {/* Dot grid */}
         <div className="ambient-dots absolute inset-0 pointer-events-none text-slate-900 dark:text-white" />
 
-        {/* Tasteful Drifting Geometric Accent 1: Poly-diamond cube (Emerald) */}
+        {/* Animated Geometric Shape 1: Poly-diamond cube (Emerald) */}
         <div className="absolute top-[15%] right-[12%] pointer-events-none">
           <div className="animate-drift-poly-1 pointer-events-none">
-            <div className="w-16 h-16 rotate-45 rounded-2xl border-2 border-emerald-500/40 dark:border-emerald-400/50 bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-transparent shadow-xs" />
+            <div className="w-16 h-16 rotate-45 rounded-2xl border-2 border-emerald-500/60 dark:border-emerald-400/50 bg-gradient-to-br from-emerald-500/25 via-teal-500/15 to-transparent shadow-sm" />
           </div>
         </div>
 
-        {/* Tasteful Drifting Geometric Accent 2: Orbital tech ring (Cyan/Sky) */}
+        {/* Animated Geometric Shape 2: Orbital tech ring (Cyan/Sky) */}
         <div className="absolute top-[48%] right-[8%] pointer-events-none">
           <div className="animate-drift-poly-2 pointer-events-none">
-            <div className="w-20 h-20 rounded-full border-2 border-dashed border-sky-500/35 dark:border-sky-400/45 flex items-center justify-center">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400/25 to-transparent" />
+            <div className="w-20 h-20 rounded-full border-2 border-dashed border-sky-500/60 dark:border-sky-400/50 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400/40 via-sky-500/20 to-transparent shadow-xs" />
             </div>
           </div>
         </div>
 
-        {/* Tasteful Drifting Geometric Accent 3: Angled prism (Indigo/Violet) */}
+        {/* Animated Geometric Shape 3: Angled prism (Indigo/Violet) */}
         <div className="absolute top-[28%] left-[8%] pointer-events-none">
           <div className="animate-drift-poly-3 pointer-events-none">
-            <div className="w-14 h-18 -rotate-12 rounded-2xl border-2 border-indigo-500/35 dark:border-indigo-400/45 bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent shadow-xs" />
+            <div className="w-14 h-20 -rotate-12 rounded-2xl border-2 border-indigo-500/55 dark:border-indigo-400/50 bg-gradient-to-br from-indigo-500/25 via-purple-500/15 to-transparent shadow-sm" />
           </div>
         </div>
 
-        {/* Tasteful Drifting Geometric Accent 4: Floating crystal tile (Amber/Slate) */}
+        {/* Animated Geometric Shape 4: Floating crystal tile (Amber/Orange) */}
         <div className="absolute top-[68%] left-[10%] pointer-events-none">
           <div className="animate-drift-poly-1 pointer-events-none">
-            <div className="w-12 h-12 rotate-12 rounded-xl border border-amber-500/35 dark:border-amber-400/40 bg-gradient-to-br from-amber-400/20 to-transparent shadow-2xs" />
+            <div className="w-14 h-14 rotate-12 rounded-xl border-2 border-amber-500/55 dark:border-amber-400/45 bg-gradient-to-br from-amber-400/30 via-orange-400/15 to-transparent shadow-xs" />
+          </div>
+        </div>
+
+        {/* Animated Geometric Shape 5: Precision Tech Capsule (Teal/Emerald) */}
+        <div className="absolute top-[76%] right-[14%] pointer-events-none">
+          <div className="animate-drift-poly-4 pointer-events-none">
+            <div className="w-16 h-10 -rotate-6 rounded-full border-2 border-teal-500/60 dark:border-teal-400/50 bg-gradient-to-br from-teal-400/30 via-emerald-400/15 to-transparent shadow-sm flex items-center justify-center">
+              <div className="w-4 h-4 rounded-full bg-teal-500/45" />
+            </div>
+          </div>
+        </div>
+
+        {/* Animated Geometric Shape 6: Isometric Rhombus Prism (Rose/Fuchsia) */}
+        <div className="absolute top-[36%] right-[26%] pointer-events-none">
+          <div className="animate-drift-poly-5 pointer-events-none">
+            <div className="w-12 h-12 rotate-[30deg] skew-x-12 rounded-xl border-2 border-rose-500/55 dark:border-rose-400/50 bg-gradient-to-br from-rose-400/25 via-fuchsia-400/15 to-transparent shadow-sm" />
           </div>
         </div>
 
         {/* Light beam sweep */}
-        <div className="absolute left-1/2 top-1/2 w-[140%] h-24 bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent pointer-events-none animate-light-sweep" />
+        <div className="absolute left-1/2 top-1/2 w-[140%] h-24 bg-gradient-to-r from-transparent via-emerald-400/15 to-transparent pointer-events-none animate-light-sweep" />
       </div>
 
       {/* ========================================================================= */}
@@ -276,23 +292,29 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
 
           {/* Quick KPI Ticker Strip (Solid background for maximum rendering speed) */}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 text-xs">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
-              <Layers className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="font-bold text-slate-900 dark:text-white font-mono">{stats.totalStock.toLocaleString()}</span>
-              <span>Panels</span>
-            </div>
+            {(canAccessPanels || userPermissions.canViewRestrictedMetrics) && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
+                <Layers className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="font-bold text-slate-900 dark:text-white font-mono">{stats.totalStock.toLocaleString()}</span>
+                <span>Panels</span>
+              </div>
+            )}
 
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
-              <ReceiptText className="w-3.5 h-3.5 text-sky-500" />
-              <span className="font-bold text-slate-900 dark:text-white font-mono">{totalInvoicesCount}</span>
-              <span>Invoices</span>
-            </div>
+            {(canAccessSales || userPermissions.canViewRestrictedMetrics) && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
+                <ReceiptText className="w-3.5 h-3.5 text-sky-500" />
+                <span className="font-bold text-slate-900 dark:text-white font-mono">{totalInvoicesCount}</span>
+                <span>Invoices</span>
+              </div>
+            )}
 
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
-              <Package className="w-3.5 h-3.5 text-amber-500" />
-              <span className="font-bold text-slate-900 dark:text-white font-mono">{warehouseOps.activeShipments.length}</span>
-              <span>Shipments</span>
-            </div>
+            {(canAccessGoods || userPermissions.canViewRestrictedMetrics) && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
+                <Package className="w-3.5 h-3.5 text-amber-500" />
+                <span className="font-bold text-slate-900 dark:text-white font-mono">{warehouseOps.activeShipments.length}</span>
+                <span>Shipments</span>
+              </div>
+            )}
 
             {/* 4. SQLite WAL Health & Latency Pill (Shortened by Default, Expands on Click) */}
             <div className="relative">
@@ -470,8 +492,8 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             onClick={() => handleSelectDivision('panels', 'orders')}
             className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
               canAccessPanels
-                ? 'bg-white/80 dark:bg-slate-850/80 border-slate-200 dark:border-slate-750 hover:border-emerald-500/80 dark:hover:border-emerald-500/80'
-                : 'bg-white/60 dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-emerald-500/80 dark:hover:border-emerald-500/80'
+                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
@@ -513,27 +535,34 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards */}
-              <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 mb-5 text-center">
-                <div>
-                  <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                    {stats.totalStock.toLocaleString()}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {canAccessPanels || userPermissions.canViewRestrictedMetrics ? (
+                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
+                      {stats.totalStock.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{t.totalStockCount}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{t.totalStockCount}</div>
-                </div>
-                <div className="border-x border-slate-200 dark:border-slate-800">
-                  <div className="text-base sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
-                    {stats.totalAllocated.toLocaleString()}
+                  <div className="border-x border-slate-200 dark:border-slate-800">
+                    <div className="text-base sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
+                      {stats.totalAllocated.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{t.reserved}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{t.reserved}</div>
-                </div>
-                <div>
-                  <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                    {stats.totalAvailable.toLocaleString()}
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                      {stats.totalAvailable.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{t.available}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{t.available}</div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 mb-5 flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-xs font-semibold py-4.5">
+                  <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>{isKu ? 'ئامار و زانیارییەکان قوفڵکراون' : 'Confidential Stock Metrics Protected'}</span>
+                </div>
+              )}
 
               {/* Action Button */}
               {canAccessPanels ? (
@@ -560,8 +589,8 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             onClick={() => handleSelectDivision('sales')}
             className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
               canAccessSales
-                ? 'bg-white/80 dark:bg-slate-850/80 border-slate-200 dark:border-slate-750 hover:border-sky-500/80 dark:hover:border-sky-500/80'
-                : 'bg-white/60 dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-sky-500/80 dark:hover:border-sky-500/80'
+                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
@@ -603,27 +632,34 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards */}
-              <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 mb-5 text-center">
-                <div>
-                  <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                    {totalInvoicesCount}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {canAccessSales || userPermissions.canViewRestrictedMetrics ? (
+                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
+                      {totalInvoicesCount}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
-                </div>
-                <div className="border-x border-slate-200 dark:border-slate-800">
-                  <div className="text-base sm:text-xl font-black text-rose-600 dark:text-rose-400 font-mono">
-                    ${totalUnpaidDebt.toLocaleString()}
+                  <div className="border-x border-slate-200 dark:border-slate-800">
+                    <div className="text-base sm:text-xl font-black text-rose-600 dark:text-rose-400 font-mono">
+                      ${totalUnpaidDebt.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'قەرز' : 'Total Debt'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'قەرز' : 'Total Debt'}</div>
-                </div>
-                <div>
-                  <div className="text-base sm:text-xl font-black text-sky-600 dark:text-sky-400 font-mono">
-                    3 Rates
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-sky-600 dark:text-sky-400 font-mono">
+                      3 Rates
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">USD/IQD/EUR</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">USD/IQD/EUR</div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 mb-5 flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-xs font-semibold py-4.5">
+                  <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>{isKu ? 'ئاماری دارایی و قەرز قوفڵکراوە' : 'Confidential Financials & Debt Protected'}</span>
+                </div>
+              )}
 
               {/* Action Button */}
               {canAccessSales ? (
@@ -650,8 +686,8 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             onClick={() => handleSelectDivision('goods', 'shipping')}
             className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
               canAccessGoods
-                ? 'bg-white/80 dark:bg-slate-850/80 border-slate-200 dark:border-slate-750 hover:border-amber-500/80 dark:hover:border-amber-500/80'
-                : 'bg-white/60 dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-amber-500/80 dark:hover:border-amber-500/80'
+                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
@@ -693,27 +729,34 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards */}
-              <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 mb-5 text-center">
-                <div>
-                  <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                    {warehouseOps.activeShipments.length}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {canAccessGoods || userPermissions.canViewRestrictedMetrics ? (
+                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
+                      {warehouseOps.activeShipments.length}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'بارە گەیشتووەکان' : 'Shipments'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'بارە گەیشتووەکان' : 'Shipments'}</div>
-                </div>
-                <div className="border-x border-slate-200 dark:border-slate-800">
-                  <div className="text-base sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
-                    {customsShipmentsCount}
+                  <div className="border-x border-slate-200 dark:border-slate-800">
+                    <div className="text-base sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
+                      {customsShipmentsCount}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'گومرگ' : 'In Customs'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'گومرگ' : 'In Customs'}</div>
-                </div>
-                <div>
-                  <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                    {rackedUnitsCount.toLocaleString()}
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                      {rackedUnitsCount.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'لە کۆگادا' : 'Units Racked'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'لە کۆگادا' : 'Units Racked'}</div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 mb-5 flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-xs font-semibold py-4.5">
+                  <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>{isKu ? 'ئاماری کۆگا و بارەکان قوفڵکراوە' : 'Confidential Logistics Protected'}</span>
+                </div>
+              )}
 
               {/* Action Button */}
               {canAccessGoods ? (
@@ -740,8 +783,8 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             onClick={handleOpenAnalytics}
             className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
               canAccessAnalytics
-                ? 'bg-white/80 dark:bg-slate-850/80 border-slate-200 dark:border-slate-750 hover:border-purple-500/80 dark:hover:border-purple-500/80'
-                : 'bg-white/60 dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-purple-500/80 dark:hover:border-purple-500/80'
+                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
@@ -783,27 +826,34 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards */}
-              <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 mb-5 text-center">
-                <div>
-                  <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                    {stats.totalStock.toLocaleString()}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {canAccessAnalytics || userPermissions.canViewRestrictedMetrics ? (
+                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
+                      {stats.totalStock.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'تەختە' : 'Panels'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'تەختە' : 'Panels'}</div>
-                </div>
-                <div className="border-x border-slate-200 dark:border-slate-800">
-                  <div className="text-base sm:text-xl font-black text-purple-600 dark:text-purple-400 font-mono">
-                    {totalInvoicesCount}
+                  <div className="border-x border-slate-200 dark:border-slate-800">
+                    <div className="text-base sm:text-xl font-black text-purple-600 dark:text-purple-400 font-mono">
+                      {totalInvoicesCount}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
-                </div>
-                <div>
-                  <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                    5 Modes
+                  <div>
+                    <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                      5 Modes
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'چارتی بینراو' : 'Visual SVG'}</div>
                   </div>
-                  <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'چارتی بینراو' : 'Visual SVG'}</div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 mb-5 flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-xs font-semibold py-4.5">
+                  <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>{isKu ? 'ڕاپۆرت و شیکاری دارایی قوفڵکراوە' : 'Executive Business Intelligence Protected'}</span>
+                </div>
+              )}
 
               {/* Action Button */}
               {canAccessAnalytics ? (

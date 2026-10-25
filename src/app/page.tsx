@@ -19,6 +19,7 @@ import { LoginScreen } from '@/components/LoginScreen';
 import { BatchPrintModal, PrintQueueItem } from '@/components/BatchPrintModal';
 import { VisualChartsModal } from '@/components/VisualChartsModal';
 import { CopyrightModal } from '@/components/CopyrightModal';
+import { UnifiedPrintMount } from '@/components/UnifiedPrintEngine';
 import { FooterAttribution } from '@/components/FooterAttribution';
 import { PanelMaterial, OrderAllocation } from '@/types/inventory';
 import {
@@ -878,6 +879,9 @@ function WarehouseApp() {
 
       {/* Statutory Copyright, Intellectual Property & Project Commissioning Modal */}
       <CopyrightModal />
+
+      {/* Unified Dedicated Print Mount (Direct Portal into #print-mount-root) */}
+      <UnifiedPrintMount />
 
       {/* Dedicated High-Fidelity Slip Print View */}
       <div className="hidden print:block print:w-full bg-white text-slate-900 font-sans text-xs p-0 print-sheet-root print-section-active">

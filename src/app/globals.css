@@ -733,3 +733,25 @@
 .no-theme-transition *::after {
   transition: none !important;
 }
+
+
+/* ========================================================================= */
+/* UNIFIED ISOLATED PRINT ENGINE STYLES (#print-mount-root)                 */
+/* ========================================================================= */
+@media print {
+  body > *:not(#print-mount-root) {
+    display: none !important;
+  }
+  #print-mount-root {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  tr, .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

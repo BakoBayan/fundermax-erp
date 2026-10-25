@@ -34,10 +34,11 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: "Snapshot file not found" }, { status: 404 });
       }
       const fileBuffer = fs.readFileSync(filePath);
+      const isGz = downloadFile.endsWith(".gz");
       return new NextResponse(fileBuffer, {
         status: 200,
         headers: {
-          "Content-Type": "application/x-sqlite3",
+          "Content-Type": isGz ? "application/gzip" : "application/x-sqlite3",
           "Content-Disposition": `attachment; filename="${downloadFile}"`,
           "Content-Length": String(fileBuffer.length),
           "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -86,6 +87,29 @@ export async function POST(req: NextRequest) {
         sizeBytes: snapshot.sizeBytes,
       });
       return NextResponse.json({ success: true, snapshot });
+    }
+
+    // 1-Click SQLite WAL Truncate, Defrag & VACUUM Optimization
+    if (action === "optimize" || action === "vacuum") {
+      const db = getDB();
+      const dbPath = path.join(process.cwd(), "data", "warehouse.db");
+      const sizeBefore = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
+      db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+      db.exec("VACUUM;");
+      db.exec("PRAGMA optimize;");
+      const sizeAfter = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
+      writeAuditLog(db, "DB_OPTIMIZED", {
+        sizeBefore,
+        sizeAfter,
+        savedBytes: Math.max(0, sizeBefore - sizeAfter),
+      });
+      return NextResponse.json({
+        success: true,
+        message: "Database defragmented and WAL truncated successfully.",
+        sizeBefore,
+        sizeAfter,
+        savedBytes: Math.max(0, sizeBefore - sizeAfter),
+      });
     }
 
     // 1-Click Physical Backup to USB Drive

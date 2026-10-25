@@ -75,6 +75,13 @@ export interface UserModulePermissions {
 
   canAccessAdmin: boolean;
   canExportBackups: boolean;
+
+  // Confidentiality & Metric Privacy:
+  canViewRestrictedMetrics?: boolean; // When false (default), restricts accounts from viewing numbers/debts on modules they cannot enter
+
+  // Granular Analytics Isolation & RBAC Gating:
+  canViewFinancialAnalytics?: boolean; // Controls profit margins, revenue graphs, debt summaries, and transaction aggregates
+  canViewWorkshopAnalytics?: boolean;  // Controls cutting queue efficiency, board yield, scrap rates, and material stock charts
 }
 
 export interface UserAccount {
@@ -85,6 +92,8 @@ export interface UserAccount {
   isAuthenticated: boolean;
   createdAt?: number;
   permissions?: UserModulePermissions;
+  isImpersonated?: boolean;
+  originalAdminUsername?: string;
 }
 
 export interface ActivityLogEntry {
@@ -243,3 +252,35 @@ export interface PosDraftState {
   notes: string;
   images: string[];
 }
+
+export interface PrintCuttingSlipData {
+  order: OrderAllocation;
+  material: PanelMaterial;
+}
+
+export interface PrintWarehouseManifestData {
+  id: string;
+  batchCode: string;
+  supplier: string;
+  originCountry?: string;
+  arrivalDate?: string;
+  status: string;
+  notes?: string;
+  items: Array<{
+    id: string;
+    description: string;
+    expectedQty: number;
+    receivedQty: number;
+    unit: string;
+    location?: string;
+    condition?: string;
+  }>;
+}
+
+export type PrintJob =
+  | { type: 'cutting-slip'; data: PrintCuttingSlipData }
+  | { type: 'warehouse-manifest'; data: PrintWarehouseManifestData }
+  | { type: 'pos-invoice'; data: { tx: PanelTransaction; format?: 'a4' | 'thermal80' } };
+
+export type { InboundShipment } from './warehouse';
+

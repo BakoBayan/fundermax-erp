@@ -60,6 +60,8 @@ export const SalesSection: React.FC = () => {
     isViewer,
     userPermissions,
     openVisualCharts,
+    requestConfirm,
+    requestAlert,
   } = useInventory();
 
   const isDark = theme === 'dark';
@@ -256,7 +258,11 @@ export const SalesSection: React.FC = () => {
     }
 
     if (finalItems.length === 0) {
-      alert(isKu ? 'تکایە بەلایەنی کەمەوە یەک بڕگە دیاریبکە' : 'Please enter at least one line item');
+      requestAlert({
+        title: isKu ? 'ئاگاداری پسوولە' : 'Invoice Notice',
+        message: isKu ? 'تکایە بەلایەنی کەمەوە یەک بڕگە دیاریبکە' : 'Please enter at least one line item',
+        type: 'warning',
+      });
       return;
     }
 
@@ -282,12 +288,20 @@ export const SalesSection: React.FC = () => {
 
     if (editingTxId) {
       if (!userPermissions.canEditSales) {
-        alert(isKu ? 'دەسەڵاتی دەستکاریکردنی ئەم پسوولەیەت نییە' : 'You do not have permission to edit sales invoices.');
+        requestAlert({
+          title: isKu ? 'دەسەڵات سنووردارکراوە' : 'Permission Restricted',
+          message: isKu ? 'دەسەڵاتی دەستکاریکردنی ئەم پسوولەیەت نییە' : 'You do not have permission to edit sales invoices.',
+          type: 'danger',
+        });
         return;
       }
     } else {
       if (!userPermissions.canCreateSales) {
-        alert(isKu ? 'دەسەڵاتی دروستکردنی پسوولەی نوێت نییە' : 'You do not have permission to create sales invoices.');
+        requestAlert({
+          title: isKu ? 'دەسەڵات سنووردارکراوە' : 'Permission Restricted',
+          message: isKu ? 'دەسەڵاتی دروستکردنی پسوولەی نوێت نییە' : 'You do not have permission to create sales invoices.',
+          type: 'danger',
+        });
         return;
       }
     }
@@ -1500,9 +1514,16 @@ export const SalesSection: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (confirm(isKu ? 'ئەم پسوولەیە بسڕدرێتەوە؟' : 'Delete this invoice?')) {
-                                    deleteTransaction(tx.id);
-                                  }
+                                  requestConfirm({
+                                    title: isKu ? 'سڕینەوەی پسوولە' : 'Delete Sales Invoice',
+                                    message: isKu ? 'ئایا دڵنیایت لە سڕینەوەی ئەم پسوولەیە؟' : `Are you sure you want to delete invoice ${tx.code || tx.id}?`,
+                                    type: 'danger',
+                                    confirmLabel: isKu ? 'سڕینەوە' : 'Delete',
+                                    cancelLabel: isKu ? 'پەشیمانبوونەوە' : 'Cancel',
+                                    onConfirm: () => {
+                                      deleteTransaction(tx.id);
+                                    },
+                                  });
                                 }}
                                 className="p-2 text-slate-500 hover:text-rose-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                                 title="Delete Invoice"
@@ -1695,9 +1716,16 @@ export const SalesSection: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm(isKu ? 'ئەم پسوولەیە بسڕدرێتەوە؟' : 'Delete this invoice?')) {
-                            deleteTransaction(tx.id);
-                          }
+                          requestConfirm({
+                            title: isKu ? 'سڕینەوەی پسوولە' : 'Delete Sales Invoice',
+                            message: isKu ? 'ئایا دڵنیایت لە سڕینەوەی ئەم پسوولەیە؟' : `Are you sure you want to delete invoice ${tx.code || tx.id}?`,
+                            type: 'danger',
+                            confirmLabel: isKu ? 'سڕینەوە' : 'Delete',
+                            cancelLabel: isKu ? 'پەشیمانبوونەوە' : 'Cancel',
+                            onConfirm: () => {
+                              deleteTransaction(tx.id);
+                            },
+                          });
                         }}
                         className="min-w-[48px] min-h-[48px] rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
                         title="Delete Invoice"

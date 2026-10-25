@@ -23,9 +23,11 @@ import {
   Boxes,
   ArrowUpRight,
   ShieldCheck,
+  ShieldAlert,
   Calendar,
   User,
-  Phone
+  Phone,
+  Scissors
 } from 'lucide-react';
 import { PanelMaterial, PanelTransaction, Product, Shipment, CurrencyCode } from '../types/inventory';
 
@@ -737,6 +739,51 @@ export const SvgGaugeChart: React.FC<{
 };
 
 // ============================================================================
+// ACCESS DENIED MODAL COMPONENT (Gated Analytics)
+// ============================================================================
+export const AccessDeniedView: React.FC<{
+  message: string;
+  onClose: () => void;
+  isKu: boolean;
+}> = ({ message, onClose, isKu }) => {
+  return (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 select-none"
+      onClick={onClose}
+      role="alertdialog"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-4 animate-in zoom-in-95 duration-200"
+      >
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-inner">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <div>
+          <h3 className="text-xl font-black text-slate-900 dark:text-white">
+            {message}
+          </h3>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+            {isKu
+              ? 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی چارت و شیکاری بینراوی دارایی پێنەدراوە. تکایە پەیوەندی بە بەڕێوەبەر بکە.'
+              : 'Your account does not have authorization to view executive financial analytics, profit margins, or workshop performance charts. Please contact system administrator.'}
+          </p>
+        </div>
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
+          >
+            {isKu ? 'داخستن' : 'Close'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
 // MAIN VISUAL CHARTS MODAL COMPONENT
 // ============================================================================
 
@@ -753,9 +800,14 @@ export const VisualChartsModal: React.FC = () => {
     language,
     formatMoney,
     convertCurrency,
+    userPermissions,
   } = useInventory();
 
   const isKu = language === 'ku';
+
+  const canFinancial = !!userPermissions?.canViewFinancialAnalytics;
+  const canWorkshop = !!userPermissions?.canViewWorkshopAnalytics;
+  const hasAnyAnalytics = canFinancial || canWorkshop;
 
   // Active Scope Tab
   const [mounted, setMounted] = useState(false);
@@ -770,16 +822,20 @@ export const VisualChartsModal: React.FC = () => {
   // Sync tab with initial scope when modal opens
   useEffect(() => {
     if (isVisualChartsOpen) {
-      if (visualChartsScope === 'panels' || visualChartsScope === 'orders') {
+      if ((visualChartsScope === 'panels' || visualChartsScope === 'orders') && canWorkshop) {
         setActiveTab('panels');
-      } else if (visualChartsScope === 'sales') {
+      } else if (visualChartsScope === 'sales' && canFinancial) {
         setActiveTab('sales');
       } else if (visualChartsScope === 'goods') {
         setActiveTab('goods');
       } else if (visualChartsScope === 'shipping') {
         setActiveTab('shipping');
-      } else {
+      } else if (canFinancial) {
         setActiveTab('all');
+      } else if (canWorkshop) {
+        setActiveTab('panels');
+      } else {
+        setActiveTab('goods');
       }
 
       const d = new Date();
@@ -791,7 +847,7 @@ export const VisualChartsModal: React.FC = () => {
         minute: '2-digit',
       }));
     }
-  }, [isVisualChartsOpen, visualChartsScope, isKu]);
+  }, [isVisualChartsOpen, visualChartsScope, isKu, canFinancial, canWorkshop]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -1029,6 +1085,18 @@ export const VisualChartsModal: React.FC = () => {
     return null;
   }
 
+  // Access Denied View if user has neither financial nor workshop analytics permission
+  if (!canFinancial && !canWorkshop) {
+    return createPortal(
+      <AccessDeniedView
+        message={isKu ? 'دەستپێگەیشتنی شیکاری سنووردارکراوە' : 'Analytics Restricted'}
+        onClose={closeVisualCharts}
+        isKu={isKu}
+      />,
+      document.body
+    );
+  }
+
   const modalContent = (
     <div
       id="print-charts-mount-root"
@@ -1107,37 +1175,41 @@ export const VisualChartsModal: React.FC = () => {
             <span>{isKu ? 'پوختەی گشتی سەرجەم بەشەکان' : 'Executive Overview'}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('panels')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-              activeTab === 'panels'
-                ? 'bg-emerald-600 text-white shadow-xs font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>{isKu ? 'تەختەکان و داواکارییەکان' : 'Wood Panels & Orders'}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
-              {materials.length}
-            </span>
-          </button>
+          {canWorkshop && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('panels')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                activeTab === 'panels'
+                  ? 'bg-emerald-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>{isKu ? 'تەختەکان و داواکارییەکان' : 'Wood Panels & Orders'}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
+                {materials.length}
+              </span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('sales')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-              activeTab === 'sales'
-                ? 'bg-sky-600 text-white shadow-xs font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <ReceiptText className="w-4 h-4" />
-            <span>{isKu ? 'فرۆشتن و دارایی (POS)' : 'Sales POS & Finance'}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
-              {transactions.length}
-            </span>
-          </button>
+          {canFinancial && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('sales')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                activeTab === 'sales'
+                  ? 'bg-sky-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <ReceiptText className="w-4 h-4" />
+              <span>{isKu ? 'فرۆشتن و دارایی (POS)' : 'Sales POS & Finance'}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
+                {transactions.length}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -1236,18 +1308,33 @@ export const VisualChartsModal: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/80">
-                  <div className="flex items-center justify-between text-sky-700 dark:text-sky-400 text-xs font-bold">
-                    <span>{isKu ? 'پسوولە و فرۆشتن' : 'Invoices & Sales'}</span>
-                    <ReceiptText className="w-4 h-4" />
+                {canFinancial ? (
+                  <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/80">
+                    <div className="flex items-center justify-between text-sky-700 dark:text-sky-400 text-xs font-bold">
+                      <span>{isKu ? 'پسوولە و فرۆشتن' : 'Invoices & Sales'}</span>
+                      <ReceiptText className="w-4 h-4" />
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
+                      {transactions.length}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
+                      ${Math.round(salesAnalytics.totalGrossRevenueUsd).toLocaleString()} {isKu ? 'کۆی فرۆش' : 'Gross USD'}
+                    </div>
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
-                    {transactions.length}
+                ) : (
+                  <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/80">
+                    <div className="flex items-center justify-between text-sky-700 dark:text-sky-400 text-xs font-bold">
+                      <span>{isKu ? 'داواکارییەکانی بڕین' : 'Cutting Orders'}</span>
+                      <Scissors className="w-4 h-4" />
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
+                      {materials.reduce((sum, m) => sum + m.activeOrders.length, 0)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
+                      {stats.totalAllocated} {isKu ? 'تەختەی گیراو' : 'panels in cutting queue'}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
-                    ${Math.round(salesAnalytics.totalGrossRevenueUsd).toLocaleString()} {isKu ? 'کۆی فرۆش' : 'Gross USD'}
-                  </div>
-                </div>
+                )}
 
                 <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/80">
                   <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 text-xs font-bold">
@@ -1296,28 +1383,49 @@ export const VisualChartsModal: React.FC = () => {
                   />
                 </div>
 
-                {/* Chart 2: Recent Revenue Trend */}
+                {/* Chart 2: Recent Revenue Trend or Workshop Queue */}
                 <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between print-avoid-break">
-                  <div className="mb-4">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-sky-500" />
-                      <span>{isKu ? 'ئاستی فرۆشتن بەپێی پسوولەکان ($)' : 'Invoice Revenue Trend ($)'}</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {isKu ? 'بەدواداچوونی گەشەی داهاتی دارایی بە دۆلار' : 'Real-time sales progression curve in USD across recent transactions'}
-                    </p>
-                  </div>
-                  {salesAnalytics.trendPoints.length > 0 ? (
-                    <SvgAreaTrendChart
-                      data={salesAnalytics.trendPoints}
-                      lineColor="#0ea5e9"
-                      valuePrefix="$"
-                      isKu={isKu}
-                    />
+                  {canFinancial ? (
+                    <>
+                      <div className="mb-4">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-sky-500" />
+                          <span>{isKu ? 'ئاستی فرۆشتن بەپێی پسوولەکان ($)' : 'Invoice Revenue Trend ($)'}</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {isKu ? 'بەدواداچوونی گەشەی داهاتی دارایی بە دۆلار' : 'Real-time sales progression curve in USD across recent transactions'}
+                        </p>
+                      </div>
+                      {salesAnalytics.trendPoints.length > 0 ? (
+                        <SvgAreaTrendChart
+                          data={salesAnalytics.trendPoints}
+                          lineColor="#0ea5e9"
+                          valuePrefix="$"
+                          isKu={isKu}
+                        />
+                      ) : (
+                        <div className="h-48 flex items-center justify-center text-xs text-slate-400">
+                          {isKu ? 'هیچ پسوولەیەک تۆمار نەکراوە' : 'No transactions recorded yet'}
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <div className="h-48 flex items-center justify-center text-xs text-slate-400">
-                      {isKu ? 'هیچ پسوولەیەک تۆمار نەکراوە' : 'No transactions recorded yet'}
-                    </div>
+                    <>
+                      <div className="mb-4">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-emerald-500" />
+                          <span>{isKu ? 'دۆخی داواکارییەکانی وەرشە' : 'Workshop Orders Queue Status'}</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {isKu ? 'ڕێژەی داواکارییە تەواوبووەکان و ئەوانەی لە کاردان' : 'Operational cutting queue completion and queue volume'}
+                        </p>
+                      </div>
+                      <SvgDonutChart
+                        data={panelsAnalytics.typesDonut}
+                        totalLabel={isKu ? 'جۆری تەختە' : 'Wood Types'}
+                        isKu={isKu}
+                      />
+                    </>
                   )}
                 </div>
               </div>
@@ -1469,7 +1577,7 @@ export const VisualChartsModal: React.FC = () => {
           {/* --------------------------------------------------------------- */}
           {/* TAB 3: SALES POS & FINANCIAL INVOICES                           */}
           {/* --------------------------------------------------------------- */}
-          {activeTab === 'sales' && (
+          {activeTab === 'sales' && canFinancial && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {/* Financial Ticker */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">

@@ -24,6 +24,7 @@ import {
   Minimize2
 } from 'lucide-react';
 import { PanelTransaction } from '@/types/inventory';
+import { useInventory } from '../context/InventoryContext';
 
 export interface PrintableImageItem {
   id: string;
@@ -50,6 +51,8 @@ export default function PrintInvoiceModal({
   lang,
   isDark
 }: PrintInvoiceModalProps) {
+  const { printInvoiceJob } = useInventory();
+
   // 1. Initial image list with optional attachment toggle
   const [images, setImages] = useState<PrintableImageItem[]>([]);
   const [isImageDrawerOpen, setIsImageDrawerOpen] = useState(false);
@@ -207,9 +210,9 @@ export default function PrintInvoiceModal({
   if (!tx || !mounted) return null;
 
   const handlePrint = () => {
-    if (typeof window !== 'undefined') {
-      window.print();
-    }
+    const includedImages = images.filter(i => i.included).map(i => i.url);
+    const updatedTx = { ...tx, images: includedImages };
+    printInvoiceJob(updatedTx, printFormat);
   };
 
   // Upload an additional unrelated image
@@ -283,8 +286,8 @@ export default function PrintInvoiceModal({
 
   const modalContent = (
     <div 
-      id="print-mount-root"
-      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xs flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-150 select-none"
+      id="print-invoice-modal-backdrop"
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xs flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150 select-none"
       onClick={(e) => {
         // Clicking backdrop directly exits modal
         if (e.target === e.currentTarget) onClose();

@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   Undo2,
   AlertTriangle,
+  Printer,
 } from 'lucide-react';
 import { allocatedQtyForItem, useWarehouseOps } from '../hooks/useWarehouseOps';
 import {
@@ -142,7 +143,7 @@ const FormError: React.FC<{ message: string }> = ({ message }) =>
   ) : null;
 
 export const WarehouseGoodsSection: React.FC = () => {
-  const { language, currentUser, isViewer, canModify, isAdmin, logActivity, userPermissions } = useInventory();
+  const { language, currentUser, isViewer, canModify, isAdmin, logActivity, userPermissions, requestConfirm, printWarehouseManifest } = useInventory();
   const wh = useWarehouseOps();
 
   const isKu = language === 'ku';
@@ -274,9 +275,17 @@ export const WarehouseGoodsSection: React.FC = () => {
     const msg = allocated
       ? `${s.batchCode} already has stock allocated to racks. Archive it anyway? The shipment record is kept for admin review and allocated stock is not touched.`
       : `Archive shipment ${s.batchCode}? It is soft-deleted and kept for admin review.`;
-    if (!window.confirm(msg)) return;
-    wh.softDeleteShipment(s.id);
-    logActivity('SHIPMENT_ARCHIVED', `Inbound shipment ${s.batchCode} archived`, undefined, 'inventory');
+    requestConfirm({
+      title: isKu ? 'ئەرشیفکردنی بار' : 'Archive Inbound Shipment',
+      message: msg,
+      type: 'warning',
+      confirmLabel: isKu ? 'ئەرشیفکردن' : 'Archive',
+      cancelLabel: isKu ? 'پەشیمانبوونەوە' : 'Cancel',
+      onConfirm: () => {
+        wh.softDeleteShipment(s.id);
+        logActivity('SHIPMENT_ARCHIVED', `Inbound shipment ${s.batchCode} archived`, undefined, 'inventory');
+      },
+    });
   };
 
   const tabs: Array<{ id: WarehouseTab; label: string; icon: React.ReactNode; count: number }> = [
@@ -459,7 +468,16 @@ export const WarehouseGoodsSection: React.FC = () => {
                         ))}
                       </div>
                     )}
-                    <div className="flex gap-2 lg:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      <button
+                        type="button"
+                        className={`${ghostBtn} text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/50`}
+                        onClick={() => printWarehouseManifest(s)}
+                        title={isKu ? 'چاپی مانیفێستی بار' : 'Print Shipment Manifest'}
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>{isKu ? 'چاپی مانیفێست' : 'Print Manifest'}</span>
+                      </button>
                       {isAdmin && s.isDeleted === 1 ? (
                         <button type="button" className={ghostBtn} onClick={() => wh.restoreShipment(s.id)}>
                           <Undo2 className="w-3.5 h-3.5" /> Restore

@@ -22,7 +22,9 @@ import {
   DropdownPresets,
   PlatformModule,
   PosDraftState,
-  InvoiceItem
+  InvoiceItem,
+  PrintJob,
+  InboundShipment
 } from "../types/inventory";
 import { getTranslation, translations } from "../utils/i18n";
 import { ConfirmDialogOptions } from "../components/ConfirmModal";
@@ -194,6 +196,9 @@ interface InventoryContextType {
   canDeleteMaterial: boolean;
   login: (username: string, password: string) => boolean;
   logout: () => void;
+  impersonateUser: (username: string) => boolean;
+  stopImpersonation: () => void;
+  isImpersonating: boolean;
   addUserAccount: (user: { username: string; displayName: string; role: UserRole; password: string; permissions?: UserModulePermissions }) => boolean;
   deleteUserAccount: (username: string) => boolean;
   updateUserAccount: (username: string, updates: Partial<{ displayName: string; role: UserRole; password?: string; permissions?: UserModulePermissions }>) => boolean;
@@ -228,11 +233,20 @@ interface InventoryContextType {
   setTypeFilter: (type: string) => void;
   confirmDialog: ConfirmDialogOptions | null;
   requestConfirm: (options: Omit<ConfirmDialogOptions, "isOpen">) => void;
+  requestAlert: (options: { title?: string; message: string; confirmLabel?: string; type?: 'info' | 'warning' | 'danger' | 'success'; onConfirm?: () => void }) => void;
   closeConfirm: () => void;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
   redo: () => void;
+
+  // Unified Isolated Print Engine
+  activePrintJob: PrintJob | null;
+  triggerPrintJob: (job: PrintJob) => void;
+  printCuttingSlip: (order: OrderAllocation, material: PanelMaterial) => void;
+  printWarehouseManifest: (shipment: InboundShipment) => void;
+  printInvoiceJob: (tx: PanelTransaction, format?: 'a4' | 'thermal80') => void;
+  clearPrintJob: () => void;
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -278,6 +292,8 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canManageStock: true,
     canAccessAdmin: true,
     canExportBackups: true,
+    canViewFinancialAnalytics: true,
+    canViewWorkshopAnalytics: true,
   },
   "Accountant": {
     panels: true,
@@ -302,6 +318,8 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canManageStock: false,
     canAccessAdmin: false,
     canExportBackups: true,
+    canViewFinancialAnalytics: true,
+    canViewWorkshopAnalytics: true,
   },
   "Sales Representative": {
     panels: true,
@@ -326,6 +344,8 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canManageStock: false,
     canAccessAdmin: false,
     canExportBackups: false,
+    canViewFinancialAnalytics: false,
+    canViewWorkshopAnalytics: false,
   },
   "Workshop Floor": {
     panels: true,
@@ -350,6 +370,8 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canManageStock: true,
     canAccessAdmin: false,
     canExportBackups: false,
+    canViewFinancialAnalytics: false,
+    canViewWorkshopAnalytics: true,
   },
   "Read-Only Viewer": {
     panels: true,
@@ -374,6 +396,8 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canManageStock: false,
     canAccessAdmin: false,
     canExportBackups: false,
+    canViewFinancialAnalytics: false,
+    canViewWorkshopAnalytics: false,
   },
   "Read-Only Operator": {
     panels: true,
@@ -398,6 +422,8 @@ export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
     canManageStock: false,
     canAccessAdmin: false,
     canExportBackups: false,
+    canViewFinancialAnalytics: false,
+    canViewWorkshopAnalytics: false,
   },
 };
 
@@ -411,6 +437,8 @@ export const DEFAULT_MANAGER_PERMISSIONS: UserModulePermissions = {
   canCreatePanels: true,
   canEditPanels: true,
   canDeletePanels: false,
+  canViewFinancialAnalytics: true,
+  canViewWorkshopAnalytics: true,
 };
 export const DEFAULT_STAFF_PERMISSIONS: UserModulePermissions = {
   ...ROLE_PRESETS["Workshop Floor"],
@@ -420,13 +448,20 @@ export const DEFAULT_STAFF_PERMISSIONS: UserModulePermissions = {
   canEditSales: false,
   canDeleteSales: false,
   canOverridePrice: false,
+  canViewFinancialAnalytics: false,
+  canViewWorkshopAnalytics: true,
 };
 export const DEFAULT_VIEWER_PERMISSIONS: UserModulePermissions = ROLE_PRESETS["Read-Only Operator"];
 
 export function resolveUserPermissions(user: Partial<UserAccount> | null): UserModulePermissions {
   if (!user || !user.isAuthenticated) return DEFAULT_VIEWER_PERMISSIONS;
   if (user.username?.toLowerCase() === "bako" || user.role === "Admin") {
-    return { ...DEFAULT_ADMIN_PERMISSIONS, ...(user.permissions || {}) };
+    return {
+      ...DEFAULT_ADMIN_PERMISSIONS,
+      canViewFinancialAnalytics: true,
+      canViewWorkshopAnalytics: true,
+      ...(user.permissions || {}),
+    };
   }
   let base = DEFAULT_STAFF_PERMISSIONS;
   if (user.role === "Manager") base = DEFAULT_MANAGER_PERMISSIONS;
@@ -454,6 +489,13 @@ export function resolveUserPermissions(user: Partial<UserAccount> | null): UserM
 
     canAccessAdmin: user.role === 'Viewer' ? false : (raw.canAccessAdmin !== undefined ? !!raw.canAccessAdmin : (raw.audit !== undefined ? !!raw.audit : base.canAccessAdmin)),
     canExportBackups: user.role === 'Viewer' ? false : (raw.canExportBackups !== undefined ? !!raw.canExportBackups : (raw.canExport !== undefined ? !!raw.canExport : base.canExportBackups)),
+    canViewRestrictedMetrics: !!raw.canViewRestrictedMetrics,
+    canViewFinancialAnalytics: raw.canViewFinancialAnalytics !== undefined
+      ? !!raw.canViewFinancialAnalytics
+      : (user.role === 'Viewer' ? false : (base.canViewFinancialAnalytics ?? false)),
+    canViewWorkshopAnalytics: raw.canViewWorkshopAnalytics !== undefined
+      ? !!raw.canViewWorkshopAnalytics
+      : (user.role === 'Viewer' ? false : (base.canViewWorkshopAnalytics ?? false)),
   };
 }
 
@@ -542,6 +584,53 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
   const closeCopyrightModal = useCallback(() => {
     setIsCopyrightOpen(false);
+  }, []);
+
+  // Unified Isolated Print Engine State
+  const [activePrintJob, setActivePrintJob] = useState<PrintJob | null>(null);
+
+  const triggerPrintJob = useCallback((job: PrintJob) => {
+    setActivePrintJob(job);
+  }, []);
+
+  const printCuttingSlip = useCallback((order: OrderAllocation, material: PanelMaterial) => {
+    setActivePrintJob({
+      type: 'cutting-slip',
+      data: { order, material },
+    });
+  }, []);
+
+  const printWarehouseManifest = useCallback((shipment: InboundShipment) => {
+    setActivePrintJob({
+      type: 'warehouse-manifest',
+      data: {
+        id: shipment.id,
+        batchCode: shipment.batchCode,
+        supplier: shipment.supplier,
+        originCountry: shipment.originCountry,
+        arrivalDate: shipment.arrivalDate,
+        status: shipment.status,
+        notes: shipment.notes,
+        items: shipment.items.map((it) => ({
+          id: it.id,
+          description: it.description,
+          expectedQty: it.expectedQty,
+          receivedQty: it.receivedQty,
+          unit: it.unit,
+        })),
+      },
+    });
+  }, []);
+
+  const printInvoiceJob = useCallback((tx: PanelTransaction, format?: 'a4' | 'thermal80') => {
+    setActivePrintJob({
+      type: 'pos-invoice',
+      data: { tx, format: format || 'a4' },
+    });
+  }, []);
+
+  const clearPrintJob = useCallback(() => {
+    setActivePrintJob(null);
   }, []);
 
   // Core Data States with Instant Local Hydration
@@ -789,6 +878,32 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const closeConfirm = useCallback(() => {
     setConfirmDialog(null);
   }, []);
+
+  const requestAlert = useCallback(
+    (options: { title?: string; message: string; confirmLabel?: string; type?: 'info' | 'warning' | 'danger' | 'success'; onConfirm?: () => void }) => {
+      setConfirmDialog({
+        isOpen: true,
+        title: options.title || (language === 'ku' ? 'ئاگاداری' : 'System Notice'),
+        message: options.message,
+        confirmLabel: options.confirmLabel || (language === 'ku' ? 'تەواوە' : 'OK'),
+        type: options.type || 'info',
+        hideCancel: true,
+        onConfirm: options.onConfirm || (() => {}),
+      });
+    },
+    [language]
+  );
+
+  // Browser native popup neutralization: all popups must originate from inside the app UI
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.alert = (message?: any) => {
+      requestAlert({
+        title: language === "ku" ? "ئاگاداری سیستەم" : "System Notice",
+        message: String(message ?? ""),
+      });
+    };
+  }, [language, requestAlert]);
 
   // Role & Individual Module permissions
   const isAdmin = useMemo(() => {
@@ -1999,11 +2114,51 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const logout = useCallback(() => {
     setCurrentUser(null);
+    setOriginalAdmin(null);
     try {
       localStorage.removeItem(STORAGE_SESSION);
     } catch {}
     logActivity("LOGOUT", "User logged out");
   }, [logActivity]);
+
+  const [originalAdmin, setOriginalAdmin] = useState<UserAccount | null>(null);
+
+  const impersonateUser = useCallback(
+    (targetUsername: string) => {
+      const target = users.find(
+        (u) => u.username.toLowerCase() === targetUsername.trim().toLowerCase()
+      );
+      if (!target) return false;
+      if (!originalAdmin && (currentUser?.role === 'Admin' || currentUser?.username.toLowerCase() === 'bako')) {
+        setOriginalAdmin(currentUser);
+      }
+      const impersonated: UserAccount = {
+        ...target,
+        isAuthenticated: true,
+        isImpersonated: true,
+        originalAdminUsername: currentUser?.username || 'bako',
+      };
+      setCurrentUser(impersonated);
+      logActivity("PREVIEW_SESSION", `Admin started live session preview as "${target.displayName}" (${target.role})`);
+      return true;
+    },
+    [users, currentUser, originalAdmin, logActivity]
+  );
+
+  const stopImpersonation = useCallback(() => {
+    if (originalAdmin) {
+      setCurrentUser(originalAdmin);
+      setOriginalAdmin(null);
+      logActivity("PREVIEW_SESSION_END", `Admin returned to primary session: ${originalAdmin.displayName}`);
+    } else {
+      const adminAcc = users.find((u) => u.role === 'Admin' || u.username.toLowerCase() === 'bako');
+      if (adminAcc) {
+        setCurrentUser({ ...adminAcc, isAuthenticated: true });
+      }
+    }
+  }, [originalAdmin, users, logActivity]);
+
+  const isImpersonating = useMemo(() => !!currentUser?.isImpersonated, [currentUser]);
 
   const addUserAccount = useCallback(
     (newUser: { username: string; displayName: string; role: UserRole; password: string; permissions?: UserModulePermissions }) => {
@@ -2328,6 +2483,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     canDeleteMaterial,
     login,
     logout,
+    impersonateUser,
+    stopImpersonation,
+    isImpersonating,
     addUserAccount,
     deleteUserAccount,
     updateUserAccount,
@@ -2360,11 +2518,19 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTypeFilter,
     confirmDialog,
     requestConfirm,
+    requestAlert,
     closeConfirm,
     canUndo: historyIndex > 0,
     canRedo: historyIndex < history.length - 1 && historyIndex >= 0,
     undo,
     redo,
+
+    activePrintJob,
+    triggerPrintJob,
+    printCuttingSlip,
+    printWarehouseManifest,
+    printInvoiceJob,
+    clearPrintJob,
   };
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;

@@ -50,6 +50,7 @@ import {
   startBackupScheduler,
   getBackupDir,
   isValidSnapshotName,
+  extractSnapshotSqlite,
   type SnapshotInfo
 } from "./backup";
 
@@ -1438,6 +1439,49 @@ export function restoreDatabaseBackup(backupIdOrPayload: string | BackupSnapshot
   const db = getDB();
 
   let targetSnapshot: BackupSnapshot | null = null;
+
+  if (typeof backupIdOrPayload === "string" && (backupIdOrPayload.endsWith(".sqlite") || backupIdOrPayload.endsWith(".sqlite.gz"))) {
+    const uncompressedPath = extractSnapshotSqlite(backupIdOrPayload);
+    const safePath = uncompressedPath.replace(/'/g, "''");
+
+    try {
+      db.exec(`ATTACH DATABASE '${safePath}' AS snap;`);
+      db.exec("BEGIN IMMEDIATE;");
+      try {
+        db.exec("DELETE FROM materials; INSERT INTO materials SELECT * FROM snap.materials;");
+        db.exec("DELETE FROM orders; INSERT INTO orders SELECT * FROM snap.orders;");
+        db.exec("DELETE FROM transactions; INSERT INTO transactions SELECT * FROM snap.transactions;");
+        db.exec("DELETE FROM products; INSERT INTO products SELECT * FROM snap.products;");
+        db.exec("DELETE FROM shipments; INSERT INTO shipments SELECT * FROM snap.shipments;");
+        try {
+          db.exec("DELETE FROM custom_types; INSERT OR IGNORE INTO custom_types SELECT * FROM snap.custom_types;");
+        } catch {}
+
+        const countRow = db.prepare("SELECT count(*) as count FROM materials;").get() as { count: number } | undefined;
+        db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)").run(String(Date.now()));
+        db.exec("COMMIT;");
+        db.exec("DETACH DATABASE snap;");
+
+        if (uncompressedPath !== path.join(getBackupDir(), backupIdOrPayload)) {
+          try { fs.unlinkSync(uncompressedPath); } catch {}
+        }
+
+        return {
+          success: true,
+          message: `System successfully restored from snapshot: ${backupIdOrPayload}`,
+          materialsCount: countRow?.count ?? 0,
+        };
+      } catch (txErr) {
+        db.exec("ROLLBACK;");
+        try { db.exec("DETACH DATABASE snap;"); } catch {}
+        throw txErr;
+      }
+    } finally {
+      if (uncompressedPath !== path.join(getBackupDir(), backupIdOrPayload)) {
+        try { fs.unlinkSync(uncompressedPath); } catch {}
+      }
+    }
+  }
 
   if (typeof backupIdOrPayload === "string") {
     const row = db.prepare(`SELECT * FROM backups WHERE id = ?`).get(backupIdOrPayload) as Record<string, unknown> | undefined;
