@@ -234,6 +234,19 @@ function WarehouseApp() {
     setZoomedImage
   ]);
 
+  // Division Route Guard & Immediate Redirection when switching profiles or direct access
+  useEffect(() => {
+    if ((currentModule === 'panels' || currentModule === 'orders') && !userPermissions.canViewPanels) {
+      setCurrentModule('hub');
+    } else if (currentModule === 'sales' && !userPermissions.canViewSales) {
+      setCurrentModule('hub');
+    } else if ((currentModule === 'goods' || currentModule === 'shipping') && !userPermissions.canViewWarehouse) {
+      setCurrentModule('hub');
+    } else if (currentModule === 'audit' && !userPermissions.canAccessAdmin) {
+      setCurrentModule('hub');
+    }
+  }, [currentModule, userPermissions, setCurrentModule]);
+
   // If user is not logged in, render the secure Login screen
   if (!currentUser) {
     return (
@@ -548,8 +561,8 @@ function WarehouseApp() {
         onPrint={handleTriggerPrint}
       />
 
-      {/* When inside Wood Panels or Orders, render the Section Switcher & Print Customizer Bar */}
-      {(currentModule === 'panels' || currentModule === 'orders') && (
+      {/* When inside Wood Panels or Orders, render the Section Switcher & Print Customizer Bar (Guarded) */}
+      {userPermissions.canViewPanels && (currentModule === 'panels' || currentModule === 'orders') && (
         <div className="bg-white dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 py-2 select-none no-print print:hidden w-full max-w-full box-border">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
@@ -713,7 +726,7 @@ function WarehouseApp() {
         )}
 
         {currentModule === 'panels' && (
-          hasModulePermission('panels') ? (
+          userPermissions.canViewPanels ? (
             effectiveMode === 'pc' ? (
               <ExcelGrid
                 onOpenOrderModal={handleOpenOrderModal}
@@ -745,7 +758,7 @@ function WarehouseApp() {
         )}
 
         {currentModule === 'orders' && (
-          hasModulePermission('orders') ? (
+          userPermissions.canViewPanels ? (
             <OrdersSection
               onOpenOrderModal={handleOpenOrderModal}
               onSelectOrderForDetails={setSelectedOrderForDetails}
@@ -763,7 +776,7 @@ function WarehouseApp() {
         )}
 
         {currentModule === 'sales' && (
-          hasModulePermission('sales') ? (
+          userPermissions.canViewSales ? (
             <SalesSection />
           ) : (
             <AccessDeniedView
@@ -775,10 +788,7 @@ function WarehouseApp() {
         )}
 
         {(currentModule === 'goods' || currentModule === 'shipping') && (
-          ((currentModule === 'goods' && hasModulePermission('goods')) ||
-           (currentModule === 'shipping' && hasModulePermission('shipping')) ||
-           hasModulePermission('goods') ||
-           hasModulePermission('shipping')) ? (
+          userPermissions.canViewWarehouse ? (
             <WarehouseGoodsSection />
           ) : (
             <AccessDeniedView
@@ -790,7 +800,7 @@ function WarehouseApp() {
         )}
 
         {currentModule === 'audit' && (
-          hasModulePermission('audit') ? (
+          userPermissions.canAccessAdmin ? (
             <AuditBackupsSection />
           ) : (
             <AccessDeniedView
@@ -870,7 +880,7 @@ function WarehouseApp() {
       <CopyrightModal />
 
       {/* Dedicated High-Fidelity Slip Print View */}
-      <div className="hidden print:block print:w-full bg-white text-slate-900 font-sans text-xs p-0 print-sheet-root">
+      <div className="hidden print:block print:w-full bg-white text-slate-900 font-sans text-xs p-0 print-sheet-root print-section-active">
         {selectedPrintQueue.length > 0 ? (
           <div>
             {selectedPrintQueue.map((item, index) => {

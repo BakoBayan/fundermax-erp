@@ -10,6 +10,7 @@ import {
   Smartphone,
   Monitor,
   Wifi,
+  WifiOff,
   Database,
   RefreshCw,
   Trash2,
@@ -94,6 +95,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     pingHealthCheck,
     users,
     currentUser,
+    simulatedOffline,
+    toggleSimulatedOffline,
     updateUserPermissions,
     addUserAccount,
     updateUserAccount,
@@ -1719,6 +1722,59 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         ? 'Anyone connected to the same Wi-Fi network can open this address on phone or tablet to scan items, invoice sales, and update inventory in real time.'
                         : 'هەرکەسێک لەسەر هەمان وایفای بێت دەتوانێت ئەم بەستەرە بکاتەوە بۆ کارکردن و فرۆشتن لە کاتی ڕاستەقینەدا.'}
                     </p>
+                  </div>
+
+                  {/* Manual Offline Test Simulation Toggle */}
+                  <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                    simulatedOffline 
+                      ? 'bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/30' 
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold shrink-0 ${
+                        simulatedOffline ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}>
+                        {simulatedOffline ? <WifiOff className="w-5 h-5" /> : <Wifi className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>{lang === 'en' ? 'Test Offline Mode Simulation' : 'تاقیکردنەوەی دۆخی ئۆفلاین'}</span>
+                          {simulatedOffline && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white uppercase tracking-wider">
+                              {lang === 'en' ? 'OFFLINE ACTIVE' : 'ئۆفلاین چالاکە'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {lang === 'en' 
+                            ? 'Forces app into disconnected state to test UI offline indicators, fallback storage, and telemetry without physical disconnects.' 
+                            : 'سەرجەم پەیوەندییەکان بە ئەنقەست دەپچڕێنێت بۆ تاقیکردنەوەی دۆخی ئۆفلاین و کاش بێ پێویستی بە کوژاندنەوەی وایفای.'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleSimulatedOffline();
+                        onToast(
+                          simulatedOffline 
+                            ? (lang === 'en' ? 'Simulated Offline Mode Disabled: Telemetry Online' : 'تاقیکردنەوە کۆتایی هات: دووبارە بەستراوە')
+                            : (lang === 'en' ? 'Simulated Offline Mode Enabled: Telemetry Disconnected' : 'تاقیکردنەوە دەستی پێکرد: سیستەم ئێستا لە دۆخی ئۆفلاینە')
+                        );
+                      }}
+                      className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shrink-0 shadow-sm ${
+                        simulatedOffline
+                          ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-500/30'
+                          : 'bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white'
+                      }`}
+                    >
+                      {simulatedOffline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                      <span>
+                        {simulatedOffline 
+                          ? (lang === 'en' ? 'End Test (Go Online)' : 'کوژاندنەوەی تاقیکردنەوە') 
+                          : (lang === 'en' ? 'Simulate Disconnect' : 'تاقیکردنەوەی ئۆفلاین')}
+                      </span>
+                    </button>
                   </div>
 
                   {/* Network URL Box with Copy */}

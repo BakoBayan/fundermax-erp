@@ -422,7 +422,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                   {/* Stock: Deducted directly from on-hand inventory + Steppers */}
                   <td className="py-2 px-3 text-center">
                     <div className="flex flex-col items-center justify-center">
-                      {!isViewer ? (
+                      {userPermissions.canEditPanels ? (
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => quickStepStock(mat.id, -1)}
@@ -559,7 +559,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                                 >
                                   <Eye className="w-3 h-3" />
                                 </button>
-                                {!isViewer && (
+                                {userPermissions.canEditPanels && (
                                   <button
                                     onClick={() => onOpenOrderModal(mat.id, { materialId: mat.id, order: ord })}
                                     className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500"
@@ -597,8 +597,8 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                   {/* Actions: Prominent, larger, clear buttons */}
                   <td className="py-2 px-3 text-center no-print">
                     <div className="flex items-center justify-center gap-1.5">
-                      {/* Allocate Order for this panel: Hidden for Viewers */}
-                      {!isViewer && (
+                      {/* Allocate Order for this panel: Strictly unmounted unless canCreatePanels */}
+                      {userPermissions.canCreatePanels && (
                         <button
                           onClick={() => onOpenOrderModal(mat.id)}
                           disabled={isOutOfStock}
@@ -645,7 +645,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                       )}
 
                       {/* Delete Panel with On-Site Modal: Rendered strictly if canDeletePanels */}
-                      {canDeleteMaterial && userPermissions.canDeletePanels && (
+                      {userPermissions.canDeletePanels && (
                         <button
                           onClick={() => {
                             requestConfirm({

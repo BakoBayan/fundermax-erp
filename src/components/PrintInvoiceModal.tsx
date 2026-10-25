@@ -781,7 +781,7 @@ export default function PrintInvoiceModal({
               <div 
                 id="printable-invoice" 
                 ref={invoiceRef}
-                className="w-full max-w-xl mx-auto p-6 sm:p-7 text-slate-900 bg-white rounded-xl shadow-md border border-slate-200 text-xs print:p-0 print:m-0 print:text-[11px] print:leading-tight print:shadow-none print:border-none print:w-full print:max-w-none print:rounded-none relative"
+                className="print-section-active w-full max-w-xl mx-auto p-6 sm:p-7 text-slate-900 bg-white rounded-xl shadow-md border border-slate-200 text-xs print:p-0 print:m-0 print:text-[11px] print:leading-tight print:shadow-none print:border-none print:w-full print:max-w-none print:rounded-none relative"
               >
                 {/* Visual Page Break Marker in Screen Preview (only when height > 960px) */}
                 {!isSinglePage && invoiceHeight > PAGE_HEIGHT_PX && (

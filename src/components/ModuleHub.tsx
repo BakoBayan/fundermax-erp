@@ -72,10 +72,10 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
 
   const isKu = language === 'ku';
 
-  const canAccessPanels = hasModulePermission('panels') || hasModulePermission('orders');
-  const canAccessSales = hasModulePermission('sales');
-  const canAccessGoods = hasModulePermission('goods') || hasModulePermission('shipping');
-  const canAccessAnalytics = hasModulePermission('panels') || hasModulePermission('sales') || hasModulePermission('goods') || hasModulePermission('audit') || !!userPermissions?.canExport;
+  const canAccessPanels = !!userPermissions.canViewPanels;
+  const canAccessSales = !!userPermissions.canViewSales;
+  const canAccessGoods = !!userPermissions.canViewWarehouse;
+  const canAccessAnalytics = !!userPermissions.canAccessAdmin || !!userPermissions.canExportBackups || !!userPermissions.canExport;
 
   const handleCheckHealth = async () => {
     setIsCheckingHealth(true);
@@ -94,9 +94,21 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   };
 
   const handleSelectDivision = (mod: PlatformModule, fallbackMod?: PlatformModule) => {
-    const target = hasModulePermission(mod) ? mod : (fallbackMod && hasModulePermission(fallbackMod) ? fallbackMod : null);
+    let isAllowed = false;
+    let targetMod: PlatformModule = mod;
 
-    if (!target) {
+    if (mod === 'panels' || mod === 'orders') {
+      isAllowed = !!userPermissions.canViewPanels;
+      targetMod = isAllowed ? mod : (fallbackMod && userPermissions.canViewPanels ? fallbackMod : mod);
+    } else if (mod === 'sales') {
+      isAllowed = !!userPermissions.canViewSales;
+    } else if (mod === 'goods' || mod === 'shipping') {
+      isAllowed = !!userPermissions.canViewWarehouse;
+    } else if (mod === 'audit') {
+      isAllowed = !!userPermissions.canAccessAdmin;
+    }
+
+    if (!isAllowed) {
       const titles: Record<string, { en: string; ku: string; descEn: string; descKu: string }> = {
         panels: {
           en: 'Wood Panels & Cutting Manager',
@@ -133,9 +145,9 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     }
 
     if (onSelectModule) {
-      onSelectModule(target);
+      onSelectModule(targetMod);
     } else {
-      setCurrentModule(target);
+      setCurrentModule(targetMod);
     }
   };
 

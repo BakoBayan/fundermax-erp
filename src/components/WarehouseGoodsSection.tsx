@@ -142,11 +142,12 @@ const FormError: React.FC<{ message: string }> = ({ message }) =>
   ) : null;
 
 export const WarehouseGoodsSection: React.FC = () => {
-  const { language, currentUser, isViewer, canModify, isAdmin, logActivity } = useInventory();
+  const { language, currentUser, isViewer, canModify, isAdmin, logActivity, userPermissions } = useInventory();
   const wh = useWarehouseOps();
 
   const isKu = language === 'ku';
-  const canWrite = !isViewer && canModify;
+  const canManageShipments = !!userPermissions.canManageShipments;
+  const canManageStock = !!userPermissions.canManageStock;
   const userName = currentUser?.displayName || 'Unknown User';
 
   const [tab, setTab] = useState<WarehouseTab>('shipments');
@@ -301,7 +302,7 @@ export const WarehouseGoodsSection: React.FC = () => {
               : 'Incoming company shipments, rack and bay allocation, and audited stock movements.'}
           </p>
         </div>
-        {canWrite && (
+        {canManageShipments && (
           <div className="flex flex-wrap gap-2">
             <button type="button" className={primaryBtn} onClick={() => setModal({ type: 'newShipment' })}>
               <Plus className="w-4 h-4" />
@@ -403,7 +404,7 @@ export const WarehouseGoodsSection: React.FC = () => {
               <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
                 {showDeleted ? 'No archived shipments.' : 'No incoming shipments yet.'}
               </p>
-              {canWrite && !showDeleted && (
+              {canManageShipments && !showDeleted && (
                 <button type="button" className={`${primaryBtn} mt-4`} onClick={() => setModal({ type: 'newShipment' })}>
                   <Plus className="w-4 h-4" /> Register the first shipment
                 </button>
@@ -435,7 +436,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col items-stretch lg:items-end gap-2 shrink-0">
-                    {canWrite && s.isDeleted === 0 && (
+                    {canManageShipments && s.isDeleted === 0 && (
                       <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 gap-1" role="group" aria-label="Customs and arrival status">
                         {INBOUND_STATUS_ORDER.map((st) => (
                           <button
@@ -464,7 +465,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                           <Undo2 className="w-3.5 h-3.5" /> Restore
                         </button>
                       ) : (
-                        canWrite && (
+                        canManageShipments && (
                           <button type="button" className={`${ghostBtn} text-rose-600 dark:text-rose-400`} onClick={() => handleDeleteShipment(s)}>
                             <Trash2 className="w-3.5 h-3.5" /> Archive
                           </button>
@@ -491,7 +492,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                       {s.items.map((it) => {
                         const allocated = allocatedQtyForItem(wh.allocations, s.id, it.id);
                         const left = Math.max(0, it.receivedQty - allocated);
-                        const canPutAway = canWrite && s.isDeleted === 0 && left > 0;
+                        const canPutAway = canManageStock && s.isDeleted === 0 && left > 0;
                         return (
                           <tr key={it.id} className="border-t border-slate-100 dark:border-slate-800">
                             <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">
@@ -500,7 +501,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                             </td>
                             <td className="px-3 py-2.5 text-end font-mono text-slate-600 dark:text-slate-300">{fmtQty(it.expectedQty)}</td>
                             <td className="px-3 py-2.5 text-end">
-                              {canWrite && s.isDeleted === 0 ? (
+                              {canManageShipments && s.isDeleted === 0 ? (
                                 <input
                                   type="number"
                                   inputMode="decimal"
@@ -523,7 +524,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                             <td className="px-3 py-2.5 text-end font-mono text-emerald-600 dark:text-emerald-400">{fmtQty(allocated)}</td>
                             <td className={`px-3 py-2.5 text-end font-mono ${left > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400'}`}>{fmtQty(left)}</td>
                             <td className="px-4 py-2.5 text-end">
-                              {canPutAway && (
+                              {canPutAway && canManageStock && (
                                 <button
                                   type="button"
                                   className={ghostBtn}
@@ -551,7 +552,7 @@ export const WarehouseGoodsSection: React.FC = () => {
           <div className="xl:col-span-2 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">Stock by Location</h2>
-              {canWrite && (
+              {canManageStock && (
                 <button type="button" className={ghostBtn} onClick={() => setModal({ type: 'openingStock' })}>
                   <ClipboardList className="w-3.5 h-3.5" /> Record Opening Stock
                 </button>
@@ -585,7 +586,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                             <span className="font-mono font-bold text-slate-900 dark:text-white">
                               {fmtQty(a.quantity)} <span className="text-[11px] text-slate-400">{a.unit}</span>
                             </span>
-                            {canWrite && (
+                            {canManageStock && (
                               <button type="button" className={ghostBtn} onClick={() => setModal({ type: 'transfer', allocationId: a.id })}>
                                 <ArrowRightLeft className="w-3.5 h-3.5" /> Move
                               </button>
@@ -600,7 +601,7 @@ export const WarehouseGoodsSection: React.FC = () => {
             })}
           </div>
 
-          <LocationManager canWrite={canWrite} />
+          <LocationManager canWrite={canManageStock} />
         </div>
       )}
 

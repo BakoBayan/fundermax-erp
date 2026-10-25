@@ -340,8 +340,8 @@ export const MobileView: React.FC<MobileViewProps> = ({
                       );
                     })()}
 
-                    {/* Edit Panel: Hidden for Viewers */}
-                    {!isViewer && (
+                    {/* Edit Panel: Strictly unmounted unless canEditPanels */}
+                    {userPermissions.canEditPanels && (
                       <button
                         onClick={() => onOpenMaterialModal(mat)}
                         className="min-w-[48px] min-h-[48px] p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 transition-colors active:scale-90 flex items-center justify-center cursor-pointer"
@@ -351,8 +351,8 @@ export const MobileView: React.FC<MobileViewProps> = ({
                       </button>
                     )}
 
-                    {/* Delete Panel (Managers & Admins only) */}
-                    {canDeleteMaterial && (
+                    {/* Delete Panel: Strictly unmounted unless canDeletePanels */}
+                    {userPermissions.canDeletePanels && (
                       <button
                         onClick={() => {
                           requestConfirm({
@@ -379,7 +379,7 @@ export const MobileView: React.FC<MobileViewProps> = ({
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                       {t.currentStock}:
                     </span>
-                    {!isViewer ? (
+                    {userPermissions.canEditPanels ? (
                       <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xs">
                         <button
                           onClick={() => quickStepStock(mat.id, -1)}
@@ -507,8 +507,8 @@ export const MobileView: React.FC<MobileViewProps> = ({
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              {/* Finalize button: Hidden for Viewers */}
-                              {!isViewer && ord.status !== "finalized" && (
+                              {/* Finalize button: Strictly unmounted unless canEditPanels */}
+                              {userPermissions.canEditPanels && ord.status !== "finalized" && (
                                 <button
                                   onClick={() => {
                                     requestConfirm({
@@ -567,8 +567,8 @@ export const MobileView: React.FC<MobileViewProps> = ({
                                 );
                               })()}
 
-                              {/* Edit Order: Hidden for Viewers */}
-                              {!isViewer && (
+                              {/* Edit Order: Strictly unmounted unless canEditPanels */}
+                              {userPermissions.canEditPanels && (
                                 <button
                                   onClick={() => onOpenOrderModal(mat.id, { materialId: mat.id, order: ord })}
                                   className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
@@ -578,8 +578,8 @@ export const MobileView: React.FC<MobileViewProps> = ({
                                 </button>
                               )}
 
-                              {/* Delete Order: Hidden for Viewers */}
-                              {!isViewer && (
+                              {/* Delete Order: Strictly unmounted unless canDeletePanels */}
+                              {userPermissions.canDeletePanels && (
                                 <button
                                   onClick={() => {
                                     const confirmMsg = ord.status === "finalized"
@@ -616,8 +616,8 @@ export const MobileView: React.FC<MobileViewProps> = ({
                   );
                 })()}
 
-                {/* 5. Card Footer: Full-width Primary + Order Button (Hidden for Viewers) */}
-                {!isViewer && (
+                {/* 5. Card Footer: Full-width Primary + Order Button (Strictly unmounted unless canCreatePanels) */}
+                {userPermissions.canCreatePanels && (
                   <div className="p-3 bg-white dark:bg-slate-800">
                     <button
                       onClick={() => onOpenOrderModal(mat.id)}

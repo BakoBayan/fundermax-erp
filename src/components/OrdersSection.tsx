@@ -567,8 +567,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                        {/* Finalize Button */}
-                        {!isViewer && !isFinalized && (
+                        {/* Finalize Button: Strictly unmounted unless canEditPanels */}
+                        {userPermissions.canEditPanels && !isFinalized && (
                           <button
                             onClick={() => {
                               requestConfirm({
@@ -633,7 +633,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                         )}
 
                         {/* Delete Order with On-Site Modal: Strictly unmounted unless canDeletePanels */}
-                        {canDeleteMaterial && userPermissions.canDeletePanels && (
+                        {userPermissions.canDeletePanels && (
                           <button
                             onClick={() => {
                               const confirmMsg = isFinalized
@@ -799,7 +799,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                       <span>{t.viewDetails}</span>
                     </button>
 
-                    {!isViewer && !isFinalized && (
+                    {userPermissions.canEditPanels && !isFinalized && (
                       <button
                         onClick={() => {
                           requestConfirm({
@@ -855,7 +855,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                     )}
 
                     {/* Delete: Strictly unmounted unless canDeletePanels */}
-                    {canDeleteMaterial && userPermissions.canDeletePanels && (
+                    {userPermissions.canDeletePanels && (
                       <button
                         onClick={() => {
                           const confirmMsg = isFinalized

@@ -167,6 +167,8 @@ interface InventoryContextType {
   isOnline: boolean;
   syncStatus: "synced" | "offline" | "syncing";
   offlineQueueCount: number;
+  simulatedOffline: boolean;
+  toggleSimulatedOffline: () => void;
   walHealth: {
     isWalActive: boolean;
     journalMode: string;
@@ -422,7 +424,7 @@ export const DEFAULT_STAFF_PERMISSIONS: UserModulePermissions = {
 export const DEFAULT_VIEWER_PERMISSIONS: UserModulePermissions = ROLE_PRESETS["Read-Only Operator"];
 
 export function resolveUserPermissions(user: Partial<UserAccount> | null): UserModulePermissions {
-  if (!user) return DEFAULT_VIEWER_PERMISSIONS;
+  if (!user || !user.isAuthenticated) return DEFAULT_VIEWER_PERMISSIONS;
   if (user.username?.toLowerCase() === "bako" || user.role === "Admin") {
     return { ...DEFAULT_ADMIN_PERMISSIONS, ...(user.permissions || {}) };
   }
@@ -435,23 +437,23 @@ export function resolveUserPermissions(user: Partial<UserAccount> | null): UserM
     ...base,
     ...raw,
     // Ensure granular flags fallback to safe defaults if legacy record didn't have them
-    canViewSales: raw.canViewSales ?? (raw.sales !== undefined ? !!raw.sales : base.canViewSales),
-    canCreateSales: raw.canCreateSales ?? (user.role === 'Viewer' ? false : base.canCreateSales),
-    canEditSales: raw.canEditSales ?? (user.role === 'Viewer' ? false : base.canEditSales),
-    canDeleteSales: raw.canDeleteSales ?? (user.role === 'Viewer' ? false : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeleteSales)),
-    canOverridePrice: raw.canOverridePrice ?? (user.role === 'Viewer' ? false : base.canOverridePrice),
+    canViewSales: raw.canViewSales !== undefined ? !!raw.canViewSales : (raw.sales !== undefined ? !!raw.sales : base.canViewSales),
+    canCreateSales: user.role === 'Viewer' ? false : (raw.canCreateSales !== undefined ? !!raw.canCreateSales : base.canCreateSales),
+    canEditSales: user.role === 'Viewer' ? false : (raw.canEditSales !== undefined ? !!raw.canEditSales : base.canEditSales),
+    canDeleteSales: user.role === 'Viewer' ? false : (raw.canDeleteSales !== undefined ? !!raw.canDeleteSales : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeleteSales)),
+    canOverridePrice: user.role === 'Viewer' ? false : (raw.canOverridePrice !== undefined ? !!raw.canOverridePrice : base.canOverridePrice),
 
-    canViewPanels: raw.canViewPanels ?? (raw.panels !== undefined ? !!raw.panels : base.canViewPanels),
-    canCreatePanels: raw.canCreatePanels ?? (user.role === 'Viewer' ? false : base.canCreatePanels),
-    canEditPanels: raw.canEditPanels ?? (user.role === 'Viewer' ? false : base.canEditPanels),
-    canDeletePanels: raw.canDeletePanels ?? (user.role === 'Viewer' ? false : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeletePanels)),
+    canViewPanels: raw.canViewPanels !== undefined ? !!raw.canViewPanels : (raw.panels !== undefined ? !!raw.panels : base.canViewPanels),
+    canCreatePanels: user.role === 'Viewer' ? false : (raw.canCreatePanels !== undefined ? !!raw.canCreatePanels : base.canCreatePanels),
+    canEditPanels: user.role === 'Viewer' ? false : (raw.canEditPanels !== undefined ? !!raw.canEditPanels : base.canEditPanels),
+    canDeletePanels: user.role === 'Viewer' ? false : (raw.canDeletePanels !== undefined ? !!raw.canDeletePanels : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeletePanels)),
 
-    canViewWarehouse: raw.canViewWarehouse ?? (raw.goods !== undefined ? !!raw.goods : base.canViewWarehouse),
-    canManageShipments: raw.canManageShipments ?? (raw.shipping !== undefined ? !!raw.shipping : base.canManageShipments),
-    canManageStock: raw.canManageStock ?? base.canManageStock,
+    canViewWarehouse: raw.canViewWarehouse !== undefined ? !!raw.canViewWarehouse : (raw.goods !== undefined ? !!raw.goods : base.canViewWarehouse),
+    canManageShipments: user.role === 'Viewer' ? false : (raw.canManageShipments !== undefined ? !!raw.canManageShipments : (raw.shipping !== undefined ? !!raw.shipping : base.canManageShipments)),
+    canManageStock: user.role === 'Viewer' ? false : (raw.canManageStock !== undefined ? !!raw.canManageStock : base.canManageStock),
 
-    canAccessAdmin: raw.canAccessAdmin ?? (raw.audit !== undefined ? !!raw.audit : base.canAccessAdmin),
-    canExportBackups: raw.canExportBackups ?? (raw.canExport !== undefined ? !!raw.canExport : base.canExportBackups),
+    canAccessAdmin: user.role === 'Viewer' ? false : (raw.canAccessAdmin !== undefined ? !!raw.canAccessAdmin : (raw.audit !== undefined ? !!raw.audit : base.canAccessAdmin)),
+    canExportBackups: user.role === 'Viewer' ? false : (raw.canExportBackups !== undefined ? !!raw.canExportBackups : (raw.canExport !== undefined ? !!raw.canExport : base.canExportBackups)),
   };
 }
 
@@ -721,9 +723,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     isLiveConnected: true,
   });
 
-  // Authentication & Users (Defaults to Bako Administrator on Master Workstation)
+  // Authentication & Users (Strict Default: unauthenticated viewer until explicitly authenticated)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
-    if (typeof window === "undefined") return { ...INITIAL_USERS[0], isAuthenticated: true };
+    if (typeof window === "undefined") return null;
     try {
       const savedSession = localStorage.getItem(STORAGE_SESSION);
       if (savedSession) {
@@ -736,7 +738,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
     } catch {}
-    return { ...INITIAL_USERS[0], isAuthenticated: true };
+    return null;
   });
 
   const [users, setUsers] = useState<UserAccount[]>(() => {
@@ -811,29 +813,26 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (isAdmin) return true;
     if (!currentUser) return false;
     const perms = resolveUserPermissions(currentUser);
-    if (mod === "panels") return !!perms.panels;
-    if (mod === "orders") return !!perms.orders;
-    if (mod === "sales") return !!perms.sales;
-    if (mod === "goods") return !!perms.goods;
-    if (mod === "shipping") return !!perms.shipping;
-    if (mod === "audit") return !!perms.audit;
+    if (mod === "panels") return !!perms.canViewPanels;
+    if (mod === "orders") return !!perms.canViewPanels;
+    if (mod === "sales") return !!perms.canViewSales;
+    if (mod === "goods") return !!perms.canViewWarehouse;
+    if (mod === "shipping") return !!perms.canViewWarehouse;
+    if (mod === "audit") return !!perms.canAccessAdmin;
     return false;
   }, [isAdmin, currentUser]);
 
   const canModify = useMemo(() => {
     if (isAdmin) return true;
     if (isViewer) return false;
-    return true;
-  }, [isAdmin, isViewer]);
+    return userPermissions.canCreatePanels || userPermissions.canEditPanels;
+  }, [isAdmin, isViewer, userPermissions]);
 
   const canDeleteMaterial = useMemo(() => {
     if (isAdmin) return true;
     if (isViewer) return false;
-    if (currentUser?.permissions?.canDelete !== undefined) {
-      return !!currentUser.permissions.canDelete;
-    }
-    return isManager;
-  }, [isAdmin, isViewer, isManager, currentUser]);
+    return userPermissions.canDeletePanels;
+  }, [isAdmin, isViewer, userPermissions]);
 
   // Responsive device view calculation
   useEffect(() => {
@@ -852,40 +851,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return isMobileDetected ? "mobile" : "pc";
   }, [deviceMode, isMobileDetected]);
 
-  // Network Online / Offline Detection
-  useEffect(() => {
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const handleOnline = () => {
-      setIsOnline(true);
-      setSyncStatus("syncing");
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      reconnectTimeout = setTimeout(() => {
-        pullFromServer().catch(() => {});
-      }, 500);
-    };
-
-    const handleOffline = () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      setIsOnline(false);
-      setSyncStatus("offline");
-    };
-
-    if (typeof window !== "undefined") {
-      setIsOnline(navigator.onLine);
-      if (!navigator.onLine) setSyncStatus("offline");
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
-    }
-
-    return () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (typeof window !== "undefined") {
-        window.removeEventListener("online", handleOnline);
-        window.removeEventListener("offline", handleOffline);
-      }
-    };
-  }, []);
+  // Simulated Offline Mode for Testing & Verification
+  const [simulatedOffline, setSimulatedOffline] = useState(false);
 
   // Theme application
   useEffect(() => {
@@ -1092,8 +1059,116 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
+  const toggleSimulatedOffline = useCallback(() => {
+    setSimulatedOffline((prev) => {
+      const next = !prev;
+      if (next) {
+        setIsOnline(false);
+        setSyncStatus("offline");
+        setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
+      } else {
+        setIsOnline(navigator.onLine);
+        setSyncStatus("syncing");
+        pullFromServer().catch(() => {});
+      }
+      return next;
+    });
+  }, [pullFromServer]);
+
+  // Real Telemetry Heartbeat & Active Network Resilience (5-second polling with 2500ms abort timeout)
+  useEffect(() => {
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleOnline = () => {
+      if (simulatedOffline) return;
+      setIsOnline(true);
+      setSyncStatus("syncing");
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(() => {
+        pullFromServer().catch(() => {});
+      }, 500);
+    };
+
+    const handleOffline = () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      setIsOnline(false);
+      setSyncStatus("offline");
+      setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    // Active heartbeat: every 5 seconds, attempt a lightweight fetch to /api/server-info with strict 2500ms timeout
+    const heartbeatInterval = setInterval(async () => {
+      if (typeof window === "undefined") return;
+      if (simulatedOffline) {
+        setIsOnline(false);
+        setSyncStatus("offline");
+        setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
+        return;
+      }
+
+      if (!navigator.onLine) {
+        setIsOnline(false);
+        setSyncStatus("offline");
+        setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const start = Date.now();
+
+      try {
+        const res = await fetch("/api/server-info", {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        clearTimeout(timeoutId);
+        const elapsed = Math.max(1, Date.now() - start);
+
+        if (res.ok && res.status === 200) {
+          setIsOnline(true);
+          setSyncStatus((s) => (s === "offline" ? "synced" : s));
+          setWalHealth((w) => ({
+            ...w,
+            isLiveConnected: true,
+            latencyMs: elapsed,
+          }));
+        } else {
+          setIsOnline(false);
+          setSyncStatus("offline");
+          setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
+        }
+      } catch {
+        clearTimeout(timeoutId);
+        setIsOnline(false);
+        setSyncStatus("offline");
+        setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
+      }
+    }, 5000);
+
+    return () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      clearInterval(heartbeatInterval);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
+    };
+  }, [simulatedOffline, pullFromServer]);
+
   // Explicit Interactive Real-time Health Check
   const pingHealthCheck = useCallback(async (): Promise<{ success: boolean; latencyMs: number; message: string }> => {
+    if (simulatedOffline) {
+      setIsOnline(false);
+      setSyncStatus("offline");
+      setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
+      return { success: false, latencyMs: 0, message: "Simulated Offline Mode" };
+    }
     setSyncStatus("syncing");
     const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
     try {
@@ -2236,6 +2311,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     isOnline,
     syncStatus,
     offlineQueueCount,
+    simulatedOffline,
+    toggleSimulatedOffline,
     walHealth,
     pingHealthCheck,
 

@@ -402,25 +402,46 @@
 }
 
 
-/* Professional Single-Page Print Stylesheet */
+/* ========================================================================= */
+/* GLOBAL HIGH-FIDELITY PRINT ENGINE STYLESHEET                              */
+/* ========================================================================= */
 @media print {
   @page {
     margin: 8mm;
     size: auto;
   }
-  html, body {
+  body, html {
+    overflow: visible !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
-    overflow: visible !important;
     background: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
   }
-  /* Hide all siblings of printable roots directly under body with display: none so layout height is strictly 0 */
-  body > *:not(#print-mount-root):not(#print-charts-mount-root) {
+  /* Ensure parents do not clip content */
+  div, section, main {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  /* Hide non-printable UI */
+  header, nav, .ambient-layer, .no-print, .print-hide, button, footer {
     display: none !important;
+  }
+  /* Ensure table rows, cells, and slips avoid truncation across pages */
+  tr, td, th {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .print-card,
+  .print-section-active,
+  .print-sheet-root {
+    display: block !important;
+    overflow: visible !important;
+    width: 100% !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   #print-mount-root, #print-charts-mount-root {
     position: static !important;
@@ -437,7 +458,6 @@
     border: none !important;
     overflow: visible !important;
   }
-  /* Remove modal constraints in print */
   #print-mount-root > div, #print-charts-mount-root > div {
     max-height: none !important;
     height: auto !important;
@@ -460,14 +480,9 @@
     background: #ffffff !important;
     overflow: visible !important;
   }
-  /* Keep individual items, totals, and signatures intact without cutting in half */
   tr, .print-avoid-break, .print-image-card {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-  }
-  .print-hide, .print-hide * {
-    display: none !important;
-    visibility: hidden !important;
   }
 }
 

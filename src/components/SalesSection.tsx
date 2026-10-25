@@ -835,7 +835,8 @@ export const SalesSection: React.FC = () => {
         </div>
       </div>
 
-      {/* POS INVOICE CREATOR FORM */}
+      {/* POS INVOICE CREATOR FORM (Strictly unmounted unless canCreateSales or canEditSales) */}
+      {(userPermissions.canCreateSales || (editingTxId && userPermissions.canEditSales)) && (
       <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
@@ -1010,9 +1011,7 @@ export const SalesSection: React.FC = () => {
                 value={posDraft.rowPrice}
                 onChange={(e) => setPosDraft({ ...posDraft, rowPrice: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                 placeholder="0.00"
-                readOnly={!userPermissions.canOverridePrice && !userPermissions.canCreateSales}
-                disabled={!userPermissions.canOverridePrice && !userPermissions.canCreateSales}
-                className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono disabled:opacity-60"
+                className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
               />
             </div>
 
@@ -1235,6 +1234,7 @@ export const SalesSection: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* TRANSACTIONS HISTORY TABLE */}
       <div className="space-y-4">
