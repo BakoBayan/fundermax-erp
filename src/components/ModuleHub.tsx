@@ -248,68 +248,17 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
         
         {/* Hero Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
-          {/* Real-time Tested & Interactive Status Pill */}
-          <button
-            type="button"
-            onClick={handleCheckHealth}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border shadow-xs mb-4 transition-all active:scale-95 cursor-pointer ${
-              syncStatus === 'synced' && walHealth.isWalActive
-                ? 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-700 hover:border-emerald-500'
-                : isCheckingHealth
-                ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700'
-                : 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700'
-            }`}
-            title={
-              syncStatus === 'synced' && walHealth.isWalActive
-                ? `Live Verified: SQLite WAL Active • Ping: ${walHealth.latencyMs}ms • Storage: ${walHealth.dbSize} on disk (Click to re-ping)`
-                : `Offline Mode • Local Storage Cache Active (Click to re-test connection)`
-            }
-          >
-            <span className="relative flex h-2.5 w-2.5">
-              {syncStatus === 'synced' && walHealth.isWalActive ? (
-                <>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                </>
-              ) : isCheckingHealth ? (
-                <span className="w-2.5 h-2.5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-                </>
-              )}
-            </span>
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-wide font-mono">
-              Bako&apos;s Master System • {APP_CONFIG.version}
-            </span>
-            <span className="text-slate-300 dark:text-slate-600">|</span>
-            <span
-              className={`text-[11px] font-semibold flex items-center gap-1 font-mono ${
-                syncStatus === 'synced' && walHealth.isWalActive
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : isCheckingHealth
-                  ? 'text-sky-600 dark:text-sky-400'
-                  : 'text-amber-600 dark:text-amber-400'
-              }`}
-            >
-              {isCheckingHealth ? (
-                'Testing WAL...'
-              ) : syncStatus === 'synced' && walHealth.isWalActive ? (
-                `WAL Synced (${walHealth.latencyMs}ms)`
-              ) : (
-                'Offline (Local Cache)'
-              )}
-            </span>
-          </button>
-
           {/* Master Title with Fancy Shimmering "Master" Typography */}
           <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
             Bako&apos;s <span className="text-master-shimmer">Master</span> System
           </h1>
 
-          {/* Client Commission Attribution Badge */}
-          <div className="mt-3.5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 font-medium max-w-xl mx-auto leading-relaxed">
+            Unified industrial operations & sales platform. Each division is focused and self-contained; return here anytime via Main Menu.
+          </p>
+
+          {/* Client Commission Attribution Badge (Official System Licensure) */}
+          <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               {isKu
@@ -322,46 +271,6 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline ms-1 cursor-pointer"
             >
               {isKu ? 'مافەکان' : 'Licensure'}
-            </button>
-          </div>
-
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 font-medium max-w-xl mx-auto leading-relaxed">
-            Unified industrial operations & sales platform. Each division is focused and self-contained; return here anytime via Main Menu.
-          </p>
-
-          {/* Professional Architect & Copyright Credit Strip */}
-          <div className="mt-4 inline-flex items-center gap-2 sm:gap-3 px-4 py-1.5 rounded-full bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs text-xs font-medium text-slate-600 dark:text-slate-400 select-text">
-            <button
-              type="button"
-              onClick={openCopyrightModal}
-              className="flex items-center gap-1.5 text-slate-900 dark:text-white font-bold hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer group"
-              title={isKu ? 'کلیک بکە بۆ مافی یاسایی و دروستکردنی سیستەمی تایبەت لەلایەن باکۆ بەیان' : 'Click for Legal Copyright, Intellectual Property & Custom Project Commissioning'}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
-              <span className="font-semibold text-slate-500 dark:text-slate-400">{isKu ? 'ئەندازیاری:' : 'Engineered by'}</span>
-              <strong className="text-slate-900 dark:text-white font-black group-hover:underline underline-offset-2">Bako Bayan Madhhar</strong>
-              <span className="hidden xs:inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
-                © 2026
-              </span>
-            </button>
-            <span className="text-slate-300 dark:text-slate-600">•</span>
-            <a
-              href="tel:07705488654"
-              className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 font-mono font-bold transition-colors cursor-pointer"
-              title={isKu ? 'پەیوەندی بکە بە باکۆ بەیان' : 'Direct Official Contact: 07705488654'}
-            >
-              <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>07705488654</span>
-            </a>
-            <span className="hidden sm:inline text-slate-300 dark:text-slate-600">•</span>
-            <button
-              type="button"
-              onClick={openCopyrightModal}
-              className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
-              title={isKu ? 'داواکردنی پڕۆژە لە باکۆ بەیان' : 'Commission Custom Projects with Bako'}
-            >
-              <span>{APP_CONFIG.version}</span>
-              <span className="text-[10px] text-slate-400 font-mono">({isKu ? 'مافەکان' : 'All Rights Reserved'})</span>
             </button>
           </div>
 

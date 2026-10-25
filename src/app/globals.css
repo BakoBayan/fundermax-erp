@@ -6,11 +6,11 @@
 
 @layer base {
   :root {
-    --bg-main: #ffffff;
+    --bg-main: #f8fafc;
     --bg-card: #ffffff;
-    --border-color: #e2e8f0;
+    --border-color: #cbd5e1;
     --text-main: #0f172a;
-    --text-muted: #64748b;
+    --text-muted: #475569;
   }
 
   .dark {
@@ -605,16 +605,16 @@
   will-change: background-position;
 }
 
-/* Drifting Geometric Accents (Pure GPU Compositor Keyframes) */
+/* Drifting Geometric Accents (Pure GPU Compositor Keyframes - Expanded Traversal & Contrast) */
 @keyframes drift-poly-1 {
   0% {
     transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
   }
   33% {
-    transform: translate3d(25px, -35px, 0) rotate(15deg) scale(1.04);
+    transform: translate3d(55px, -65px, 0) rotate(22deg) scale(1.08);
   }
   66% {
-    transform: translate3d(-20px, 25px, 0) rotate(-10deg) scale(0.96);
+    transform: translate3d(-45px, 50px, 0) rotate(-16deg) scale(0.94);
   }
   100% {
     transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
@@ -626,58 +626,98 @@
     transform: translate3d(0, 0, 0) rotate(45deg) scale(1);
   }
   50% {
-    transform: translate3d(-35px, 40px, 0) rotate(180deg) scale(1.08);
+    transform: translate3d(-70px, 75px, 0) rotate(225deg) scale(1.12);
   }
   100% {
-    transform: translate3d(0, 0, 0) rotate(360deg) scale(1);
+    transform: translate3d(0, 0, 0) rotate(405deg) scale(1);
   }
 }
 
 @keyframes drift-poly-3 {
   0% {
-    transform: translate3d(0, 0, 0) rotate(-15deg);
+    transform: translate3d(0, 0, 0) rotate(-15deg) scale(1);
   }
-  50% {
-    transform: translate3d(30px, 45px, 0) rotate(45deg);
+  35% {
+    transform: translate3d(60px, -50px, 0) rotate(15deg) scale(1.06);
+  }
+  70% {
+    transform: translate3d(-40px, 60px, 0) rotate(55deg) scale(0.95);
   }
   100% {
-    transform: translate3d(0, 0, 0) rotate(-15deg);
+    transform: translate3d(0, 0, 0) rotate(-15deg) scale(1);
+  }
+}
+
+@keyframes drift-poly-4 {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(-6deg) scale(1);
+  }
+  40% {
+    transform: translate3d(-65px, -45px, 0) rotate(20deg) scale(1.07);
+  }
+  80% {
+    transform: translate3d(45px, 40px, 0) rotate(-22deg) scale(0.96);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-6deg) scale(1);
+  }
+}
+
+@keyframes drift-poly-5 {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(30deg) scale(1);
+  }
+  50% {
+    transform: translate3d(55px, 65px, 0) rotate(90deg) scale(1.1);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(30deg) scale(1);
   }
 }
 
 .animate-drift-poly-1 {
-  animation: drift-poly-1 18s ease-in-out infinite;
+  animation: drift-poly-1 16s ease-in-out infinite;
   will-change: transform;
 }
 
 .animate-drift-poly-2 {
-  animation: drift-poly-2 24s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: drift-poly-2 22s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   will-change: transform;
 }
 
 .animate-drift-poly-3 {
-  animation: drift-poly-3 20s ease-in-out infinite;
+  animation: drift-poly-3 18s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-drift-poly-4 {
+  animation: drift-poly-4 20s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-drift-poly-5 {
+  animation: drift-poly-5 19s ease-in-out infinite;
   will-change: transform;
 }
 
 .ambient-blueprint {
-  opacity: 0.4;
+  opacity: 0.55;
   background-image:
-    linear-gradient(to right, rgba(100, 116, 139, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(100, 116, 139, 0.08) 1px, transparent 1px);
+    linear-gradient(to right, rgba(100, 116, 139, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100, 116, 139, 0.14) 1px, transparent 1px);
   background-size: 80px 80px;
-  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
-  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 35%, transparent 85%);
+  mask-image: radial-gradient(ellipse at center, #000 35%, transparent 85%);
 }
 
 .ambient-dots {
-  opacity: 0.05;
+  opacity: 0.08;
   background-image: radial-gradient(currentColor 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
 .dark .ambient-dots {
-  opacity: 0.08;
+  opacity: 0.10;
 }
 
 @media (prefers-reduced-motion: reduce) {

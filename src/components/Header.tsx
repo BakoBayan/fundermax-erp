@@ -260,18 +260,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                 )}
               </span>
-              <span className="hidden sm:inline">
+              <span className="hidden sm:inline font-mono">
                 {syncStatus === "syncing" || isPinging
                   ? "Syncing..."
                   : isOnline && syncStatus === "synced"
-                  ? `Online / Synced ${walHealth.latencyMs ? `(${walHealth.latencyMs}ms)` : ""}`
+                  ? walHealth.isWalActive
+                    ? `WAL Synced (${walHealth.latencyMs}ms)`
+                    : `Online / Synced (${walHealth.latencyMs}ms)`
                   : "Offline Mode"}
               </span>
-              <span className="sm:hidden">
+              <span className="sm:hidden font-mono">
                 {syncStatus === "syncing" || isPinging
                   ? "Syncing"
                   : isOnline && syncStatus === "synced"
-                  ? "Online"
+                  ? walHealth.isWalActive
+                    ? `WAL (${walHealth.latencyMs}ms)`
+                    : "Online"
                   : "Offline"}
               </span>
             </button>
