@@ -27,7 +27,14 @@ import {
   SlidersHorizontal,
   BarChart3,
   MessageCircle,
-  Mail
+  Mail,
+  Phone,
+  FileSpreadsheet,
+  ArrowRight,
+  Tag,
+  Hash,
+  PackageCheck,
+  Wallet
 } from 'lucide-react';
 import { CurrencyCode, PanelTransaction, InvoiceItem, ExchangeRates } from '../types/inventory';
 import { openWhatsAppReceipt, openEmailReceipt } from '@/lib/receiptFormatter';
@@ -69,6 +76,7 @@ export const SalesSection: React.FC = () => {
     openVisualCharts,
     requestConfirm,
     requestAlert,
+    shipments,
   } = useInventory();
 
   const isDark = theme === 'dark';
@@ -81,6 +89,43 @@ export const SalesSection: React.FC = () => {
   const savedSellers = dropdownPresets.savedSellers || [];
   const savedBanks = dropdownPresets.savedBanks || [];
   const savedPaymentTypes = dropdownPresets.savedPaymentTypes || [];
+  const savedClients = dropdownPresets.savedClients || [];
+
+  // FunderMax Inbound Shipments Presets
+  const activeFundermaxBatches = useMemo(() => {
+    const defaults = ['FND-AT-2026-01', 'FND-AT-2026-02', 'FND-TR-2026-05', 'FND-DE-2026-03'];
+    const fromShipments = (shipments || []).map((s) => s.trackingCode).filter(Boolean);
+    const fromTxs = transactions.map((t) => t.fundermaxBatchRef).filter(Boolean) as string[];
+    return Array.from(new Set([...defaults, ...fromShipments, ...fromTxs])).sort();
+  }, [shipments, transactions]);
+
+  // Boss Mode: Today's Counter Cash Calculation (Mobile Executive Console)
+  const { todayCashUSD, todayCashIQD, todayInvoicesCount } = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    let usd = 0;
+    let iqd = 0;
+    let count = 0;
+
+    transactions.forEach((tx) => {
+      if (tx.isDeleted === 1) return;
+      const txDate = (tx.timestamp || '').split('T')[0];
+      if (txDate === todayStr) {
+        count++;
+        const cur = tx.currency || tx.chargedCurrency || 'USD';
+        const paid = typeof tx.amountPaidNow === 'number' ? tx.amountPaidNow : 0;
+        if (cur === 'IQD') iqd += paid;
+        else usd += paid;
+      }
+    });
+
+    return { todayCashUSD: usd, todayCashIQD: iqd, todayInvoicesCount: count };
+  }, [transactions]);
+
+  // Rapid Desktop Keyboard Navigation Refs
+  const quantityInputRef = useRef<HTMLInputElement>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
+  const costInputRef = useRef<HTMLInputElement>(null);
+  const addRowBtnRef = useRef<HTMLButtonElement>(null);
 
   // Local UI state
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
@@ -99,7 +144,7 @@ export const SalesSection: React.FC = () => {
   const [printingTx, setPrintingTx] = useState<PanelTransaction | null>(null);
   const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
   const [addingDropdownCategory, setAddingDropdownCategory] = useState<
-    'savedTypes' | 'savedProducts' | 'savedSellingTypes' | 'savedSellers' | 'savedBanks' | 'savedPaymentTypes' | null
+    'savedTypes' | 'savedProducts' | 'savedSellingTypes' | 'savedSellers' | 'savedBanks' | 'savedPaymentTypes' | 'savedClients' | null
   >(null);
   const [newDropdownValue, setNewDropdownValue] = useState('');
 
@@ -133,12 +178,15 @@ export const SalesSection: React.FC = () => {
   const numOldDebt = typeof posDraft.oldUnpaidDebt === 'number' ? posDraft.oldUnpaidDebt : 0;
   const combinedTotalDebt = currentOrderDebt + numOldDebt;
 
-  // Cost and Gross profit
-  const costPrice = effectiveGrandTotal; // baseline cost estimation
+  // Material Cost & Gross Profit Calculations
+  const currentItemEstCost = typeof posDraft.estimatedCost === 'number' ? posDraft.estimatedCost * currentRowQty : 0;
+  const itemsEstCost = posDraft.items.reduce((acc, it) => acc + ((it.estimatedCost || it.price) * it.quantity), 0);
+  const totalEstimatedCost = itemsEstCost + (activeRowHasData ? currentItemEstCost : 0);
+  const costPrice = totalEstimatedCost > 0 ? totalEstimatedCost : effectiveGrandTotal;
   const grossProfit = totalAfterDiscount - costPrice;
   const profitMargin = effectiveGrandTotal > 0 ? parseFloat(((grossProfit / effectiveGrandTotal) * 100).toFixed(1)) : 0;
 
-  // Add line item row to draft
+  // Add line item row to draft with rapid entry and batch tagging
   const handleAddLineItem = () => {
     if (!posDraft.rowType && !posDraft.rowProduct && currentRowPrice === 0) return;
 
@@ -154,6 +202,9 @@ export const SalesSection: React.FC = () => {
       seller: posDraft.seller.trim() ? autoCapitalizeFirstLetter(posDraft.seller.trim()) : undefined,
       bank: posDraft.bank.trim() ? autoCapitalizeFirstLetter(posDraft.bank.trim()) : undefined,
       paymentType: posDraft.paymentType.trim() ? autoCapitalizeFirstLetter(posDraft.paymentType.trim()) : undefined,
+      legacyInvoiceRef: posDraft.legacyInvoiceRef.trim() ? autoCapitalizeFirstLetter(posDraft.legacyInvoiceRef.trim()) : undefined,
+      fundermaxBatchRef: posDraft.fundermaxBatchRef.trim() ? autoCapitalizeFirstLetter(posDraft.fundermaxBatchRef.trim()) : undefined,
+      estimatedCost: typeof posDraft.estimatedCost === 'number' && posDraft.estimatedCost > 0 ? posDraft.estimatedCost : undefined,
     };
 
     setPosDraft((prev) => ({
@@ -164,7 +215,12 @@ export const SalesSection: React.FC = () => {
       rowQuantity: 1,
       rowSellingType: '',
       rowPrice: '',
+      estimatedCost: '',
     }));
+
+    setTimeout(() => {
+      quantityInputRef.current?.focus();
+    }, 50);
   };
 
   const handleDeleteLineItem = (id: string) => {
@@ -405,6 +461,11 @@ export const SalesSection: React.FC = () => {
       status: txStatus,
       lastUpdated: new Date().toISOString(),
       items: finalItems,
+      client: posDraft.client.trim() ? autoCapitalizeFirstLetter(posDraft.client.trim()) : undefined,
+      clientPhone: posDraft.clientPhone.trim() || undefined,
+      legacyInvoiceRef: posDraft.legacyInvoiceRef.trim() ? autoCapitalizeFirstLetter(posDraft.legacyInvoiceRef.trim()) : undefined,
+      fundermaxBatchRef: posDraft.fundermaxBatchRef.trim() ? autoCapitalizeFirstLetter(posDraft.fundermaxBatchRef.trim()) : undefined,
+      estimatedCost: typeof posDraft.estimatedCost === 'number' && posDraft.estimatedCost > 0 ? posDraft.estimatedCost : undefined,
       chargedAmount: moneySnap.chargedAmount,
       chargedCurrency: moneySnap.chargedCurrency,
       exchangeRateApplied: moneySnap.exchangeRateApplied,
@@ -445,6 +506,11 @@ export const SalesSection: React.FC = () => {
       oldUnpaidDebt: tx.oldUnpaidDebt || '',
       notes: tx.notes || '',
       images: tx.images || [],
+      client: tx.client || '',
+      clientPhone: tx.clientPhone || '',
+      legacyInvoiceRef: tx.legacyInvoiceRef || '',
+      fundermaxBatchRef: tx.fundermaxBatchRef || '',
+      estimatedCost: tx.estimatedCost || '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1003,7 +1069,7 @@ ${itemsList}
           </div>
         </div>
 
-        {/* Business Header Inputs: Code, Seller, Bank, Payment Method */}
+        {/* Business Header Inputs: Code, Customer, Phone, Legacy Bridge, Seller, Bank, Payment Method */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -1015,6 +1081,57 @@ ${itemsList}
               onChange={(e) => setPosDraft({ ...posDraft, invoiceCode: e.target.value })}
               placeholder="e.g. INV-101"
               className="w-full min-h-[42px] px-3.5 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+            />
+          </div>
+
+          {/* Customer / Client Name */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              {isKu ? 'کڕیار / پسوولە بۆ (Customer)' : 'Customer / Client'}
+            </label>
+            <SearchableDropdown
+              options={savedClients}
+              value={posDraft.client}
+              onChange={(v) => setPosDraft({ ...posDraft, client: v })}
+              onAddNew={(v) => addToDropdownPresets('savedClients', v)}
+              onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
+              placeholder={isKu ? 'ناوی کڕیار بنووسە یان هەڵبژێرە...' : 'Select or type customer name...'}
+              allowDelete={!isViewer}
+              clearable={true}
+            />
+          </div>
+
+          {/* Customer Phone */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+              <span>{isKu ? 'ژمارەی مۆبایلی کڕیار' : 'Customer Phone'}</span>
+              <span className="text-[10px] text-slate-400 font-normal">WhatsApp Ready</span>
+            </label>
+            <div className="relative">
+              <Phone className="w-3.5 h-3.5 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="tel"
+                value={posDraft.clientPhone}
+                onChange={(e) => setPosDraft({ ...posDraft, clientPhone: e.target.value })}
+                placeholder="0750 000 0000"
+                className="w-full min-h-[42px] ps-9 pe-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Legacy Bridge & External Reference */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+              <span>{isKu ? 'ژمارەی تۆماری کۆن / پسوولەی دەستی' : 'Legacy Invoice Ref'}</span>
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">{isKu ? 'هاوتاکردن' : 'Bridge'}</span>
+            </label>
+            <input
+              type="text"
+              value={posDraft.legacyInvoiceRef}
+              onChange={(e) => setPosDraft({ ...posDraft, legacyInvoiceRef: e.target.value })}
+              placeholder={isKu ? 'وەک: Old-DB #1042 یان دەستی #502' : 'e.g. Old-DB #1042'}
+              className="w-full min-h-[42px] px-3.5 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-amber-300/60 dark:border-amber-700/60 text-slate-900 dark:text-white font-mono placeholder:text-slate-400 text-xs"
+              title={isKu ? 'ژمارەی تۆماری کۆن یان پسوولەی دەستی بۆ بەڕێوەبردنی هاوکاتی هەردوو سیستم' : 'Legacy paper invoice or database reference for dual accounting'}
             />
           </div>
 
@@ -1050,7 +1167,7 @@ ${itemsList}
             />
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               {t.paymentType}
             </label>
@@ -1093,22 +1210,27 @@ ${itemsList}
           </div>
         </div>
 
-        {/* ACTIVE LINE ITEM INPUT ROW */}
+        {/* ACTIVE LINE ITEM INPUT ROW (Rapid Entry with FunderMax Allocation & Keyboard Flow) */}
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Active Line Item
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span>{isKu ? 'تۆمارکردنی کاڵا / دەرگا / پانێڵ' : 'Active Line Item (Panels & Custom Doors)'}</span>
+            <span className="text-[11px] font-normal text-sky-600 dark:text-sky-400">
+              {isKu ? 'Enter: ڕۆشتن بۆ خانەی دواتر / زیادکردن' : 'Press Enter on Qty/Price to rapid-add'}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5">
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Type</label>
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {isKu ? 'جۆر' : 'Type'}
+              </label>
               <SearchableDropdown
                 options={savedTypes}
                 value={posDraft.rowType}
                 onChange={(v) => setPosDraft({ ...posDraft, rowType: v })}
                 onAddNew={(v) => addToDropdownPresets('savedTypes', v)}
                 onDeleteOption={(v) => removeFromDropdownPresets('savedTypes', v)}
-                placeholder="Filter / select type..."
+                placeholder="Type..."
                 allowDelete={!isViewer}
                 compact={true}
                 clearable={true}
@@ -1116,14 +1238,16 @@ ${itemsList}
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Product / Finish</label>
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {isKu ? 'کاڵا / دەرگا' : 'Product / Door'}
+              </label>
               <SearchableDropdown
                 options={savedProducts}
                 value={posDraft.rowProduct}
                 onChange={(v) => setPosDraft({ ...posDraft, rowProduct: v })}
                 onAddNew={(v) => addToDropdownPresets('savedProducts', v)}
                 onDeleteOption={(v) => removeFromDropdownPresets('savedProducts', v)}
-                placeholder="Filter / select finish..."
+                placeholder="Product..."
                 allowDelete={!isViewer}
                 compact={true}
                 clearable={true}
@@ -1131,14 +1255,30 @@ ${itemsList}
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Selling Type</label>
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {isKu ? 'وەجبەی فەندەرمەکس' : 'FunderMax Batch'}
+              </label>
+              <SearchableDropdown
+                options={activeFundermaxBatches}
+                value={posDraft.fundermaxBatchRef}
+                onChange={(v) => setPosDraft({ ...posDraft, fundermaxBatchRef: v })}
+                placeholder="FND-AT-..."
+                compact={true}
+                clearable={true}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {isKu ? 'جۆری فرۆشتن' : 'Selling Type'}
+              </label>
               <SearchableDropdown
                 options={savedSellingTypes}
                 value={posDraft.rowSellingType}
                 onChange={(v) => setPosDraft({ ...posDraft, rowSellingType: v })}
                 onAddNew={(v) => addToDropdownPresets('savedSellingTypes', v)}
                 onDeleteOption={(v) => removeFromDropdownPresets('savedSellingTypes', v)}
-                placeholder="Wholesale/Retail..."
+                placeholder="Wholesale..."
                 allowDelete={!isViewer}
                 compact={true}
                 clearable={true}
@@ -1146,8 +1286,11 @@ ${itemsList}
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Qty</label>
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {isKu ? 'بڕ (دانە)' : 'Qty'}
+              </label>
               <input
+                ref={quantityInputRef}
                 type="number"
                 inputMode="decimal"
                 pattern="[0-9]*"
@@ -1155,38 +1298,105 @@ ${itemsList}
                 step="any"
                 value={posDraft.rowQuantity}
                 onChange={(e) => setPosDraft({ ...posDraft, rowQuantity: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    priceInputRef.current?.focus();
+                  }
+                }}
                 className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
-                Unit Price ({posDraft.activeCurrency})
+                {isKu ? 'نرخی فرۆش' : 'Price'} ({posDraft.activeCurrency})
               </label>
               <input
+                ref={priceInputRef}
                 type="number"
                 inputMode="decimal"
                 pattern="[0-9]*"
                 step="any"
                 value={posDraft.rowPrice}
                 onChange={(e) => setPosDraft({ ...posDraft, rowPrice: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (costInputRef.current) {
+                      costInputRef.current.focus();
+                    } else {
+                      handleAddLineItem();
+                    }
+                  }
+                }}
                 placeholder="0.00"
                 className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
               />
             </div>
 
-            <div className="flex items-end">
+            <div className="flex items-end gap-1.5">
+              <div className="flex-1">
+                <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 truncate" title="تێچووی کەرەستە بۆ هەژمارکردنی قازانج">
+                  {isKu ? 'تێچوو (Cost)' : 'Est. Cost'}
+                </label>
+                <input
+                  ref={costInputRef}
+                  type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
+                  step="any"
+                  value={posDraft.estimatedCost}
+                  onChange={(e) => setPosDraft({ ...posDraft, estimatedCost: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddLineItem();
+                    }
+                  }}
+                  placeholder="Cost"
+                  className="w-full min-h-[38px] px-2.5 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+                />
+              </div>
+
               <button
+                ref={addRowBtnRef}
                 type="button"
                 onClick={handleAddLineItem}
                 disabled={!posDraft.rowType && !posDraft.rowProduct && currentRowPrice === 0}
-                className="w-full flex items-center justify-center gap-1.5 min-h-[34px] py-1.5 px-3 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+                className="flex items-center justify-center min-h-[38px] px-3 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-xs disabled:opacity-50 transition-all cursor-pointer shrink-0"
+                title={isKu ? 'زیادکردنی بابەت' : 'Add Item'}
               >
                 <Plus className="w-4 h-4" />
-                <span>{t.addRow}</span>
               </button>
             </div>
           </div>
+
+          {/* Real-Time Gross Margin Display */}
+          {typeof posDraft.rowPrice === 'number' && posDraft.rowPrice > 0 && typeof posDraft.estimatedCost === 'number' && posDraft.estimatedCost > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-emerald-800 dark:text-emerald-300">
+                  {isKu ? 'قازانجی خاوێنی کەرەستە (Gross Margin):' : 'Estimated Gross Margin:'}
+                </span>
+                <span className={`font-mono font-black text-sm ${
+                  posDraft.rowPrice >= posDraft.estimatedCost ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'
+                }`}>
+                  {formatMoney(posDraft.rowPrice - posDraft.estimatedCost, posDraft.activeCurrency)} ({(((posDraft.rowPrice - posDraft.estimatedCost) / posDraft.rowPrice) * 100).toFixed(1)}%)
+                </span>
+              </div>
+              <div className="text-slate-600 dark:text-slate-400 font-mono text-[11px] flex items-center gap-2">
+                <span>{isKu ? 'تێچوو:' : 'Cost:'} {formatMoney(posDraft.estimatedCost, posDraft.activeCurrency)}</span>
+                <span>•</span>
+                <span>{isKu ? 'فرۆش:' : 'Price:'} {formatMoney(posDraft.rowPrice, posDraft.activeCurrency)}</span>
+                {posDraft.fundermaxBatchRef && (
+                  <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 font-bold font-mono">
+                    {posDraft.fundermaxBatchRef}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ITEMS LIST TABLE */}
@@ -1522,11 +1732,11 @@ ${itemsList}
               type="button"
               onClick={() => exportTransactionsToCSV(filteredTransactions, language)}
               disabled={filteredTransactions.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer self-start sm:self-auto shrink-0"
-              title="Export filtered sales transactions to CSV / Excel"
+              className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer self-start sm:self-auto shrink-0 disabled:opacity-50"
+              title={isKu ? 'هەناردەکردنی فایلی Excel / CSV بۆ ژمێریاری و وردبینی' : 'Export filtered sales to Excel / CSV for accountant audit'}
             >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Export CSV</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+              <span>{isKu ? 'هەناردەکردنی Excel / CSV' : 'Export Excel / CSV'}</span>
             </button>
           )}
         </div>
@@ -1693,20 +1903,22 @@ ${itemsList}
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
               <tr>
-                <th className="px-4 py-3">Code / Date</th>
-                <th className="px-4 py-3">Summary</th>
-                <th className="px-4 py-3">Seller / Bank</th>
-                <th className="px-4 py-3 text-right">Net Total</th>
-                <th className="px-4 py-3 text-right">Paid</th>
-                <th className="px-4 py-3 text-right">Debt</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-center">Actions</th>
+                <th className="px-3.5 py-3">Code / Date</th>
+                <th className="px-3.5 py-3">کڕیار / Customer</th>
+                <th className="px-3.5 py-3">تۆمار / وەجبەی FunderMax</th>
+                <th className="px-3.5 py-3">Summary</th>
+                <th className="px-3.5 py-3">Seller / Method</th>
+                <th className="px-3.5 py-3 text-right">Net Total</th>
+                <th className="px-3.5 py-3 text-right">Paid</th>
+                <th className="px-3.5 py-3 text-right">Debt</th>
+                <th className="px-3.5 py-3 text-center">Status</th>
+                <th className="px-3.5 py-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
                     No sales invoices recorded yet.
                   </td>
                 </tr>
@@ -1719,7 +1931,7 @@ ${itemsList}
                   return (
                     <React.Fragment key={tx.id}>
                       <tr className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="px-4 py-3">
+                        <td className="px-3.5 py-3">
                           <div className="font-bold text-slate-900 dark:text-white font-mono">
                             {tx.code || tx.id.slice(-6)}
                           </div>
@@ -1727,28 +1939,74 @@ ${itemsList}
                             {new Date(tx.timestamp).toLocaleDateString()}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3.5 py-3">
+                          <div className="font-bold text-slate-900 dark:text-white">
+                            {tx.client || 'کڕیاری گشتی'}
+                          </div>
+                          {tx.clientPhone ? (
+                            <a
+                              href={`tel:${tx.clientPhone}`}
+                              className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline inline-flex items-center gap-1 font-mono mt-0.5"
+                            >
+                              <Phone className="w-2.5 h-2.5" />
+                              {tx.clientPhone}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-3 text-xs">
+                          <div className="flex flex-col gap-1 items-start">
+                            {tx.legacyInvoiceRef && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                                title="ژمارەی تۆماری کۆن / پسوولەی دەستی"
+                              >
+                                <Hash className="w-2.5 h-2.5" />
+                                {tx.legacyInvoiceRef}
+                              </span>
+                            )}
+                            {tx.fundermaxBatchRef && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                                title="FunderMax Batch Ref"
+                              >
+                                <PackageCheck className="w-2.5 h-2.5" />
+                                {tx.fundermaxBatchRef}
+                              </span>
+                            )}
+                            {!tx.legacyInvoiceRef && !tx.fundermaxBatchRef && (
+                              <span className="text-slate-400 text-[11px]">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3.5 py-3">
                           <div className="text-slate-900 dark:text-white font-medium">
                             {tx.material || tx.panelType}
                           </div>
                           <div className="text-[11px] text-slate-500">
                             {tx.quantity} {tx.unit} • {tx.sellingType}
+                            {tx.items && tx.items.length > 1 && (
+                              <span className="ms-1.5 px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold">
+                                {tx.items.length} کاڵا
+                              </span>
+                            )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
-                          <div>{tx.seller || '—'}</div>
+                        <td className="px-3.5 py-3 text-xs text-slate-600 dark:text-slate-400">
+                          <div className="font-medium text-slate-800 dark:text-slate-200">{tx.seller || '—'}</div>
                           <div className="text-[11px] text-slate-500">{tx.bank || tx.paymentType || '—'}</div>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                        <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">
                           {formatMoney(tx.totalAfterDiscount, txCur)}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                        <td className="px-3.5 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
                           {formatMoney(tx.amountPaidNow, txCur)}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
+                        <td className="px-3.5 py-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
                           {isDebt ? formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur) : '—'}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-3.5 py-3 text-center">
                           <span
                             className={`px-2.5 py-1 text-xs font-bold rounded-full ${
                               tx.status === 'completed'
@@ -1761,7 +2019,7 @@ ${itemsList}
                             {tx.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-3.5 py-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
@@ -1861,16 +2119,30 @@ ${itemsList}
                       {/* Expandable Line Items Drawer */}
                       {isExpanded && (
                         <tr className="bg-slate-50/50 dark:bg-slate-900/40">
-                          <td colSpan={8} className="p-4 space-y-2">
-                            <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
-                              Purchased Items Breakdown:
+                          <td colSpan={10} className="p-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                                Purchased Items Breakdown:
+                              </div>
+                              <div className="flex items-center gap-2 text-xs">
+                                {tx.legacyInvoiceRef && (
+                                  <span className="text-slate-500">
+                                    تۆماری دەستی: <b className="text-slate-700 dark:text-slate-300">{tx.legacyInvoiceRef}</b>
+                                  </span>
+                                )}
+                                {tx.fundermaxBatchRef && (
+                                  <span className="text-slate-500">
+                                    وەجبەی FunderMax: <b className="text-slate-700 dark:text-slate-300">{tx.fundermaxBatchRef}</b>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             {tx.items && tx.items.length > 0 ? (
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                 {tx.items.map((item, idx) => (
                                   <div
                                     key={idx}
-                                    className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs flex justify-between"
+                                    className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs flex justify-between gap-2"
                                   >
                                     <div>
                                       <span className="font-bold text-slate-900 dark:text-white">
@@ -1879,9 +2151,21 @@ ${itemsList}
                                       <div className="text-slate-500 text-[11px]">
                                         {item.quantity} units @ {formatMoney(item.price, txCur)}
                                       </div>
+                                      {item.fundermaxBatchRef && (
+                                        <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
+                                          وەجبە: {item.fundermaxBatchRef}
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="font-mono font-bold text-slate-900 dark:text-white">
-                                      {formatMoney(item.total, txCur)}
+                                    <div className="text-right">
+                                      <div className="font-mono font-bold text-slate-900 dark:text-white">
+                                        {formatMoney(item.total, txCur)}
+                                      </div>
+                                      {item.estimatedCost ? (
+                                        <div className="text-[10px] text-slate-400 font-mono">
+                                          تێچوو: {formatMoney(item.estimatedCost, txCur)}
+                                        </div>
+                                      ) : null}
                                     </div>
                                   </div>
                                 ))}
@@ -1905,11 +2189,48 @@ ${itemsList}
           </table>
         </div>
 
-        {/* Dual Adaptive Layout: Mobile Cards (W < 1024px) with Oversized Tap Targets (Min 48px) */}
+        {/* Dual Adaptive Layout: Mobile Executive Console (W < 1024px) */}
         <div className="block lg:hidden space-y-3.5">
+          {/* Boss Daily Cash Card */}
+          <div className="p-4 rounded-3xl bg-linear-to-br from-slate-900 via-slate-850 to-emerald-950 text-white border-2 border-emerald-500/30 shadow-md space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                  <Wallet className="w-5 h-5" />
+                </span>
+                <div>
+                  <div className="text-xs font-bold text-slate-200">
+                    {isKu ? 'کاشی وەرگیراوی ئەمڕۆ (قاسەی سەرەکی)' : "Today's Received Counter Cash"}
+                  </div>
+                  <div className="text-[10px] text-emerald-400/80 font-mono">
+                    {todayInvoicesCount} {isKu ? 'پسوولەی فرۆشتن لە ئەمڕۆدا' : 'sales invoices today'}
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                {isKu ? 'ئەمڕۆ' : 'TODAY'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <div className="text-[10px] text-slate-300 font-bold uppercase">{isKu ? 'کاشی دۆلار' : 'Cash USD'}</div>
+                <div className="font-mono text-base sm:text-lg font-black text-emerald-400">
+                  ${todayCashUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <div className="text-[10px] text-slate-300 font-bold uppercase">{isKu ? 'کاشی دینار' : 'Cash IQD'}</div>
+                <div className="font-mono text-base sm:text-lg font-black text-sky-400">
+                  {todayCashIQD.toLocaleString()} د.ع
+                </div>
+              </div>
+            </div>
+          </div>
+
           {filteredTransactions.length === 0 ? (
             <div className="p-8 text-center text-slate-500 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
-              No sales invoices recorded yet.
+              {isKu ? 'هیچ پسوولەیەکی فرۆشتن نەدۆزرایەوە.' : 'No sales invoices recorded yet.'}
             </div>
           ) : (
             filteredTransactions.map((tx) => {
@@ -1920,7 +2241,7 @@ ${itemsList}
               return (
                 <div
                   key={tx.id}
-                  className="p-4 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-xs space-y-3"
+                  className="p-4 rounded-3xl bg-white dark:bg-slate-850 border-2 border-slate-200 dark:border-slate-750 shadow-xs space-y-3"
                 >
                   {/* Top Bar: Code, Date & Status */}
                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-750 pb-2.5">
@@ -1945,17 +2266,51 @@ ${itemsList}
                     </span>
                   </div>
 
-                  {/* Customer / Seller Strip */}
-                  <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 dark:text-slate-400 gap-1.5">
+                  {/* Customer (کڕیار) & Direct Phone Dial */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-750 text-xs">
                     <div>
-                      <span className="text-slate-400 me-1">Seller:</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{tx.seller || 'Bako Bayan'}</span>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">{isKu ? 'کڕیار' : 'Customer'}</div>
+                      <div className="font-bold text-slate-900 dark:text-white text-sm">
+                        {tx.client || 'کڕیاری گشتی'}
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 me-1">Pay:</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{tx.bank || tx.paymentType || 'Cash'}</span>
-                    </div>
+                    {tx.clientPhone ? (
+                      <a
+                        href={`tel:${tx.clientPhone}`}
+                        className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-mono font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Click to call customer directly"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>{tx.clientPhone}</span>
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 text-xs">{isKu ? 'بێ ژمارە' : 'No Phone'}</span>
+                    )}
                   </div>
+
+                  {/* Accounting Tags: Legacy Ref & FunderMax Batch Ref */}
+                  {(tx.legacyInvoiceRef || tx.fundermaxBatchRef) && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {tx.legacyInvoiceRef && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-bold"
+                          title="ژمارەی تۆماری کۆن"
+                        >
+                          <Hash className="w-2.5 h-2.5" />
+                          <span>تۆماری کۆن: {tx.legacyInvoiceRef}</span>
+                        </span>
+                      )}
+                      {tx.fundermaxBatchRef && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold"
+                          title="FunderMax Batch Ref"
+                        >
+                          <PackageCheck className="w-2.5 h-2.5" />
+                          <span>FND: {tx.fundermaxBatchRef}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Summary / Items Preview */}
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs space-y-1.5">
@@ -1968,10 +2323,16 @@ ${itemsList}
                     {tx.items && tx.items.length > 0 && isExpanded && (
                       <div className="pt-2 border-t border-slate-200 dark:border-slate-750 space-y-1.5">
                         {tx.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between text-[11px]">
-                            <span className="text-slate-700 dark:text-slate-300 font-medium">{item.product}</span>
+                          <div key={idx} className="flex justify-between items-center text-[11px] py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                            <div>
+                              <span className="text-slate-800 dark:text-slate-200 font-bold">{item.product}</span>
+                              <div className="text-slate-400 text-[10px]">
+                                {item.quantity} units @ {formatMoney(item.price, txCur)}
+                                {item.fundermaxBatchRef && ` • وەجبە: ${item.fundermaxBatchRef}`}
+                              </div>
+                            </div>
                             <span className="font-mono font-bold text-slate-900 dark:text-white">
-                              {item.quantity} × {formatMoney(item.price, txCur)} = {formatMoney(item.total, txCur)}
+                              {formatMoney(item.total, txCur)}
                             </span>
                           </div>
                         ))}
@@ -1984,37 +2345,38 @@ ${itemsList}
                     )}
                   </div>
 
-                  {/* Financial Breakdown Grid */}
-                  <div className="grid grid-cols-3 gap-2 text-center p-2.5 rounded-2xl bg-slate-100/70 dark:bg-slate-800/80">
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Net Total</div>
-                      <div className="font-mono font-black text-xs sm:text-sm text-slate-950 dark:text-white">
+                  {/* High Contrast Financial Grid: Paid vs Remaining Debt */}
+                  <div className="grid grid-cols-3 gap-2 text-center p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800">
+                    <div className="p-1">
+                      <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">{isKu ? 'کۆی گشتی' : 'Net Total'}</div>
+                      <div className="font-mono font-black text-xs sm:text-sm text-slate-950 dark:text-white mt-0.5">
                         {formatMoney(tx.totalAfterDiscount, txCur)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Paid</div>
-                      <div className="font-mono font-black text-xs sm:text-sm text-emerald-700 dark:text-emerald-400">
+                    <div className="p-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
+                      <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">{isKu ? 'پارەی دراو' : 'Paid'}</div>
+                      <div className="font-mono font-black text-xs sm:text-sm text-emerald-700 dark:text-emerald-400 mt-0.5">
                         {formatMoney(tx.amountPaidNow, txCur)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Debt</div>
-                      <div className={`font-mono font-black text-xs sm:text-sm ${isDebt ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                    <div className={`p-1 rounded-xl border ${isDebt ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'}`}>
+                      <div className={`text-[10px] uppercase font-bold ${isDebt ? 'text-rose-700 dark:text-rose-300' : 'text-slate-400'}`}>{isKu ? 'قەرزی ماوە' : 'Debt'}</div>
+                      <div className={`font-mono font-black text-xs sm:text-sm mt-0.5 ${isDebt ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
                         {isDebt ? formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur) : '0'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Oversized Touch Action Buttons (Min 48px x 48px) */}
+                  {/* Oversized Tactile Action Buttons (Min 48px height) */}
                   <div className="flex items-center gap-2 pt-1 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setPrintingTx(tx)}
                       className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 flex-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      title="Print Invoice Slip"
                     >
                       <Printer className="w-4 h-4" />
-                      <span>Print</span>
+                      <span>{isKu ? 'چاپ' : 'Print'}</span>
                     </button>
                     <div className="min-h-[48px] px-1 bg-slate-100 dark:bg-slate-750 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-0.5 text-xs font-mono font-bold shrink-0">
                       <button
@@ -2067,7 +2429,7 @@ ${itemsList}
                       title="Expand items"
                     >
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      <span className="text-[11px]">{isExpanded ? 'Hide' : 'Items'}</span>
+                      <span className="text-[11px]">{isExpanded ? (isKu ? 'شاردنەوە' : 'Hide') : (isKu ? 'کاڵاکان' : 'Items')}</span>
                     </button>
                     {userPermissions.canEditSales && (
                       <button

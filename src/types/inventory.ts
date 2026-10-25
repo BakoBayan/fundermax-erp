@@ -159,6 +159,9 @@ export interface InvoiceItem {
   seller?: string;
   bank?: string;
   paymentType?: string;
+  legacyInvoiceRef?: string;
+  fundermaxBatchRef?: string;
+  estimatedCost?: number;
 }
 
 export interface PanelTransaction {
@@ -191,6 +194,12 @@ export interface PanelTransaction {
   status: 'completed' | 'partial' | 'debt';
   lastUpdated: string;
   items?: InvoiceItem[];
+  // Dual-Mode PC Accountant & Mobile Executive Fields
+  client?: string;
+  clientPhone?: string;
+  legacyInvoiceRef?: string;
+  fundermaxBatchRef?: string;
+  estimatedCost?: number;
   // v1.5 Immutable Multi-Currency & Soft Delete
   chargedAmount?: number;
   chargedCurrency?: CurrencyCode;
@@ -267,6 +276,11 @@ export interface PosDraftState {
   oldUnpaidDebt: number | '';
   notes: string;
   images: string[];
+  client: string;
+  clientPhone: string;
+  legacyInvoiceRef: string;
+  fundermaxBatchRef: string;
+  estimatedCost: number | '';
 }
 
 export interface PrintCuttingSlipData {

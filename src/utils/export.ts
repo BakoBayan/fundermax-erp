@@ -129,67 +129,79 @@ export function exportTransactionsToCSV(
   const isKu = language === "ku";
   const headers = isKu
     ? [
-        "کۆد",
+        "ژمارەی وەسڵ / کۆد",
+        "کڕیار",
+        "مۆبایل",
+        "ژمارەی تۆماری کۆن (Legacy Ref)",
+        "وەجبەی فەندەرمەکس (Batch Ref)",
         "بەروار",
-        "جۆری پانێڵ / بابەت",
+        "کاڵاکان / پانێڵ",
         "بڕ",
         "جۆری فرۆشتن",
         "فرۆشیار",
-        "بانک / پارەدان",
+        "بانک / شێوازی پارەدان",
         "دراو",
-        "کۆی فرۆش",
-        "داشکاندن ($)",
+        "کۆی گشتی",
+        "داشکاندن",
         "کۆی کۆتایی",
-        "پارەی دراو",
+        "پارەی دراو (کاش)",
         "قەرزی ماوە",
-        "قازانجی گشتی",
-        "ڕێژەی قازانج (%)",
         "دۆخ",
         "تێبینی",
       ]
     : [
         "Invoice Code",
+        "Client",
+        "Phone",
+        "Legacy Invoice Ref",
+        "FunderMax Batch Ref",
         "Date",
-        "Item / Panel",
+        "Items / Panels",
         "Qty",
         "Selling Type",
         "Seller",
         "Bank / Payment Method",
         "Currency",
         "Gross Total",
-        "Discount ($)",
+        "Discount",
         "Net Total",
-        "Paid Now",
-        "Debt Remaining",
-        "Gross Profit",
-        "Margin (%)",
+        "Paid Now (Cash)",
+        "Remaining Debt",
         "Status",
         "Notes",
       ];
 
-  const rows = transactions.map((t) => [
-    escapeCSV(t.code || t.id.slice(-6)),
-    escapeCSV(new Date(t.timestamp).toLocaleDateString()),
-    escapeCSV(t.panelType || (t.items?.[0]?.product) || ""),
-    escapeCSV(t.quantity || 1),
-    escapeCSV(t.sellingType || ""),
-    escapeCSV(t.seller || ""),
-    escapeCSV(`${t.bank || ""} - ${t.paymentType || ""}`),
-    escapeCSV(t.currency || "USD"),
-    escapeCSV(t.sellingAmount || 0),
-    escapeCSV(t.discountDollars || 0),
-    escapeCSV(t.totalAfterDiscount || 0),
-    escapeCSV(t.amountPaidNow || 0),
-    escapeCSV(t.combinedTotalDebt || t.amountOwed || 0),
-    escapeCSV(t.grossProfit || 0),
-    escapeCSV(t.profitMargin ? `${t.profitMargin}%` : "0%"),
-    escapeCSV(t.status || "completed"),
-    escapeCSV(t.notes || ""),
-  ]);
+  const rows = transactions.map((t) => {
+    const itemsSummary = (t.items && t.items.length > 0)
+      ? t.items.map((it) => `${it.product || it.type} (x${it.quantity})`).join("; ")
+      : (t.material || t.panelType || "");
+
+    return [
+      escapeCSV(t.code || t.id.slice(-6)),
+      escapeCSV(t.client || ""),
+      escapeCSV(t.clientPhone || ""),
+      escapeCSV(t.legacyInvoiceRef || ""),
+      escapeCSV(t.fundermaxBatchRef || ""),
+      escapeCSV(new Date(t.timestamp).toLocaleDateString()),
+      escapeCSV(itemsSummary),
+      escapeCSV(t.quantity || (t.items ? t.items.reduce((acc, it) => acc + it.quantity, 0) : 1)),
+      escapeCSV(t.sellingType || ""),
+      escapeCSV(t.seller || ""),
+      escapeCSV(`${t.bank || ""} - ${t.paymentType || ""}`),
+      escapeCSV(t.currency || "USD"),
+      escapeCSV(t.sellingAmount || 0),
+      escapeCSV(t.discountDollars || 0),
+      escapeCSV(t.totalAfterDiscount || 0),
+      escapeCSV(t.amountPaidNow || 0),
+      escapeCSV(t.combinedTotalDebt !== undefined ? t.combinedTotalDebt : (t.amountOwed || 0)),
+      escapeCSV(t.status || "completed"),
+      escapeCSV(t.notes || ""),
+    ];
+  });
 
   const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
   const dateStr = new Date().toISOString().split("T")[0];
-  downloadCSVBlob(`Bako_Sales_Invoices_${dateStr}.csv`, csvContent);
+  downloadCSVBlob(`Bako_Sales_Audit_Export_${dateStr}.csv`, csvContent);
 }
 
 export function exportProductsToCSV(products: Product[], language: Language = "en") {

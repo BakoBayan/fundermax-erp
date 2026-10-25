@@ -84,6 +84,11 @@ export function runSchemaMigrations(db: DatabaseSync): void {
   addColumnIfMissing(db, 'transactions', 'charged_currency', 'TEXT');
   addColumnIfMissing(db, 'transactions', 'exchange_rate_applied', 'REAL');
   addColumnIfMissing(db, 'transactions', 'base_usd_equivalent', 'REAL');
+  addColumnIfMissing(db, 'transactions', 'legacy_invoice_ref', 'TEXT');
+  addColumnIfMissing(db, 'transactions', 'fundermax_batch_ref', 'TEXT');
+  addColumnIfMissing(db, 'transactions', 'client', 'TEXT');
+  addColumnIfMissing(db, 'transactions', 'client_phone', 'TEXT');
+  addColumnIfMissing(db, 'transactions', 'estimated_cost', 'REAL');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS audit_logs (

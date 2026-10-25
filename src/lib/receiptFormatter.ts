@@ -29,14 +29,19 @@ export function formatInvoiceReceipt(
       : `  1. ${tx.material || tx.panelType || 'ماددە'} (${tx.quantity} دانە @ ${formatMoney(tx.sellingAmount, txCur)})`;
 
     const subject = `وەسڵی فرۆشتن: #${invoiceNum} - کۆمپانیای شاسوار ئەحمەد شاسوار`;
+    const refLines = [
+      tx.legacyInvoiceRef ? `ژمارەی تۆماری کۆن: ${tx.legacyInvoiceRef}` : '',
+      tx.fundermaxBatchRef ? `وەجبەی فەندەرمەکس: ${tx.fundermaxBatchRef}` : '',
+    ].filter(Boolean).join('\n');
+
     const body =
 `کۆمپانیای شاسوار ئەحمەد شاسوار
 وەسڵی فرۆشتن
 -----------------------------
 ژمارەی وەسڵ: #${invoiceNum}
 بەروار: ${dateFormatted}
-کڕیار: ${clientName}
------------------------------
+کڕیار: ${clientName}${tx.clientPhone ? ` (${tx.clientPhone})` : ''}
+${refLines ? `${refLines}\n` : ''}-----------------------------
 کاڵاکان:
 ${itemsList}
 -----------------------------
@@ -58,14 +63,19 @@ ${itemsList}
       : `  1. ${tx.material || tx.panelType || 'Panel Item'} (${tx.quantity} pcs @ ${formatMoney(tx.sellingAmount, txCur)})`;
 
     const subject = `Sales Invoice: #${invoiceNum} - Shaswar Ahmad Shaswar Co.`;
+    const refLinesEn = [
+      tx.legacyInvoiceRef ? `Legacy Invoice Ref: ${tx.legacyInvoiceRef}` : '',
+      tx.fundermaxBatchRef ? `FunderMax Batch: ${tx.fundermaxBatchRef}` : '',
+    ].filter(Boolean).join('\n');
+
     const body =
 `Shaswar Ahmad Shaswar Co. - Wood & Panels Workshop
 Official Sales Receipt
 -----------------------------
 Invoice #: #${invoiceNum}
 Date: ${dateFormatted}
-Customer: ${clientName}
------------------------------
+Customer: ${clientName}${tx.clientPhone ? ` (${tx.clientPhone})` : ''}
+${refLinesEn ? `${refLinesEn}\n` : ''}-----------------------------
 Item Breakdown:
 ${itemsList}
 -----------------------------

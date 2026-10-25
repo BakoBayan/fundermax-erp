@@ -208,6 +208,11 @@ export function getDB(): DatabaseSync {
       images_json TEXT DEFAULT '[]',
       items_json TEXT DEFAULT '[]',
       status TEXT DEFAULT 'completed',
+      client TEXT,
+      client_phone TEXT,
+      legacy_invoice_ref TEXT,
+      fundermax_batch_ref TEXT,
+      estimated_cost REAL DEFAULT 0,
       last_updated TEXT NOT NULL
     );
 
@@ -865,6 +870,11 @@ export function getTransactionsFromDB(): PanelTransaction[] {
       items,
       status: (r.status || "completed") as any,
       lastUpdated: String(r.last_updated || r.timestamp),
+      client: r.client ? String(r.client) : undefined,
+      clientPhone: r.client_phone ? String(r.client_phone) : undefined,
+      legacyInvoiceRef: r.legacy_invoice_ref ? String(r.legacy_invoice_ref) : undefined,
+      fundermaxBatchRef: r.fundermax_batch_ref ? String(r.fundermax_batch_ref) : undefined,
+      estimatedCost: r.estimated_cost === null || r.estimated_cost === undefined ? undefined : Number(r.estimated_cost),
       chargedAmount: r.charged_amount === null || r.charged_amount === undefined ? undefined : Number(r.charged_amount),
       chargedCurrency: isCurrencyCode(r.charged_currency) ? r.charged_currency : undefined,
       exchangeRateApplied:
@@ -881,6 +891,7 @@ const TX_COLUMNS = [
   "total_after_discount", "amount_paid_now", "amount_owed", "old_unpaid_debt", "combined_total_debt",
   "gross_profit", "profit_margin", "notes", "images_json", "items_json", "status", "last_updated",
   "charged_amount", "charged_currency", "exchange_rate_applied", "base_usd_equivalent",
+  "legacy_invoice_ref", "fundermax_batch_ref", "client", "client_phone", "estimated_cost",
 ] as const;
 
 
@@ -996,7 +1007,12 @@ export function saveTransactionsToDB(transactions: PanelTransaction[]): void {
           chargedAmount,
           cur,
           rate,
-          baseUsd
+          baseUsd,
+          tx.legacyInvoiceRef ? autoCapitalizeFirstLetter(tx.legacyInvoiceRef) : "",
+          tx.fundermaxBatchRef ? autoCapitalizeFirstLetter(tx.fundermaxBatchRef) : "",
+          tx.client ? autoCapitalizeFirstLetter(tx.client) : "",
+          tx.clientPhone ? tx.clientPhone.trim() : "",
+          tx.estimatedCost || 0
         );
       }
 

@@ -625,6 +625,11 @@ const INITIAL_POS_DRAFT: PosDraftState = {
   oldUnpaidDebt: "",
   notes: "",
   images: [],
+  client: "",
+  clientPhone: "",
+  legacyInvoiceRef: "",
+  fundermaxBatchRef: "",
+  estimatedCost: "",
 };
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -1991,6 +1996,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (res.material) res.material = autoCapitalizeFirstLetter(res.material.trim());
     if (res.sellingType) res.sellingType = autoCapitalizeFirstLetter(res.sellingType.trim());
     if (res.seller) res.seller = autoCapitalizeFirstLetter(res.seller.trim());
+    if (res.client) res.client = autoCapitalizeFirstLetter(res.client.trim());
+    if (res.clientPhone) res.clientPhone = res.clientPhone.trim();
+    if (res.legacyInvoiceRef) res.legacyInvoiceRef = autoCapitalizeFirstLetter(res.legacyInvoiceRef.trim());
+    if (res.fundermaxBatchRef) res.fundermaxBatchRef = autoCapitalizeFirstLetter(res.fundermaxBatchRef.trim());
     if (res.bank) res.bank = autoCapitalizeFirstLetter(res.bank.trim());
     if (res.paymentType) res.paymentType = autoCapitalizeFirstLetter(res.paymentType.trim());
     if (res.notes !== undefined && res.notes !== null) res.notes = autoCapitalizeFirstLetter(res.notes);
