@@ -10,6 +10,7 @@ import {
   Database,
   ArrowRight,
   TrendingUp,
+  Coins,
   Package,
   Activity,
   CheckCircle2,
@@ -335,7 +336,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="font-semibold text-slate-700 dark:text-slate-300 truncate text-[11px]">
-                  {isKu ? 'کۆمپانیای شەسواری ئەحمەد شەسوار' : 'Shaswar Ahmad Shaswar Co.'}
+                  {isKu ? 'کۆمپانیا شاسوار ئەحمەد شاسوار' : 'Shaswar Ahmad Shaswar Co.'}
                 </span>
               </div>
               <button
@@ -772,7 +773,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               {isKu
-                ? 'دروستکراوە لەلایەن باکۆ بەیان تایبەت بۆ کۆمپانیای شەسواری ئەحمەد شەسوار'
+                ? 'دروستکراوە لەلایەن باکۆ بەیان تایبەت بۆ کۆمپانیا شاسوار ئەحمەد شاسوار'
                 : 'Engineered by Bako Bayan Madhhar specifically for Shaswar Ahmad Shaswar Co.'}
             </span>
             <button

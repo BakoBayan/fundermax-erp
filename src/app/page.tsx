@@ -22,6 +22,7 @@ import { VisualChartsModal } from '@/components/VisualChartsModal';
 import { CopyrightModal } from '@/components/CopyrightModal';
 import { UnifiedPrintMount } from '@/components/UnifiedPrintEngine';
 import { FooterAttribution } from '@/components/FooterAttribution';
+import { ExecutiveProfitSuite } from '@/components/ExecutiveProfitSuite';
 import { PanelMaterial, OrderAllocation } from '@/types/inventory';
 import {
   Phone,
@@ -808,6 +809,18 @@ function WarehouseApp() {
           ) : (
             <AccessDeniedView
               moduleName={language === 'ku' ? 'داتابەیس و چاودێری سیستەم' : 'Database Backups & Audit Trail'}
+              onReturn={() => setCurrentModule('hub')}
+              language={language}
+            />
+          )
+        )}
+
+        {currentModule === 'profit' && (
+          userPermissions.canViewFinancialAnalytics ? (
+            <ExecutiveProfitSuite />
+          ) : (
+            <AccessDeniedView
+              moduleName={language === 'ku' ? 'قازانج و حسَاباتی بەڕێوەبەر' : 'Executive Profit & Financial Analytics'}
               onReturn={() => setCurrentModule('hub')}
               language={language}
             />

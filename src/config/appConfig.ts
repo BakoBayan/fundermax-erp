@@ -5,7 +5,7 @@
  */
 export const APP_CONFIG = {
   name: "Bako's Master System",
-  version: "v1.5",
+  version: "v1.6",
   author: "Bako Bayan Madhhar",
   contact: "07705488654",
   copyrightYear: 2026,

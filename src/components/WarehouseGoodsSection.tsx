@@ -21,6 +21,9 @@ import {
   Undo2,
   AlertTriangle,
   Printer,
+  Coins,
+  Euro,
+  DollarSign,
 } from 'lucide-react';
 import { allocatedQtyForItem, useWarehouseOps } from '../hooks/useWarehouseOps';
 import {
@@ -32,6 +35,7 @@ import {
   TransferReason,
   WORKSHOP_LOCATION_ID,
   formatLocationLabel,
+  SupplierPaymentStatus,
 } from '../types/warehouse';
 import { autoCapitalizeFirstLetter } from '../utils/text';
 
@@ -42,7 +46,8 @@ type ModalState =
   | { type: 'newShipment' }
   | { type: 'allocate'; shipmentId: string; itemId: string }
   | { type: 'transfer'; allocationId: string }
-  | { type: 'openingStock' };
+  | { type: 'openingStock' }
+  | { type: 'paySupplier'; shipmentId: string };
 
 const STATUS_META: Record<InboundStatus, { label: string; labelKu: string; chip: string; dot: string }> = {
   pending: {
@@ -150,6 +155,8 @@ export const WarehouseGoodsSection: React.FC = () => {
   const canManageShipments = !!userPermissions.canManageShipments;
   const canManageStock = !!userPermissions.canManageStock;
   const userName = currentUser?.displayName || 'Unknown User';
+  const canFinancial = !!userPermissions.canViewFinancialAnalytics;
+  const canPaySupplier = canManageShipments || canFinancial;
 
   const [tab, setTab] = useState<WarehouseTab>('shipments');
   const [search, setSearch] = useState('');
@@ -197,6 +204,23 @@ export const WarehouseGoodsSection: React.FC = () => {
   const workshopUnits = wh.allocations
     .filter((a) => a.locationId === WORKSHOP_LOCATION_ID)
     .reduce((sum, a) => sum + a.quantity, 0);
+
+  // Supplier payables calculation
+  const funderMaxDebtEUR = useMemo(() => {
+    return wh.activeShipments
+      .filter((s) => s.supplier.toLowerCase().includes('fundermax') && (s.invoiceCurrency === 'EUR' || !s.invoiceCurrency))
+      .reduce((sum, s) => sum + (s.supplierDebtRemaining ?? Math.max(0, (s.totalInvoiceAmount ?? 0) - (s.amountPaidToSupplier ?? 0))), 0);
+  }, [wh.activeShipments]);
+
+  const totalSupplierDebtUSD = useMemo(() => {
+    return wh.activeShipments
+      .filter((s) => s.invoiceCurrency === 'USD')
+      .reduce((sum, s) => sum + (s.supplierDebtRemaining ?? Math.max(0, (s.totalInvoiceAmount ?? 0) - (s.amountPaidToSupplier ?? 0))), 0);
+  }, [wh.activeShipments]);
+
+  const unsettledShipmentsCount = useMemo(() => {
+    return wh.activeShipments.filter((s) => (s.supplierDebtRemaining ?? ((s.totalInvoiceAmount ?? 0) - (s.amountPaidToSupplier ?? 0))) > 0).length;
+  }, [wh.activeShipments]);
 
   const filteredAllocations = useMemo(
     () =>
@@ -377,6 +401,61 @@ export const WarehouseGoodsSection: React.FC = () => {
       {/* ============ SHIPMENTS TAB ============ */}
       {tab === 'shipments' && (
         <div className="space-y-4">
+          {/* FUNDERMAX / SUPPLIER DEBT SUMMARY CARD */}
+          <div className="rounded-2xl p-5 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 dark:border-amber-500/20 shadow-xs relative overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                    <Coins className="w-5 h-5" />
+                  </span>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">
+                    {isKu ? 'قەرزی فەندەرمەکس و دابینکەران (Supplier Payables)' : 'FunderMax & Supplier Debt Summary'}
+                  </h2>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                    Accounts Payable
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isKu
+                    ? 'شیکاری قەرزی کۆمپانیا بۆ دابینکەرانی دەرەکی (FunderMax GmbH نەمسا و جیهان)'
+                    : 'Company outstanding liabilities for inbound panel consignments and international supplier balances.'}
+                </p>
+              </div>
+
+              {/* Debt figures */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/50">
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <Euro className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{isKu ? 'قەرزی FunderMax (EUR)' : 'FunderMax Debt (EUR)'}</span>
+                  </div>
+                  <div className="text-lg font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5">
+                    €{funderMaxDebtEUR.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/50">
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{isKu ? 'کۆی قەرزی دابینکەر (USD)' : 'Total Supplier Debt (USD)'}</span>
+                  </div>
+                  <div className="text-lg font-black font-mono text-slate-900 dark:text-white mt-0.5">
+                    ${totalSupplierDebtUSD.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+
+                <div className="col-span-2 sm:col-span-1 p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col justify-center">
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    {isKu ? 'بارە قەرزدارەکان' : 'Unsettled Shipments'}
+                  </div>
+                  <div className="text-lg font-black font-mono text-slate-700 dark:text-slate-300 mt-0.5">
+                    {unsettledShipmentsCount} {isKu ? 'کۆنتێنەر' : 'active'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={statusFilter}
@@ -441,6 +520,55 @@ export const WarehouseGoodsSection: React.FC = () => {
                       <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{s.arrivalDate || 'Date not set'}</span>
                       {s.supplierContact && <span>{s.supplierContact}</span>}
                     </div>
+
+                    {/* Supplier Payables status pill */}
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                      <div className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 inline-flex items-center gap-2 text-xs font-mono">
+                        <span className="text-slate-500 dark:text-slate-400 font-sans font-medium">{isKu ? 'وەسڵ:' : 'Invoice:'}</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {s.invoiceCurrency === 'USD' ? '$' : '€'}
+                          {(s.totalInvoiceAmount ?? 0).toLocaleString()}
+                        </span>
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
+                        <span className="text-slate-500 dark:text-slate-400 font-sans font-medium">{isKu ? 'دراوە:' : 'Paid:'}</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          {s.invoiceCurrency === 'USD' ? '$' : '€'}
+                          {(s.amountPaidToSupplier ?? 0).toLocaleString()}
+                        </span>
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
+                        <span className="text-slate-500 dark:text-slate-400 font-sans font-medium">{isKu ? 'ماوە:' : 'Debt:'}</span>
+                        <span className={`font-bold ${(s.supplierDebtRemaining ?? 0) > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'}`}>
+                          {s.invoiceCurrency === 'USD' ? '$' : '€'}
+                          {(s.supplierDebtRemaining ?? 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border ${
+                        s.paymentStatus === 'PAID'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : s.paymentStatus === 'PARTIAL_DEBT'
+                          ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300'
+                          : 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300'
+                      }`}>
+                        {s.paymentStatus === 'PAID'
+                          ? (isKu ? 'قەرز تەواو کراوە' : 'Fully Paid')
+                          : s.paymentStatus === 'PARTIAL_DEBT'
+                          ? (isKu ? 'بەشێک دراوە' : 'Partial Debt')
+                          : (isKu ? 'نەدراوە' : 'Unpaid')}
+                      </span>
+
+                      {canPaySupplier && s.isDeleted === 0 && (s.supplierDebtRemaining ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setModal({ type: 'paySupplier', shipmentId: s.id })}
+                          className="h-7 px-2.5 rounded-lg bg-amber-600/10 hover:bg-amber-600/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Coins className="w-3 h-3" />
+                          <span>{isKu ? 'تۆماری دانەوەی قەرز' : 'Record Payment'}</span>
+                        </button>
+                      )}
+                    </div>
+
                     {s.notes && <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 max-w-2xl">{s.notes}</p>}
                   </div>
 
@@ -702,6 +830,30 @@ export const WarehouseGoodsSection: React.FC = () => {
         />
       )}
 
+      {modal.type === 'paySupplier' && (() => {
+        const sh = wh.shipments.find((x) => x.id === modal.shipmentId);
+        if (!sh) return null;
+        return (
+          <PaySupplierModal
+            shipment={sh}
+            onClose={closeModal}
+            onSave={(amt) => {
+              const res = wh.recordSupplierPayment(sh.id, amt);
+              if (res.ok) {
+                logActivity(
+                  'SUPPLIER_PAYMENT',
+                  `Recorded payment of ${sh.invoiceCurrency === 'USD' ? '$' : '€'}${amt} for batch ${sh.batchCode} (${sh.supplier})`,
+                  undefined,
+                  'inventory'
+                );
+                closeModal();
+              }
+              return res;
+            }}
+          />
+        );
+      })()}
+
       {modal.type === 'allocate' && (() => {
         const sh = wh.shipments.find((x) => x.id === modal.shipmentId);
         const item = sh?.items.find((i) => i.id === modal.itemId);
@@ -849,6 +1001,77 @@ interface DraftItem {
   receivedQty: string;
 }
 
+const PaySupplierModal: React.FC<{
+  shipment: InboundShipment;
+  onClose: () => void;
+  onSave: (amount: number) => SaveResult;
+}> = ({ shipment, onClose, onSave }) => {
+  const isEUR = shipment.invoiceCurrency === 'EUR' || !shipment.invoiceCurrency;
+  const currSym = isEUR ? '€' : '$';
+  const remaining = shipment.supplierDebtRemaining ?? Math.max(0, (shipment.totalInvoiceAmount ?? 0) - (shipment.amountPaidToSupplier ?? 0));
+  const [amount, setAmount] = useState(String(remaining > 0 ? remaining : ''));
+  const [error, setError] = useState('');
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = toNum(amount);
+    if (val <= 0) {
+      setError('Payment amount must be greater than zero.');
+      return;
+    }
+    const res = onSave(val);
+    if (!res.ok) setError(res.error);
+  };
+
+  return (
+    <ModalShell title={`Record Supplier Payment • ${shipment.batchCode}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2">
+          <div className="font-bold text-slate-900 dark:text-white">
+            {shipment.supplier}
+          </div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
+            <span>Invoiced Total: {currSym}{(shipment.totalInvoiceAmount ?? 0).toLocaleString()}</span>
+            <span>Already Paid: {currSym}{(shipment.amountPaidToSupplier ?? 0).toLocaleString()}</span>
+          </div>
+          <div className="text-sm font-bold text-amber-600 dark:text-amber-400 pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between">
+            <span>Outstanding Supplier Debt:</span>
+            <span>{currSym}{remaining.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls} htmlFor="pay-amt">
+            Payment Amount ({shipment.invoiceCurrency || 'EUR'})
+          </label>
+          <input
+            id="pay-amt"
+            type="number"
+            inputMode="decimal"
+            pattern="[0-9]*"
+            min={0.01}
+            max={remaining > 0 ? remaining : undefined}
+            step="any"
+            className={inputCls}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="e.g. 5000"
+            autoFocus
+          />
+        </div>
+
+        <FormError message={error} />
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" className={ghostBtn} onClick={onClose}>Cancel</button>
+          <button type="submit" className={primaryBtn}>
+            <Coins className="w-4 h-4" /> Confirm Payment
+          </button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+};
+
 const NewShipmentModal: React.FC<{
   onClose: () => void;
   onSave: (input: {
@@ -859,14 +1082,20 @@ const NewShipmentModal: React.FC<{
     status: InboundStatus;
     notes: string;
     items: Array<{ description: string; unit: string; expectedQty: number; receivedQty: number }>;
+    invoiceCurrency?: 'EUR' | 'USD';
+    totalInvoiceAmount?: number;
+    amountPaidToSupplier?: number;
   }) => { ok: true } | { ok: false; error: string };
 }> = ({ onClose, onSave }) => {
-  const [supplier, setSupplier] = useState('');
-  const [contact, setContact] = useState('');
-  const [origin, setOrigin] = useState('');
+  const [supplier, setSupplier] = useState('FunderMax GmbH');
+  const [contact, setContact] = useState('office@fundermax.biz');
+  const [origin, setOrigin] = useState('Austria (EU)');
   const [arrival, setArrival] = useState(new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<InboundStatus>('pending');
   const [notes, setNotes] = useState('');
+  const [currency, setCurrency] = useState<'EUR' | 'USD'>('EUR');
+  const [invoiceAmount, setInvoiceAmount] = useState('');
+  const [paidAmount, setPaidAmount] = useState('');
   const [items, setItems] = useState<DraftItem[]>([{ key: 1, description: '', unit: 'pcs', expectedQty: '', receivedQty: '' }]);
   const [error, setError] = useState('');
 
@@ -887,6 +1116,9 @@ const NewShipmentModal: React.FC<{
         const received = i.receivedQty === '' ? (status === 'received' || status === 'inspected' ? expected : 0) : toNum(i.receivedQty);
         return { description: autoCapitalizeFirstLetter(i.description), unit: i.unit, expectedQty: expected, receivedQty: received };
       }),
+      invoiceCurrency: currency,
+      totalInvoiceAmount: toNum(invoiceAmount),
+      amountPaidToSupplier: toNum(paidAmount),
     });
     if (!res.ok) setError(res.error);
   };
@@ -921,6 +1153,62 @@ const NewShipmentModal: React.FC<{
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Supplier Financials / Payables */}
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+          <div className="flex items-center gap-1.5 text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+            <Coins className="w-3.5 h-3.5" />
+            <span>Supplier Invoicing & Payables (قەرزی دابینکەر)</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls} htmlFor="ns-curr">Currency</label>
+              <select id="ns-curr" className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value as 'EUR' | 'USD')}>
+                <option value="EUR">EUR (€) - FunderMax Standard</option>
+                <option value="USD">USD ($) - General Inbound</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="ns-tot">Total Invoiced Amount</label>
+              <input
+                id="ns-tot"
+                type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
+                min={0}
+                step="any"
+                className={inputCls}
+                value={invoiceAmount}
+                onChange={(e) => setInvoiceAmount(e.target.value)}
+                placeholder="e.g. 45000"
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="ns-paid">Amount Paid Upfront</label>
+              <input
+                id="ns-paid"
+                type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
+                min={0}
+                step="any"
+                className={inputCls}
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value)}
+                placeholder="e.g. 20000"
+              />
+            </div>
+          </div>
+          {toNum(invoiceAmount) > 0 && (
+            <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1">
+              <span>Remaining Company Debt:</span>
+              <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                {currency === 'EUR' ? '€' : '$'}
+                {Math.max(0, toNum(invoiceAmount) - toNum(paidAmount)).toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

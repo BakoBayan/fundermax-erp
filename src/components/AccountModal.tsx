@@ -11,7 +11,7 @@ interface AccountModalProps {
 }
 
 export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose, onOpenAdminPanel }) => {
-  const { currentUser, login, logout, language, isAdmin } = useInventory();
+  const { currentUser, login, logout, language, isAdmin, userPermissions } = useInventory();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -104,10 +104,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose, onO
                   <span className={`font-semibold ${
                     currentUser?.role === "Viewer"
                       ? "text-purple-600 dark:text-purple-400 font-bold"
+                      : currentUser?.role === "Owner"
+                      ? "text-amber-600 dark:text-amber-400 font-bold"
                       : "text-slate-700 dark:text-slate-300"
                   }`}>
                     {currentUser?.role === "Viewer"
                       ? (language === "ku" ? "تەنها بینەر (سەیرکردن)" : "Viewer (Read-Only)")
+                      : currentUser?.role === "Owner"
+                      ? (language === "ku" ? "👑 خاوەن کار (Executive Owner)" : "👑 Executive Owner")
                       : (currentUser?.role || "Visitor")}
                   </span>
                 </div>
@@ -124,6 +128,21 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose, onO
               </button>
             )}
           </div>
+
+          {/* Executive Owner Notice Banner */}
+          {currentUser?.role === "Owner" && (
+            <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-850 dark:text-amber-300 font-medium flex items-center gap-2">
+              <span className="text-base shrink-0">👑</span>
+              <div>
+                <span className="font-bold">{language === "ku" ? "خاوەن کار • بینینی باڵا" : "Executive Owner Oversight"}</span>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
+                  {language === "ku"
+                    ? "دەسەڵاتی بینینی تەواوی ئامار و قازانج بەبێ دەستکاریکردنی ئۆپەراسیۆنە مەیدانییەکان."
+                    : "Full executive oversight over profits, sales, and warehouse with accidental edit protection."}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Viewer Read-Only Notice Banner */}
           {currentUser?.role === "Viewer" && (
@@ -148,8 +167,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose, onO
             </button>
           )}
 
-          {/* Admin Panel button if current user is Admin */}
-          {isAdmin && onOpenAdminPanel && (
+          {/* Admin Panel button if current user is Admin with canAccessAdmin clearance */}
+          {isAdmin && userPermissions?.canAccessAdmin && onOpenAdminPanel && (
             <button
               onClick={() => {
                 onClose();

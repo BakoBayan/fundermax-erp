@@ -277,7 +277,36 @@ const STORAGE_USERS = "bako_user_accounts_v1";
 const STORAGE_SESSION = "bako_user_session_v1";
 const STORAGE_OFFLINE_QUEUE = "bako_offline_queue_v1";
 
+export const DEFAULT_EXECUTIVE_OWNER_PERMISSIONS: UserModulePermissions = {
+  panels: true,
+  orders: true,
+  sales: true,
+  goods: true,
+  shipping: true,
+  audit: false,
+  canDelete: false,
+  canExport: true,
+  canViewSales: true,
+  canCreateSales: false,
+  canEditSales: false,
+  canDeleteSales: false,
+  canOverridePrice: false,
+  canViewPanels: true,
+  canCreatePanels: false,
+  canEditPanels: false,
+  canDeletePanels: false,
+  canViewWarehouse: true,
+  canManageShipments: false,
+  canManageStock: false,
+  canAccessAdmin: false,
+  canExportBackups: false,
+  canViewFinancialAnalytics: true,
+  canViewWorkshopAnalytics: true,
+  canViewRestrictedMetrics: true,
+};
+
 export const ROLE_PRESETS: Record<RolePresetName, UserModulePermissions> = {
+  "Executive Owner": DEFAULT_EXECUTIVE_OWNER_PERMISSIONS,
   "Super Admin": {
     panels: true,
     orders: true,
@@ -464,6 +493,26 @@ export const DEFAULT_VIEWER_PERMISSIONS: UserModulePermissions = ROLE_PRESETS["R
 
 export function resolveUserPermissions(user: Partial<UserAccount> | null): UserModulePermissions {
   if (!user || !user.isAuthenticated) return DEFAULT_VIEWER_PERMISSIONS;
+  if (user.role === "Owner" || user.username?.toLowerCase() === "shaswar") {
+    return {
+      ...DEFAULT_EXECUTIVE_OWNER_PERMISSIONS,
+      ...(user.permissions || {}),
+      canCreateSales: false,
+      canEditSales: false,
+      canDeleteSales: false,
+      canOverridePrice: false,
+      canCreatePanels: false,
+      canEditPanels: false,
+      canDeletePanels: false,
+      canManageShipments: false,
+      canManageStock: false,
+      canAccessAdmin: false,
+      canExportBackups: false,
+      canViewFinancialAnalytics: true,
+      canViewWorkshopAnalytics: true,
+      canViewRestrictedMetrics: true,
+    };
+  }
   if (user.username?.toLowerCase() === "bako" || user.role === "Admin") {
     return {
       ...DEFAULT_ADMIN_PERMISSIONS,
@@ -509,6 +558,16 @@ export function resolveUserPermissions(user: Partial<UserAccount> | null): UserM
 }
 
 const INITIAL_USERS: UserAccount[] = [
+  {
+    id: "user-shaswar-ahmad",
+    username: "shaswar",
+    displayName: "Shaswar Ahmad",
+    role: "Owner",
+    password: "shaswar2026",
+    isAuthenticated: false,
+    createdAt: 1770000000000,
+    permissions: DEFAULT_EXECUTIVE_OWNER_PERMISSIONS,
+  },
   {
     username: "bako",
     displayName: "Bako Bayan Madhhar",
@@ -855,7 +914,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (typeof window === "undefined") return INITIAL_USERS;
     try {
       const s = localStorage.getItem(STORAGE_USERS);
-      return s ? JSON.parse(s) : INITIAL_USERS;
+      if (s) {
+        const parsed: UserAccount[] = JSON.parse(s);
+        const hasShaswar = parsed.some((u) => u.username?.toLowerCase() === "shaswar");
+        if (!hasShaswar) {
+          const shaswarAcc = INITIAL_USERS.find((u) => u.username === "shaswar");
+          if (shaswarAcc) return [...parsed, shaswarAcc];
+        }
+        return parsed;
+      }
+      return INITIAL_USERS;
     } catch {
       return INITIAL_USERS;
     }

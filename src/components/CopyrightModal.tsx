@@ -131,7 +131,7 @@ export const CopyrightModal: React.FC = () => {
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                 <span>
                   {isKu
-                    ? 'ئەندازیاری کراوە لەلایەن باکۆ بەیان مەزهەر تایبەت بۆ کۆمپانیای شەسواری ئەحمەد شەسوار'
+                    ? 'ئەندازیاری کراوە لەلایەن باکۆ بەیان مەزهەر تایبەت بۆ کۆمپانیا شاسوار ئەحمەد شاسوار'
                     : 'Engineered by Bako Bayan Madhhar specifically for Shaswar Ahmad Shaswar Co.'}
                 </span>
               </div>

@@ -36,9 +36,10 @@ export type Language = "en" | "ku";
 export type DeviceView = "auto" | "pc" | "mobile";
 export type ThemeMode = "light" | "dark";
 
-export type UserRole = "Admin" | "Manager" | "Staff" | "Viewer";
+export type UserRole = "Admin" | "Manager" | "Staff" | "Viewer" | "Owner";
 
 export type RolePresetName =
+  | "Executive Owner"
   | "Super Admin"
   | "Accountant"
   | "Sales Representative"
@@ -85,6 +86,7 @@ export interface UserModulePermissions {
 }
 
 export interface UserAccount {
+  id?: string;
   username: string;
   displayName: string;
   role: UserRole;
@@ -231,7 +233,7 @@ export interface DropdownPresets {
   savedClients?: string[];
 }
 
-export type PlatformModule = 'hub' | 'panels' | 'orders' | 'sales' | 'goods' | 'shipping' | 'audit';
+export type PlatformModule = 'hub' | 'panels' | 'orders' | 'sales' | 'goods' | 'shipping' | 'audit' | 'profit';
 
 export interface PosDraftState {
   invoiceCode: string;
@@ -282,5 +284,5 @@ export type PrintJob =
   | { type: 'warehouse-manifest'; data: PrintWarehouseManifestData }
   | { type: 'pos-invoice'; data: { tx: PanelTransaction; format?: 'a4' | 'thermal80' } };
 
-export type { InboundShipment } from './warehouse';
+export type { InboundShipment, SupplierPaymentStatus } from './warehouse';
 

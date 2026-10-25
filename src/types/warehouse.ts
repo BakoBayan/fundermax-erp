@@ -21,10 +21,13 @@ export interface InboundItem {
   receivedQty: number;
 }
 
+export type SupplierPaymentStatus = 'PAID' | 'PARTIAL_DEBT' | 'UNPAID';
+
 export interface InboundShipment {
   id: string;
-  batchCode: string; // e.g. SHP-2026-001
-  supplier: string;
+  batchCode: string; // e.g. SHP-2026-001 or FMAX-2026-01
+  supplier: string; // e.g. FunderMax GmbH
+  supplierName?: string; // alias/preset to "FunderMax GmbH"
   supplierContact: string;
   originCountry: string;
   arrivalDate: string; // YYYY-MM-DD
@@ -35,6 +38,32 @@ export interface InboundShipment {
   updatedAt: string;
   isDeleted: 0 | 1;
   deletedAt: string | null;
+
+  // v1.6 Supplier Payables (Accounts Payable / FunderMax GmbH)
+  invoiceCurrency?: 'EUR' | 'USD';
+  totalInvoiceAmount?: number;
+  amountPaidToSupplier?: number;
+  supplierDebtRemaining?: number;
+  paymentStatus?: SupplierPaymentStatus;
+}
+
+export function computeSupplierDebtRemaining(shipment: {
+  totalInvoiceAmount?: number;
+  amountPaidToSupplier?: number;
+}): number {
+  const total = Number(shipment.totalInvoiceAmount) || 0;
+  const paid = Number(shipment.amountPaidToSupplier) || 0;
+  return Math.max(0, Math.round((total - paid) * 100) / 100);
+}
+
+export function computeSupplierPaymentStatus(
+  total: number,
+  paid: number
+): SupplierPaymentStatus {
+  if (total <= 0) return 'PAID';
+  if (paid >= total) return 'PAID';
+  if (paid > 0) return 'PARTIAL_DEBT';
+  return 'UNPAID';
 }
 
 export type LocationKind = 'storage' | 'workshop';

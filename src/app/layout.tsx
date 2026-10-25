@@ -3,8 +3,14 @@ import "./globals.css";
 import { APP_CONFIG } from "@/config/appConfig";
 
 export const metadata: Metadata = {
-  title: `${APP_CONFIG.name} ${APP_CONFIG.version}`,
+  title: `${APP_CONFIG.name} ${APP_CONFIG.version} - کۆمپانیا شاسوار ئەحمەد شاسوار`,
   description: `${APP_CONFIG.name} ${APP_CONFIG.version} - Professional Warehouse & Operations Platform`,
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Master System",
+  },
   icons: {
     icon: "/icon.svg",
     apple: "/icon.svg",

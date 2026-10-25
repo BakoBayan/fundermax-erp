@@ -56,8 +56,23 @@ import {
 } from "./backup";
 
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "warehouse.db");
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
+
+export function getDatabasePath(): string {
+  if (process.env.DATABASE_PATH) {
+    return path.isAbsolute(process.env.DATABASE_PATH)
+      ? process.env.DATABASE_PATH
+      : path.join(process.cwd(), process.env.DATABASE_PATH);
+  }
+  // Check if warehouse.db exists from existing records; otherwise default to ./data/production.sqlite
+  const legacyWarehouseDb = path.join(DATA_DIR, "warehouse.db");
+  if (fs.existsSync(legacyWarehouseDb)) {
+    return legacyWarehouseDb;
+  }
+  return path.join(DATA_DIR, "production.sqlite");
+}
+
+const DB_PATH = getDatabasePath();
 const BACKUPS_DIR = path.join(DATA_DIR, "backups");
 const LEGACY_JSON_PATH = path.join(DATA_DIR, "db.json");
 const INVENTORY_STORE_JSON_PATH = path.join(DATA_DIR, "inventory_store.json");
@@ -67,8 +82,9 @@ const globalForDB = globalThis as unknown as { sqliteDB?: DatabaseSync };
 export function getDB(): DatabaseSync {
   if (globalForDB.sqliteDB) return globalForDB.sqliteDB;
 
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const dbDir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
   }
   if (!fs.existsSync(BACKUPS_DIR)) {
     fs.mkdirSync(BACKUPS_DIR, { recursive: true });

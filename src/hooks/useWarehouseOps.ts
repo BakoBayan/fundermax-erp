@@ -15,6 +15,7 @@ import {
   WarehouseOpsState,
   WORKSHOP_LOCATION_ID,
   formatLocationLabel,
+  SupplierPaymentStatus,
 } from '../types/warehouse';
 
 const STORAGE_KEY = 'bako_warehouse_ops_v1';
@@ -142,6 +143,9 @@ export interface NewShipmentInput {
   status: InboundStatus;
   notes: string;
   items: Array<Omit<InboundItem, 'id'>>;
+  invoiceCurrency?: 'EUR' | 'USD';
+  totalInvoiceAmount?: number;
+  amountPaidToSupplier?: number;
 }
 
 function nextBatchCode(shipments: InboundShipment[], arrivalDate: string): string {
@@ -184,13 +188,19 @@ export function useWarehouseOps() {
     const validItems = input.items.filter((i) => i.description.trim());
     if (validItems.length === 0) return { ok: false, error: 'Add at least one received item.' };
     const now = new Date().toISOString();
+    const invTotal = Math.max(0, Number(input.totalInvoiceAmount) || 0);
+    const paid = Math.max(0, Number(input.amountPaidToSupplier) || 0);
+    const debt = Math.max(0, Math.round((invTotal - paid) * 100) / 100);
+    const paymentStatus: SupplierPaymentStatus = invTotal <= 0 ? 'PAID' : debt <= 0 ? 'PAID' : paid > 0 ? 'PARTIAL_DEBT' : 'UNPAID';
+
     commit((s) => {
       const shipment: InboundShipment = {
         id: uid('inb'),
         batchCode: nextBatchCode(s.shipments, input.arrivalDate),
         supplier: input.supplier.trim(),
+        supplierName: input.supplier.trim(),
         supplierContact: input.supplierContact.trim(),
-        originCountry: input.originCountry.trim(),
+        originCountry: input.originCountry.trim() || 'Austria (EU)',
         arrivalDate: input.arrivalDate,
         status: input.status,
         notes: input.notes.trim(),
@@ -205,6 +215,11 @@ export function useWarehouseOps() {
         updatedAt: now,
         isDeleted: 0,
         deletedAt: null,
+        invoiceCurrency: input.invoiceCurrency || 'EUR',
+        totalInvoiceAmount: invTotal,
+        amountPaidToSupplier: paid,
+        supplierDebtRemaining: debt,
+        paymentStatus,
       };
       return { ...s, shipments: [shipment, ...s.shipments] };
     });
@@ -261,6 +276,29 @@ export function useWarehouseOps() {
       ...s,
       shipments: s.shipments.map((sh) => (sh.id === id ? { ...sh, isDeleted: 0, deletedAt: null } : sh)),
     }));
+  }, []);
+
+  const recordSupplierPayment = useCallback((id: string, amount: number): OpResult => {
+    if (amount <= 0) return { ok: false, error: 'Payment amount must be greater than zero.' };
+    commit((s) => ({
+      ...s,
+      shipments: s.shipments.map((sh) => {
+        if (sh.id !== id) return sh;
+        const total = Number(sh.totalInvoiceAmount) || 0;
+        const currentPaid = Number(sh.amountPaidToSupplier) || 0;
+        const newPaid = Math.round((currentPaid + amount) * 100) / 100;
+        const remaining = Math.max(0, Math.round((total - newPaid) * 100) / 100);
+        const status: SupplierPaymentStatus = total <= 0 ? 'PAID' : remaining <= 0 ? 'PAID' : newPaid > 0 ? 'PARTIAL_DEBT' : 'UNPAID';
+        return {
+          ...sh,
+          amountPaidToSupplier: newPaid,
+          supplierDebtRemaining: remaining,
+          paymentStatus: status,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+    return { ok: true };
   }, []);
 
   const addLocation = useCallback(
@@ -495,6 +533,7 @@ export function useWarehouseOps() {
     allocateFromShipment,
     addManualAllocation,
     transferStock,
+    recordSupplierPayment,
   };
 }
 

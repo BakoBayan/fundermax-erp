@@ -16,6 +16,7 @@ import {
   getBackupDir,
   isValidSnapshotName,
   writeAuditLog,
+  getDatabasePath,
 } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
     if (action === "optimize" || action === "vacuum") {
       try {
         const db = getDB();
-        const dbPath = path.join(process.cwd(), "data", "warehouse.db");
+        const dbPath = getDatabasePath();
         const sizeBefore = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
 
         // Run non-destructive PASSIVE checkpoint first (does not block active concurrent readers/writers)

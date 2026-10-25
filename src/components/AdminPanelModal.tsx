@@ -162,6 +162,25 @@ interface PresetCardDef {
 
 const ROLE_PRESET_CARDS: PresetCardDef[] = [
   {
+    id: 'Executive Owner',
+    role: 'Owner',
+    titleEn: 'Executive Owner',
+    titleKu: 'خاوەن کار (شاسوار ئەحمەد)',
+    descEn: 'Confidential profit margins, analytics, live sales & supplier payables with floor edit protection',
+    descKu: 'قازانج، دارایی، فرۆشتن و قەرزی فەندەرمەکس بە پارێزگاری لە دەستکاری مەیدانی',
+    badge: '👑 Executive',
+    color: 'amber',
+    summary: [
+      { text: '✓ Executive Profit Suite & Margins', allowed: true },
+      { text: '✓ Financial & Workshop Analytics', allowed: true },
+      { text: '✓ Live Sales, Wood Panels & Goods Visibility', allowed: true },
+      { text: '✓ FunderMax Supplier Payables Ledger', allowed: true },
+      { text: '✕ Floor Accidental Edit Protection (No CRUD)', allowed: false },
+      { text: '✕ Strict IT & Admin Settings Lockout', allowed: false },
+    ],
+  },
+
+  {
     id: 'Super Admin',
     role: 'Admin',
     titleEn: 'Super Admin',
@@ -1466,7 +1485,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {lang === 'en'
-                          ? 'Absorb legacy business records (.sqlite, .db, .json, .csv) into the v1.5 SQLite schema with zero risk to admin accounts.'
+                          ? 'Absorb legacy business records (.sqlite, .db, .json, .csv) into the v1.6 SQLite schema with zero risk to admin accounts.'
                           : 'هەڵمژین و تێکەڵکردنی تۆمارەکانی سیستەمی کۆن (SQLite, DB, JSON, CSV) بۆ ناو سیستەمی نوێ بە شێوازێکی تەواو پارێزراو.'}
                       </p>
                     </div>

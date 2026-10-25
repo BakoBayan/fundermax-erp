@@ -63,7 +63,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 *بەروار:* ${order.date}
 *دۆخ:* ${order.status === 'finalized' ? 'تەواوکراو' : 'لە کاردایە (حجز)'}
 ${order.notes ? `*تێبینی:* ${order.notes}\n` : ''}
-کۆمپانیای شەسواری ئەحمەد شەسوار
+کۆمپانیا شاسوار ئەحمەد شاسوار
 Bako's Master System`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;

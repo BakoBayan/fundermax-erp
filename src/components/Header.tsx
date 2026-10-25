@@ -177,6 +177,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
         return "Shipping & Logistics";
       case "audit":
         return "Database & Audit Trail";
+      case "profit":
+        return "Executive Profit Suite";
       default:
         return "Main Operations Hub";
     }
@@ -226,8 +228,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                     {APP_CONFIG.version}
                   </span>
                 </div>
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tracking-wider uppercase mt-1 leading-none hidden sm:block">
-                  Panels • Sales POS • Warehouse
+                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tracking-wider mt-1 leading-none hidden sm:block truncate max-w-[280px]">
+                  {language === "ku" ? "کۆمپانیا شاسوار ئەحمەد شاسوار" : "Shaswar Ahmad Shaswar Co."}
                 </span>
               </div>
             </button>
@@ -403,7 +405,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             ) : null}
 
             {/* Persistent Admin Panel Trigger */}
-            {isAdmin && (
+            {isAdmin && userPermissions?.canAccessAdmin && (
               <button
                 type="button"
                 onClick={openAdminPanel}

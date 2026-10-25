@@ -225,7 +225,7 @@ export const WarehouseManifestSlip: React.FC<{
       <div className="grid grid-cols-2 gap-4 mb-5 p-4 border border-black bg-gray-50/60">
         <div>
           <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
-            {isKu ? 'دابینکەر / کۆمپانیای نێرەر' : 'Supplier / Logistics Consignor'}
+            {isKu ? 'دابینکەر / کۆمپانیا نێرەر' : 'Supplier / Logistics Consignor'}
           </span>
           <div className="text-base font-black text-black mt-0.5">{shipment.supplier}</div>
           <div className="text-xs text-gray-600 mt-1">
@@ -477,7 +477,7 @@ export const PosInvoiceSlip: React.FC<{
             Bako&apos;s Master System
           </h1>
           <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wide mt-0.5">
-            {isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار • بازرگانی گشتی تەختە و مەواد' : 'Shaswar Ahmad Shaswar Co. • General Trading & Wood Panel Supply'}
+            {isKu ? 'کۆمپانیا شاسوار ئەحمەد شاسوار • بازرگانی گشتی تەختە و مەواد' : 'Shaswar Ahmad Shaswar Co. • General Trading & Wood Panel Supply'}
           </div>
         </div>
 
