@@ -55,6 +55,7 @@ import { autoCapitalizeFirstLetter } from '../utils/text';
 import { readImageFiles } from '../utils/imageUpload';
 import { DEBT_PAYMENT_ACTION, buildDebtPaymentDetails, getTodayDebtPaymentIntake } from '../utils/debtPayments';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
+import SupplierPayablesModal from './SupplierPayablesModal';
 
 export const SalesSection: React.FC = () => {
   const {
@@ -274,6 +275,7 @@ export const SalesSection: React.FC = () => {
   const [manualEurToIqd, setManualEurToIqd] = useState<string>(String(exchangeRates.eurToIqd || 1620));
 
   // Modals
+  const [isSupplierPayablesOpen, setIsSupplierPayablesOpen] = useState<boolean>(false);
   const [inspectingTxForMath, setInspectingTxForMath] = useState<boolean>(false);
   const [printingTx, setPrintingTx] = useState<PanelTransaction | null>(null);
   const [completedInvoice, setCompletedInvoice] = useState<{ tx: PanelTransaction; isEdit: boolean } | null>(null);
@@ -1271,12 +1273,9 @@ export const SalesSection: React.FC = () => {
 
         {/* CARD 5: WE OWE SUPPLIERS (PAYABLES) */}
         <div
-          onClick={() => {
-            if (setCurrentModule) setCurrentModule('goods');
-            else if (typeof window !== 'undefined') window.location.href = '/?module=goods';
-          }}
+          onClick={() => setIsSupplierPayablesOpen(true)}
           className="p-5 rounded-3xl border-2 border-purple-200 dark:border-purple-800 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          title={isKu ? 'کلیک بکە بۆ چوونە بەشی کڕین و دابینکەران' : 'Click to open Purchases / Warehouse module'}
+          title={isKu ? 'کلیک بکە بۆ بینینی دەفتەری قەرزی دابینکەران' : 'Click to inspect Supplier Payables Ledger'}
         >
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -1299,7 +1298,7 @@ export const SalesSection: React.FC = () => {
             <div className="flex items-center justify-between text-[11px] text-purple-700/80 dark:text-purple-400/80 font-medium mt-1.5">
               <span>{supplierInvoicesWithDebtCount} {isKu ? 'پسوولەی دابینکەر' : 'supplier invoices'}</span>
               <span className="font-bold underline group-hover:text-purple-800 dark:group-hover:text-purple-200">
-                {isKu ? 'کڕین و کۆگا ←' : 'Purchases / Warehouse ←'}
+                {isKu ? 'دەفتەری قەرز ←' : 'Open Ledger ←'}
               </span>
             </div>
           </div>
@@ -3874,6 +3873,12 @@ export const SalesSection: React.FC = () => {
       <DropdownManagerModal
         isOpen={isDropdownManagerOpen}
         onClose={() => setIsDropdownManagerOpen(false)}
+      />
+
+      {/* SUPPLIER PAYABLES IN-PLACE LEDGER MODAL */}
+      <SupplierPayablesModal
+        isOpen={isSupplierPayablesOpen}
+        onClose={() => setIsSupplierPayablesOpen(false)}
       />
     </div>
   );

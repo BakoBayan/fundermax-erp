@@ -21,11 +21,13 @@ import {
   AlertTriangle,
   RefreshCw,
   ShieldCheck,
-  Lock
+  Lock,
+  Building2
 } from 'lucide-react';
 import { PlatformModule, OrderAllocation } from '../types/inventory';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
 import { getTodayDebtPaymentIntake } from '../utils/debtPayments';
+import SupplierPayablesModal from './SupplierPayablesModal';
 
 interface ModuleHubProps {
   onSelectModule?: (module: PlatformModule) => void;
@@ -59,6 +61,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     setSalesTimeframeFilter,
   } = useInventory();
 
+  const [isSupplierPayablesOpen, setIsSupplierPayablesOpen] = useState(false);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [healthToast, setHealthToast] = useState<{ message: string; type: 'success' | 'warn' } | null>(null);
   const [deniedModal, setDeniedModal] = useState<{ moduleName: string; description: string } | null>(null);
@@ -468,22 +471,22 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 {/* 3. Our Debt to Suppliers (Payables / قەرزی سەر کۆمپانیا) */}
                 <button
                   type="button"
-                  onClick={() => handleSelectDivision('goods', 'shipping')}
-                  className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
-                  title="View Purchases & Suppliers (Payables)"
+                  onClick={() => setIsSupplierPayablesOpen(true)}
+                  className="p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border-2 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Supplier Payables Ledger"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
-                    <span>{isKu ? 'قەرزی سەر کۆمپانیا' : 'We Owe Suppliers'}</span>
-                    <Truck className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+                    <span>{isKu ? 'قەرزی سەر کۆمپانیا' : 'WE OWE SUPPLIERS'}</span>
+                    <Building2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   </div>
                   <div>
-                    <div className="text-sm sm:text-base font-black text-indigo-700 dark:text-indigo-300 font-mono truncate">
+                    <div className="text-sm sm:text-base font-black text-purple-700 dark:text-purple-300 font-mono truncate">
                       ${supplierDebtData.debtUSD.toLocaleString()}
                     </div>
-                    <div className="text-[10px] font-medium text-indigo-600/80 dark:text-indigo-400/80 truncate">
+                    <div className="text-[10px] font-medium text-purple-600/80 dark:text-purple-400/80 truncate">
                       {supplierDebtData.debtEUR > 0
                         ? `+ €${supplierDebtData.debtEUR.toLocaleString()} (${isKu ? 'دابینکەر' : 'EUR'})`
-                        : (isKu ? 'قەرزی دابینکەران' : 'Payables')}
+                        : (isKu ? 'دەفتەری قەرز' : 'Payables Ledger')}
                     </div>
                   </div>
                 </button>
@@ -878,6 +881,23 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <span>Shipments</span>
               </div>
             )}
+
+            {/* 4. We Owe Suppliers (Payables) purple badge on PC ticker */}
+            <button
+              type="button"
+              onClick={() => setIsSupplierPayablesOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer font-bold"
+              title="Click to view Supplier Payables Ledger"
+            >
+              <Building2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <span>{isKu ? 'قەرزی سەر ئێمە بۆ دابینکەران:' : 'We Owe Suppliers:'}</span>
+              <span className="font-mono font-black">${supplierDebtData.debtUSD.toLocaleString()}</span>
+              {supplierDebtData.debtEUR > 0 && (
+                <span className="text-[11px] font-mono text-purple-600/90 dark:text-purple-400/90">
+                  (+ €{supplierDebtData.debtEUR.toLocaleString()})
+                </span>
+              )}
+            </button>
 
             {/* 4. SQLite WAL Health & Latency Pill (Shortened by Default, Expands on Click) */}
             <div className="relative">
@@ -1510,6 +1530,12 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           </div>
         </div>
       )}
+
+      {/* SUPPLIER PAYABLES IN-PLACE LEDGER MODAL */}
+      <SupplierPayablesModal
+        isOpen={isSupplierPayablesOpen}
+        onClose={() => setIsSupplierPayablesOpen(false)}
+      />
     </div>
   );
 };

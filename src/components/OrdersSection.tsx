@@ -959,3 +959,7 @@ export function dispatchOrderEmail(recipientEmail: string, subject: string, body
   }
 }
 
+export const dispatchWhatsAppReceipt = dispatchOrderWhatsApp;
+export const dispatchEmailReceipt = dispatchOrderEmail;
+
+
