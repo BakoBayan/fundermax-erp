@@ -18,10 +18,10 @@ A high-performance, real-time wood panel inventory and customer order management
 
 ## Starting the Application
 
-Double-click `START_BAKO_SERVER.bat` or run:
+Double-click `START_SECURE_SERVER.bat` or run:
 
 ```bash
-npm run dev
+npm run start
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.

@@ -3,10 +3,10 @@
   "version": "1.6.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
-    "start": "next start",
-    "start:prod": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "start:prod": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "db:dump": "node export_sql.js"
   },
