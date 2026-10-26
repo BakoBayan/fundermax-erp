@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { exportPanelsToCSV } from "../utils/export";
+import { StockMathModal } from "./StockMathModal";
 
 interface ExcelGridProps {
   onOpenOrderModal: (materialId?: string, orderToEdit?: { materialId: string; order: OrderAllocation }) => void;
@@ -44,6 +45,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
   onTogglePrintQueueItem,
   onNavigateToOrders,
 }) => {
+  const [stockMathMat, setStockMathMat] = useState<PanelMaterial | null>(null);
   const {
     t,
     language,
@@ -473,6 +475,18 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                           <span>{mat.allocatedStock} {t.reserved}</span>
                         </span>
                       ) : null}
+                      {mat.allocatedStock > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setStockMathMat(mat); }}
+                          className="block mt-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer whitespace-nowrap"
+                        >
+                          {language === 'ku' ? 'وردەکاری خەزن' : 'Inspect Stock Math'} ←
+                        </button>
+                      )}
+                      {stockMathMat?.id === mat.id && (
+                        <StockMathModal material={mat} onClose={() => setStockMathMat(null)} />
+                      )}
                     </div>
                   </td>
 

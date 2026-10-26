@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { exportPanelsToCSV } from "../utils/export";
+import { StockMathModal } from "./StockMathModal";
 
 interface MobileViewProps {
   onOpenOrderModal: (materialId?: string, orderToEdit?: { materialId: string; order: OrderAllocation }) => void;
@@ -43,6 +44,7 @@ export const MobileView: React.FC<MobileViewProps> = ({
   onTogglePrintQueueItem,
   onNavigateToOrders,
 }) => {
+  const [stockMathMat, setStockMathMat] = useState<PanelMaterial | null>(null);
   const {
     t,
     language,
@@ -394,6 +396,18 @@ export const MobileView: React.FC<MobileViewProps> = ({
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">{language === 'ku' ? 'حجزکراو:' : 'Reserved:'}</span>
                       <span className="font-mono text-sm">{mat.allocatedStock}</span>
                     </div>
+                    {mat.allocatedStock > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setStockMathMat(mat)}
+                        className="px-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer whitespace-nowrap"
+                      >
+                        {language === 'ku' ? 'وردەکاری خەزن' : 'Inspect Stock Math'} ←
+                      </button>
+                    )}
+                    {stockMathMat?.id === mat.id && (
+                      <StockMathModal material={mat} onClose={() => setStockMathMat(null)} />
+                    )}
 
                     {/* Dimensions (L × W × T mm) */}
                     <div className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs flex items-center gap-1">

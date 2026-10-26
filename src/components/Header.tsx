@@ -116,8 +116,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
     },
     {
       id: "goods" as PlatformModule,
-      titleEn: "Warehouse",
-      titleKu: "مەخزەن",
+      titleEn: "Purchases & Suppliers",
+      titleKu: "کڕین و دابینکەران",
       icon: Truck,
       isAllowed: !!userPermissions?.canViewWarehouse,
       colorClass: "text-amber-600 dark:text-amber-400",
@@ -234,7 +234,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
       case "sales":
         return "Sales POS & Invoices";
       case "goods":
-        return "Warehouse Goods & Hardware";
+        return "Purchases & Suppliers";
       case "shipping":
         return "Shipping & Logistics";
       case "audit":

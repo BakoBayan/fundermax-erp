@@ -14,6 +14,9 @@ export interface OrderAllocation {
   finalizedAt?: string;
   jobType?: "generic" | "door"; // "generic" = standard panel cutting; "door" = custom door manufacturing
   doorSpec?: DoorOrderSpec; // Specialized Door Order specifications
+  customerPhone?: string;
+  clientPhone?: string;
+  phone?: string;
 }
 
 export interface PanelMaterial {

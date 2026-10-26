@@ -52,7 +52,8 @@ import DropdownManagerModal from './DropdownManagerModal';
 import { exportTransactionsToCSV } from '../utils/export';
 import { roundMoney, buildMoneySnapshot } from '../lib/money';
 import { autoCapitalizeFirstLetter } from '../utils/text';
-import { useWarehouseOps } from '../hooks/useWarehouseOps';
+import { readImageFiles } from '../utils/imageUpload';
+import { DEBT_PAYMENT_ACTION, buildDebtPaymentDetails, getTodayDebtPaymentIntake } from '../utils/debtPayments';
 
 export const SalesSection: React.FC = () => {
   const {
@@ -86,6 +87,8 @@ export const SalesSection: React.FC = () => {
     requestAlert,
     shipments,
     setZoomedImage,
+    logActivity,
+    activityLogs,
   } = useInventory();
 
   const isDark = theme === 'dark';
@@ -162,8 +165,13 @@ export const SalesSection: React.FC = () => {
       }
     });
 
+    // Cash collected today toward older invoices' existing debt (no fake sale invoice)
+    const debtIntake = getTodayDebtPaymentIntake(activityLogs, transactions);
+    usd += debtIntake.usd;
+    iqd += debtIntake.iqd;
+
     return { todayCashUSD: usd, todayCashIQD: iqd, todayInvoicesCount: count };
-  }, [transactions]);
+  }, [transactions, activityLogs]);
 
   // Rapid Desktop Keyboard Navigation Refs
   const quantityInputRef = useRef<HTMLInputElement>(null);
@@ -266,6 +274,13 @@ export const SalesSection: React.FC = () => {
   // Modals
   const [inspectingTxForMath, setInspectingTxForMath] = useState<boolean>(false);
   const [printingTx, setPrintingTx] = useState<PanelTransaction | null>(null);
+  const [completedInvoice, setCompletedInvoice] = useState<{ tx: PanelTransaction; isEdit: boolean } | null>(null);
+  // Debt settlement (collect cash toward an existing invoice balance)
+  const [payingTx, setPayingTx] = useState<PanelTransaction | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payDrawer, setPayDrawer] = useState('');
+  const [payImages, setPayImages] = useState<string[]>([]);
+  const [payError, setPayError] = useState('');
   const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
   const [addingDropdownCategory, setAddingDropdownCategory] = useState<
     'savedTypes' | 'savedProducts' | 'savedSellingTypes' | 'savedSellers' | 'savedBanks' | 'savedPaymentTypes' | 'savedClients' | null
@@ -613,6 +628,7 @@ export const SalesSection: React.FC = () => {
       baseUsdEquivalent: moneySnap.baseUsdEquivalent,
     };
 
+    const wasEditing = !!editingTxId;
     if (editingTxId) {
       editTransaction(editingTxId, txPayload);
       setEditingTxId(null);
@@ -622,6 +638,8 @@ export const SalesSection: React.FC = () => {
 
     if (andPrint) {
       setPrintingTx(txPayload);
+    } else {
+      setCompletedInvoice({ tx: txPayload, isEdit: wasEditing });
     }
 
     clearPosDraft();
@@ -673,6 +691,81 @@ export const SalesSection: React.FC = () => {
 
   const handleEmailShare = (tx: PanelTransaction) => {
     openEmailReceipt(tx, formatMoney, receiptShareLang);
+  };
+
+  // Muted live IQD equivalent shown under USD/EUR amounts
+  const renderIqdEquivalent = (amount: number, cur: CurrencyCode) => {
+    if (cur === 'IQD' || !(amount > 0)) return null;
+    const iqd = convertCurrency(amount, cur, 'IQD');
+    return (
+      <span className="block text-xs text-slate-500 dark:text-slate-400 font-mono font-normal">
+        ≈ {Math.round(iqd).toLocaleString()} IQD
+      </span>
+    );
+  };
+
+  const drawerOptions = useMemo(() => {
+    const set = new Set<string>(['Cash Register', 'FIB']);
+    savedBanks.forEach((b) => b && set.add(b));
+    return Array.from(set);
+  }, [savedBanks]);
+
+  const openDebtPayment = (tx: PanelTransaction) => {
+    const debt = tx.combinedTotalDebt || tx.amountOwed || 0;
+    setPayingTx(tx);
+    setPayAmount(String(roundMoney(debt, tx.currency || 'USD')));
+    setPayDrawer(tx.bank || 'Cash Register');
+    setPayImages([]);
+    setPayError('');
+  };
+
+  const closeDebtPayment = () => {
+    setPayingTx(null);
+    setPayAmount('');
+    setPayImages([]);
+    setPayError('');
+  };
+
+  const handleRecordDebtPayment = () => {
+    if (!payingTx) return;
+    const cur: CurrencyCode = payingTx.currency || 'USD';
+    const debt = payingTx.combinedTotalDebt || payingTx.amountOwed || 0;
+    const amt = roundMoney(parseFloat(payAmount) || 0, cur);
+    if (amt <= 0) {
+      setPayError(isKu ? 'بڕی پارە دەبێت لە سفر زیاتر بێت.' : 'Payment amount must be greater than zero.');
+      return;
+    }
+    if (amt > debt + 0.0001) {
+      setPayError(isKu ? 'بڕی پارە لە قەرزی ماوە زیاترە.' : 'Payment cannot exceed the unpaid balance.');
+      return;
+    }
+    const owed = payingTx.amountOwed || 0;
+    const oldDebt = payingTx.oldUnpaidDebt || 0;
+    const newPaid = roundMoney((payingTx.amountPaidNow || 0) + amt, cur);
+    const newOwed = roundMoney(Math.max(0, owed - amt), cur);
+    const newOld = roundMoney(Math.max(0, oldDebt - Math.max(0, amt - owed)), cur);
+    const newCombined = roundMoney(Math.max(0, debt - amt), cur);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const noteLine = `[Debt payment ${dateStr} • ${payDrawer || '-'} • ${formatMoney(amt, cur)}]`;
+
+    editTransaction(payingTx.id, {
+      amountPaidNow: newPaid,
+      amountOwed: newOwed,
+      oldUnpaidDebt: newOld,
+      combinedTotalDebt: newCombined,
+      status: newOwed <= 0 ? 'completed' : 'partial',
+      notes: payingTx.notes ? `${payingTx.notes}\n${noteLine}` : noteLine,
+      images: [...payImages, ...(payingTx.images || [])],
+    });
+    logActivity(
+      DEBT_PAYMENT_ACTION,
+      `Debt payment on invoice #${payingTx.code || payingTx.id} (${payingTx.client || 'General Customer'}): ${formatMoney(amt, cur)}`,
+      buildDebtPaymentDetails(payingTx.id, payDrawer),
+      'sale',
+      amt,
+      cur
+    );
+    closeDebtPayment();
   };
 
   // Add custom item to dropdown presets
@@ -823,30 +916,6 @@ export const SalesSection: React.FC = () => {
       (tx) => (tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0)) > 0
     ).length;
   }, [transactions]);
-
-  const warehouseOps = useWarehouseOps();
-
-  const totalSupplierDebt = useMemo(() => {
-    return warehouseOps.activeShipments.reduce((acc, s) => {
-      if (s.isDeleted === 1) return acc;
-      const invoiced = Number(s.totalInvoiceAmount) || 0;
-      const paid = Number(s.amountPaidToSupplier) || 0;
-      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
-      if (debt <= 0) return acc;
-      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
-      return acc + convertCurrency(debt, curr as CurrencyCode, posDraft.activeCurrency);
-    }, 0);
-  }, [warehouseOps.activeShipments, convertCurrency, posDraft.activeCurrency]);
-
-  const supplierInvoicesWithDebtCount = useMemo(() => {
-    return warehouseOps.activeShipments.filter((s) => {
-      if (s.isDeleted === 1) return false;
-      const invoiced = Number(s.totalInvoiceAmount) || 0;
-      const paid = Number(s.amountPaidToSupplier) || 0;
-      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
-      return debt > 0;
-    }).length;
-  }, [warehouseOps.activeShipments]);
 
   const totalSystemSales = useMemo(() => {
     return transactions.reduce((acc, tx) => {
@@ -1048,9 +1117,59 @@ export const SalesSection: React.FC = () => {
         </form>
       )}
 
-      {/* EXECUTIVE SALES & TOTAL DEBT HIGHLIGHT KPI GRID */}
+      {/* EXECUTIVE SALES POS KPI GRID (CUSTOMER INFLOW ONLY) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* 1. TOTAL OUTSTANDING CUSTOMER DEBT (PRIMARY HIGHLIGHT: RECEIVABLES) */}
+        {/* CARD 1: TOTAL INVOICED VOLUME (GROSS SALES VOLUME) */}
+        <div className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
+                {isKu ? 'کۆی فرۆشراو' : 'Total Invoiced Volume'}
+              </span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
+                {isKu ? 'کۆی گشتی فرۆشراو (Gross Sales)' : 'Gross sales volume'}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
+              <ReceiptText className="w-5 h-5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+              {formatMoney(totalSystemSales, posDraft.activeCurrency)}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1.5">
+              <span>{transactions.length} {isKu ? 'وەسڵی تۆمارکراو' : 'recorded invoices'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 2: CASH RECEIVED FROM CUSTOMERS */}
+        <div className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+                {isKu ? 'پارەی وەرگیراو لە کڕیاران' : 'Cash Received from Customers'}
+              </span>
+              <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 font-medium block mt-0.5">
+                {isKu ? 'پارەی نەقدی وەرگیراو لە قاسە/بانک' : 'Actual cash collected into drawer/bank'}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
+              {formatMoney(totalSystemPaid, posDraft.activeCurrency)}
+            </div>
+            <div className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 font-medium mt-1.5">
+              {totalSystemSales > 0 ? Math.round((totalSystemPaid / totalSystemSales) * 100) : 0}% {isKu ? 'ڕێژەی وەرگیراو' : 'collection rate'}
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 3: CUSTOMER DEBT / RECEIVABLES */}
         <div 
           onClick={() => setInspectingTxForMath(true)}
           className="p-5 rounded-3xl border-2 border-rose-400/90 dark:border-rose-500/80 bg-gradient-to-br from-rose-50/90 via-white to-rose-50/50 dark:from-rose-950/40 dark:via-slate-850 dark:to-rose-950/20 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative overflow-hidden"
@@ -1062,10 +1181,10 @@ export const SalesSection: React.FC = () => {
           <div className="flex items-center justify-between mb-3">
             <div>
               <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
-                {isKu ? 'قەرزی کۆکراوەی لای کڕیاران' : 'CUSTOMERS OWE US (RECEIVABLES)'}
+                {isKu ? 'قەرزی لای کڕیاران' : 'Customer Debt (Receivables)'}
               </span>
               <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80 font-medium block mt-0.5">
-                {isKu ? 'کۆی گشتی ئەو پارەیەی لای کڕیاران ماوەتەوە' : 'Cumulative unpaid credit across sales invoices'}
+                {isKu ? 'کۆی گشتی ئەو پارەیەی لای کڕیاران ماوەتەوە' : 'Unpaid balances customers owe us'}
               </span>
             </div>
             <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold shadow-md shadow-rose-500/25 group-hover:scale-110 transition-transform shrink-0">
@@ -1084,70 +1203,21 @@ export const SalesSection: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. WE OWE SUPPLIERS (PAYABLES: PURCHASE LOGS & CONSIGNMENTS) */}
-        <div 
-          className="p-5 rounded-3xl border-2 border-indigo-400/90 dark:border-indigo-500/80 bg-gradient-to-br from-indigo-50/90 via-white to-indigo-50/50 dark:from-indigo-950/40 dark:via-slate-850 dark:to-indigo-950/20 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 group relative overflow-hidden"
-          title={isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە بۆ دابینکەران' : 'Cumulative unpaid balance owed to vendors/suppliers'}
-        >
-          {/* Subtle Ambient Corner Accent */}
-          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform" />
-          
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-xs font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300 block">
-                {isKu ? 'قەرزی سەر ئێمە بۆ دابینکەران' : 'WE OWE SUPPLIERS (PAYABLES)'}
-              </span>
-              <span className="text-[10px] text-indigo-700/80 dark:text-indigo-400/80 font-medium block mt-0.5">
-                {isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە' : 'Cumulative unpaid balance owed to vendors'}
-              </span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-bold shadow-md shadow-indigo-500/25 group-hover:scale-110 transition-transform shrink-0">
-              <Truck className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-indigo-600 dark:text-indigo-400 font-mono tracking-tight">
-              {formatMoney(totalSupplierDebt, posDraft.activeCurrency)}
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-indigo-700/80 dark:text-indigo-300/80 font-medium mt-1.5">
-              <span>{supplierInvoicesWithDebtCount} {isKu ? 'پسوولەی دابینکەر' : 'supplier invoices'}</span>
-              <span className="font-semibold text-indigo-600/90 dark:text-indigo-400/90">{isKu ? 'خەرجی کڕین' : 'Purchases'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. CASH COLLECTED */}
-        <div className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              {isKu ? 'پارەی وەرگیراو (نەقد)' : 'Cash Collected'}
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-              {formatMoney(totalSystemPaid, posDraft.activeCurrency)}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1.5">
-              {totalSystemSales > 0 ? Math.round((totalSystemPaid / totalSystemSales) * 100) : 0}% {isKu ? 'ڕێژەی وەرگیراو' : 'collection rate'}
-            </div>
-          </div>
-        </div>
-
-        {/* 4. ACTIVE DRAFT BALANCE HIGHLIGHT */}
-        {userPermissions?.canCreateSales ? (
+        {/* CARD 4: CURRENT DRAFT DEBT */}
         <div className={`p-5 rounded-3xl border shadow-xs flex flex-col justify-between transition-colors ${
           combinedTotalDebt > 0
             ? 'border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/30'
             : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850'
         }`}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              {isKu ? 'قەرزی ئەم وەسڵەی ئێستا' : 'Current Draft Debt'}
-            </span>
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
+                {isKu ? 'قەرزی ئەم پسوولەیە' : 'Current Draft Debt'}
+              </span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
+                {isKu ? 'قەرزی ماوەی سەر ئەم پسوولەیەی ئێستا' : 'Remaining debt on active draft'}
+              </span>
+            </div>
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               combinedTotalDebt > 0
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25'
@@ -1171,7 +1241,6 @@ export const SalesSection: React.FC = () => {
             </div>
           </div>
         </div>
-        ) : null}
       </div>
 
       {/* POS INVOICE CREATOR FORM (Strictly unmounted unless canCreateSales or canEditSales) */}
@@ -2125,11 +2194,11 @@ export const SalesSection: React.FC = () => {
             </span>
           </div>
 
-          {/* Amount Paid Now */}
+          {/* Cash Received from Customer */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                {t.paidNow} ({posDraft.activeCurrency})
+                {isKu ? 'پارەی وەرگیراو لە کڕیار' : 'Cash Received from Customer'} ({posDraft.activeCurrency})
               </label>
               {typeof posDraft.amountPaidNow === 'number' && posDraft.amountPaidNow > 0 && (
                 <button
@@ -2550,8 +2619,8 @@ export const SalesSection: React.FC = () => {
                 <th className="px-3.5 py-3">{isKu ? 'پوختە' : 'Summary'}</th>
                 <th className="px-3.5 py-3">{isKu ? 'فرۆشیار / شێواز' : 'Seller / Method'}</th>
                 <th className="px-3.5 py-3 text-right">{isKu ? 'کۆی گشتی' : 'Net Total'}</th>
-                <th className="px-3.5 py-3 text-right">{isKu ? 'دراوە' : 'Paid'}</th>
-                <th className="px-3.5 py-3 text-right">{isKu ? 'قەرزی لای کڕیار (وەرگیراو)' : 'Customer Debt (Receivable)'}</th>
+                <th className="px-3.5 py-3 text-right">{isKu ? 'پارەی وەرگیراو' : 'RECEIVED / پارەی وەرگیراو'}</th>
+                <th className="px-3.5 py-3 text-right">{isKu ? 'قەرزی ماوە' : 'UNPAID BALANCE / قەرزی ماوە'}</th>
                 <th className="px-3.5 py-3 text-center">{isKu ? 'دۆخ' : 'Status'}</th>
                 <th className="px-3.5 py-3 text-center">{isKu ? 'کردارەکان' : 'Actions'}</th>
               </tr>
@@ -2651,8 +2720,32 @@ export const SalesSection: React.FC = () => {
                         <td className="px-3.5 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
                           {formatMoney(tx.amountPaidNow, txCur)}
                         </td>
-                        <td className="px-3.5 py-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
-                          {isDebt ? formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur) : '—'}
+                        <td className="px-3.5 py-3 text-right font-mono">
+                          {isDebt ? (
+                            <div className="flex flex-col items-end gap-1 min-w-max">
+                              <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
+                                {formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
+                              </span>
+                              {userPermissions?.canEditSales && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openDebtPayment(tx);
+                                  }}
+                                  className="px-2 py-0.5 rounded-md text-[11px] font-bold font-sans text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 active:scale-95 transition inline-flex items-center gap-1 cursor-pointer"
+                                  title={isKu ? 'وەرگرتنی پارە بۆ قەرزی ماوە' : 'Collect payment toward this balance'}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>{isKu ? 'پارەدان' : 'Pay'}</span>
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                              {isKu ? 'بەتەواوی دراوە' : 'Paid in Full'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3.5 py-3 text-center">
                           <span
@@ -2668,7 +2761,7 @@ export const SalesSection: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1 min-w-max">
                             {/* 1. Print */}
                             <button
                               type="button"
@@ -2695,7 +2788,20 @@ export const SalesSection: React.FC = () => {
                               <MessageCircle className="w-4 h-4" />
                             </button>
 
-                            {/* 3. Inspect / View Details & Attachment */}
+                            {/* 3. Email Receipt (Indigo) */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEmailShare(tx);
+                              }}
+                              className="p-1.5 rounded-md text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition cursor-pointer"
+                              title={isKu ? 'ناردنی ئیمەیڵ (Email Receipt)' : 'Email Receipt'}
+                            >
+                              <Mail className="w-4 h-4" />
+                            </button>
+
+                            {/* 4. Inspect / View Details & Attachment */}
                             <button
                               type="button"
                               onClick={(e) => {
@@ -2811,6 +2917,29 @@ export const SalesSection: React.FC = () => {
                                   <span className="px-3 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-sm font-mono font-extrabold whitespace-nowrap min-w-fit">
                                     {isKu ? 'کۆی گشتی:' : 'Net Total:'} {formatMoney(tx.totalAfterDiscount, txCur)}
                                   </span>
+
+                                  {renderIqdEquivalent(tx.totalAfterDiscount, txCur)}
+
+                                  {isDebt && (
+                                    <span className="px-3 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-sm font-mono font-extrabold whitespace-nowrap min-w-fit">
+                                      {isKu ? 'قەرزی ماوە:' : 'Unpaid Balance:'} {formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
+                                      {renderIqdEquivalent(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
+                                    </span>
+                                  )}
+
+                                  {/* Indigo Email Receipt Action */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEmailShare(tx);
+                                    }}
+                                    className="px-3 py-1 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                    title={isKu ? 'ناردنی پسوولە بە ئیمەیڵ' : 'Email Invoice Receipt'}
+                                  >
+                                    <Mail className="w-3.5 h-3.5" />
+                                    <span>{isKu ? 'ناردنی ئیمەیڵ' : 'Email Receipt'}</span>
+                                  </button>
                                 </div>
                               </div>
 
@@ -3032,7 +3161,17 @@ export const SalesSection: React.FC = () => {
                         <span className="font-mono text-xs font-bold text-rose-600 dark:text-rose-400">
                           ({formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)})
                         </span>
-                      )}
+                                             )}
+                       {isDebt && userPermissions?.canEditSales && (
+                         <button
+                           type="button"
+                           onClick={() => openDebtPayment(tx)}
+                           className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 active:scale-95 cursor-pointer"
+                         >
+                           <Plus className="w-3 h-3" />
+                           {isKu ? 'پارەدان' : 'Pay'}
+                         </button>
+                       )}
                     </div>
                   </div>
 
@@ -3061,11 +3200,21 @@ export const SalesSection: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleWhatsAppShare(tx)}
-                      className="min-h-[48px] px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
+                      className="min-h-[48px] px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
                       title={receiptShareLang === 'ku' ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
                     >
                       <MessageCircle className="w-4 h-4 shrink-0" />
                       <span>WhatsApp</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleEmailShare(tx)}
+                      className="min-h-[48px] px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
+                      title={receiptShareLang === 'ku' ? 'ناردنی ئیمەیڵ' : 'Email Receipt'}
+                    >
+                      <Mail className="w-4 h-4 shrink-0" />
+                      <span>{isKu ? 'ئیمەیڵ' : 'Email'}</span>
                     </button>
                   </div>
                 </div>
@@ -3317,7 +3466,7 @@ export const SalesSection: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-wrap justify-end items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setInspectingTx(null)}
@@ -3327,14 +3476,293 @@ export const SalesSection: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={() => handleWhatsAppShare(inspectingTx)}
+                className="px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>{isKu ? 'وەتسئەپ' : 'WhatsApp'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleEmailShare(inspectingTx)}
+                className="px-3.5 py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+              >
+                <Mail className="w-4 h-4" />
+                <span>{isKu ? 'ناردنی ئیمەیڵ' : 'Email Receipt'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setPrintingTx(inspectingTx);
                   setInspectingTx(null);
                 }}
-                className="px-4 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
               >
                 <Printer className="w-4 h-4" />
                 <span>{isKu ? 'چاپکردنی وەسڵ' : 'Print Invoice'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COLLECT CUSTOMER DEBT MODAL */}
+      {payingTx && (() => {
+        const cur: CurrencyCode = payingTx.currency || 'USD';
+        const debt = payingTx.combinedTotalDebt || payingTx.amountOwed || 0;
+        const entered = parseFloat(payAmount) || 0;
+        const remainingAfter = Math.max(0, debt - entered);
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+            onClick={closeDebtPayment}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md max-h-[92vh] overflow-y-auto p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl space-y-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    {isKu ? 'وەرگرتنی قەرزی کڕیار' : 'Collect Customer Debt'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isKu ? 'بەبێ دروستکردنی وەسڵی فرۆشتنی ساختە' : 'No new sale invoice is created'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDebtPayment}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span>{isKu ? 'کڕیار:' : 'Customer:'}</span>
+                  <b className="text-slate-900 dark:text-white text-sm">{payingTx.client || (isKu ? 'کڕیاری گشتی' : 'General Customer')}</b>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span>{isKu ? 'ژمارەی وەسڵی سەرەکی:' : 'Original Invoice #:'}</span>
+                  <b className="text-sky-700 dark:text-sky-400 font-mono">#{payingTx.code || payingTx.id.slice(-6)}</b>
+                </div>
+                <div className="flex justify-between items-start text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-2">
+                  <span>{isKu ? 'کۆی قەرزی ماوە:' : 'Total Unpaid Debt:'}</span>
+                  <span className="text-right">
+                    <b className="text-rose-600 dark:text-rose-400 font-mono text-sm">{formatMoney(debt, cur)}</b>
+                    {renderIqdEquivalent(debt, cur)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  {isKu ? 'بڕی پارەی وەرگیراو' : 'Payment Amount'} ({cur})
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  min={0}
+                  value={payAmount}
+                  onChange={(e) => {
+                    setPayAmount(e.target.value);
+                    setPayError('');
+                  }}
+                  autoFocus
+                  className="w-full px-3 py-2.5 text-base rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold"
+                />
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => setPayAmount(String(roundMoney(debt, cur)))}
+                    className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    {isKu ? 'هەموو قەرز' : 'Pay full balance'}
+                  </button>
+                  <span className="font-mono">
+                    {isKu ? 'دوای پارەدان:' : 'Remaining after:'} {formatMoney(remainingAfter, cur)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  {isKu ? 'قاسە / هەژمار' : 'Drawer / Account'}
+                </label>
+                <select
+                  value={payDrawer}
+                  onChange={(e) => setPayDrawer(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                >
+                  {drawerOptions.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  {isKu ? 'هاوپێچ / وێنەی حەواڵە (ئارەزوومەندانە)' : 'Receipt / Slip Photo (optional)'}
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={async (e) => {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    const urls = await readImageFiles(files);
+                    setPayImages((prev) => [...urls, ...prev]);
+                    e.target.value = '';
+                  }}
+                  className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 file:font-semibold"
+                />
+                {payImages.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {payImages.map((src, idx) => (
+                      <div key={idx} className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt={`Slip ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setPayImages((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute top-0 right-0 p-0.5 bg-black/60 text-white rounded-bl-md cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {payError && (
+                <div className="px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                  {payError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleRecordDebtPayment}
+                className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Wallet className="w-4 h-4" />
+                <span>{isKu ? 'پاشەکەوتکردنی پارەدان' : 'Record Debt Payment'}</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* INVOICE COMPLETION / SUCCESS CONFIRMATION MODAL */}
+      {completedInvoice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setCompletedInvoice(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            {/* Header with success badge */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 font-mono mb-1">
+                  #{completedInvoice.tx.code || completedInvoice.tx.id.slice(-6)} • {completedInvoice.isEdit ? (isKu ? 'نوێکرایەوە' : 'Updated') : (isKu ? 'تۆمارکرا' : 'Recorded')}
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {completedInvoice.isEdit
+                    ? (isKu ? 'وەسڵ بەسەرکەوتوویی نوێکرایەوە' : 'Invoice Updated Successfully')
+                    : (isKu ? 'وەسڵ بەسەرکەوتوویی تۆمارکرا' : 'Invoice Created Successfully')}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                  {completedInvoice.tx.client || (isKu ? 'کڕیاری گشتی' : 'General Customer')} • {formatMoney(completedInvoice.tx.totalAfterDiscount, completedInvoice.tx.currency || 'USD')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCompletedInvoice(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Receipt Summary Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>{isKu ? 'کۆی گشتی پسوولە:' : 'Net Total:'}</span>
+                <b className="text-slate-900 dark:text-white font-mono text-sm">
+                  {formatMoney(completedInvoice.tx.totalAfterDiscount, completedInvoice.tx.currency || 'USD')}
+                </b>
+              </div>
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>{isKu ? 'پارەی وەرگیراو:' : 'Received:'}</span>
+                <b className="text-emerald-600 dark:text-emerald-400 font-mono">
+                  {formatMoney(completedInvoice.tx.amountPaidNow, completedInvoice.tx.currency || 'USD')}
+                </b>
+              </div>
+              {(completedInvoice.tx.combinedTotalDebt || completedInvoice.tx.amountOwed || 0) > 0 && (
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                  <span>{isKu ? 'قەرزی ماوە:' : 'Unpaid Balance:'}</span>
+                  <b className="text-rose-600 dark:text-rose-400 font-mono">
+                    {formatMoney(completedInvoice.tx.combinedTotalDebt || completedInvoice.tx.amountOwed || 0, completedInvoice.tx.currency || 'USD')}
+                  </b>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons: Print Receipt, Send WhatsApp, Email Receipt */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              {/* Print Receipt */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPrintingTx(completedInvoice.tx);
+                  setCompletedInvoice(null);
+                }}
+                className="py-2.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>{isKu ? 'چاپکردنی وەسڵ' : 'Print Receipt'}</span>
+              </button>
+
+              {/* Send WhatsApp */}
+              <button
+                type="button"
+                onClick={() => handleWhatsAppShare(completedInvoice.tx)}
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>{isKu ? 'ناردن بۆ وەتسئەپ' : 'Send WhatsApp'}</span>
+              </button>
+
+              {/* Email Receipt (Indigo) */}
+              <button
+                type="button"
+                onClick={() => handleEmailShare(completedInvoice.tx)}
+                className="py-2.5 px-3 rounded-xl text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition cursor-pointer"
+              >
+                <Mail className="w-4 h-4" />
+                <span>{isKu ? 'ناردنی ئیمەیڵ' : 'Email Receipt'}</span>
+              </button>
+            </div>
+
+            {/* Dismiss Footer */}
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCompletedInvoice(null)}
+                className="w-full py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+              >
+                {isKu ? 'داخستن / بەردەوامبوون' : 'Done / Create Another'}
               </button>
             </div>
           </div>

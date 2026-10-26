@@ -159,6 +159,7 @@ export interface NewShipmentInput {
   invoiceCurrency?: 'EUR' | 'USD';
   totalInvoiceAmount?: number;
   amountPaidToSupplier?: number;
+  attachments?: string[];
 }
 
 function nextBatchCode(shipments: InboundShipment[], arrivalDate: string): string {
@@ -217,6 +218,7 @@ export function useWarehouseOps() {
         arrivalDate: input.arrivalDate,
         status: input.status,
         notes: input.notes.trim(),
+        attachments: input.attachments ?? [],
         items: validItems.map((i) => ({
           id: uid('itm'),
           description: i.description.trim(),
@@ -291,7 +293,7 @@ export function useWarehouseOps() {
     }));
   }, []);
 
-  const recordSupplierPayment = useCallback((id: string, amount: number): OpResult => {
+  const recordSupplierPayment = useCallback((id: string, amount: number, attachments?: string[]): OpResult => {
     if (amount <= 0) return { ok: false, error: 'Payment amount must be greater than zero.' };
     commit((s) => ({
       ...s,
@@ -305,6 +307,7 @@ export function useWarehouseOps() {
         return {
           ...sh,
           amountPaidToSupplier: newPaid,
+          attachments: [...(sh.attachments || []), ...(attachments || [])],
           supplierDebtRemaining: remaining,
           paymentStatus: status,
           updatedAt: new Date().toISOString(),

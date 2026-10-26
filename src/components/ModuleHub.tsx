@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { PlatformModule, OrderAllocation } from '../types/inventory';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
+import { getTodayDebtPaymentIntake } from '../utils/debtPayments';
 
 interface ModuleHubProps {
   onSelectModule?: (module: PlatformModule) => void;
@@ -130,10 +131,10 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           descKu: 'دەستپێگەیشتن ڕێگاپێدراو نییە. ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی فرۆشتن و پسوولەکانی پێنەدراوە.'
         },
         goods: {
-          en: 'Warehouse Goods & Logistics',
-          ku: 'کەلوپەل و لۆجستی کۆگا',
-          descEn: 'Your account does not have authorization to access Warehouse Goods, Hardware & Logistics.',
-          descKu: 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی کەلوپەل و کۆگای پێنەدراوە.'
+          en: 'Purchases & Suppliers',
+          ku: 'کڕین و دابینکەران',
+          descEn: 'Your account does not have authorization to access Purchases, Raw Wood Imports & Supplier Invoices.',
+          descKu: 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی کڕین و دابینکەرانی پێنەدراوە.'
         },
         analytics: {
           en: 'Executive Analytics & Visual Charts',
@@ -193,6 +194,9 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     if (cur === 'IQD') todayIqd += paid;
     else todayUsd += paid;
   });
+  const debtIntake = getTodayDebtPaymentIntake(activityLogs, transactions);
+  todayIqd += debtIntake.iqd;
+  todayUsd += debtIntake.usd;
 
   const activeCuttingOrdersCount = materials.reduce((acc, mat) => {
     return acc + (mat.activeOrders ? mat.activeOrders.filter((o: OrderAllocation) => o.status !== 'finalized').length : 0);
@@ -464,9 +468,9 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 {/* 3. Our Debt to Suppliers (Payables / قەرزی سەر کۆمپانیا) */}
                 <button
                   type="button"
-                  onClick={() => handleSelectDivision('sales')}
+                  onClick={() => handleSelectDivision('goods', 'shipping')}
                   className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
-                  title="View Supplier Debt (Payables)"
+                  title="View Purchases & Suppliers (Payables)"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
                     <span>{isKu ? 'قەرزی سەر کۆمپانیا' : 'We Owe Suppliers'}</span>
@@ -1278,12 +1282,12 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                {isKu ? 'مەخزەن' : 'Warehouse Goods & Logistics'}
+                {isKu ? 'کڕین و دابینکەران' : 'Purchases & Suppliers'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                 {isKu
-                  ? 'بارە گەیشتووەکانی کۆمپانیا، دابەشکردنی شوێنی کۆگا، و تۆماری گواستنەوەی چاودێریکراو.'
-                  : 'Incoming company shipments, warehouse rack and bay allocation, and audited stock transfers.'}
+                  ? 'هاوردەکردنی تەختە و قەرزی دابینکەران'
+                  : 'Raw wood imports, supplier invoices & what we owe vendors'}
               </p>
             </div>
 
@@ -1323,7 +1327,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   type="button"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 text-white font-bold text-sm shadow-md shadow-amber-600/20 active:scale-98 transition-all"
                 >
-                  <span>{isKu ? 'کردنەوەی مەخزەن' : 'Open Warehouse Goods'}</span>
+                  <span>{isKu ? 'کردنەوەی کڕین و دابینکەران' : 'Open Purchases & Suppliers'}</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               ) : (

@@ -326,13 +326,13 @@ export const WarehouseGoodsSection: React.FC = () => {
           <div className="flex items-center gap-2">
             <Warehouse className="w-6 h-6 text-amber-600 dark:text-amber-400" />
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {isKu ? 'کۆگا و بارە گەیشتووەکان' : 'Warehouse: Shipments, Locations & Transfers'}
+              {isKu ? 'کڕین و دابینکەران: هاوردە و کۆگا' : 'Purchases & Suppliers: Inbound Cargo & Warehouse'}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isKu
-              ? 'بارە گەیشتووەکانی کۆمپانیا، دابەشکردنی شوێنی کۆگا، و تۆماری گواستنەوە'
-              : 'Incoming company shipments, rack and bay allocation, and audited stock movements.'}
+              ? 'هاوردەکردنی تەختە و قەرزی دابینکەران، و دابەشکردنی شوێنی کۆگا'
+              : 'Raw wood imports, supplier invoices & what we owe vendors, and warehouse allocations.'}
           </p>
         </div>
         {canManageShipments && (

@@ -459,11 +459,11 @@ export default function PrintInvoiceModal({
             <button
               type="button"
               onClick={handleEmailShare}
-              className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
-              title="Send via Email (ناردن بە ئیمەیڵ)"
+              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+              title="Email Receipt (ناردنی ئیمەیڵ)"
             >
               <Mail className="w-4 h-4" />
-              <span>{lang === 'en' ? 'Email' : 'ئیمەیڵ'}</span>
+              <span>{lang === 'en' ? 'Email Receipt' : 'ناردنی ئیمەیڵ'}</span>
             </button>
 
             {/* Print Button */}
@@ -1174,8 +1174,24 @@ export default function PrintInvoiceModal({
             </button>
             <button
               type="button"
+              onClick={handleWhatsAppShare}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>{lang === 'en' ? 'Send WhatsApp' : 'وەتسئەپ'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleEmailShare}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+            >
+              <Mail className="w-4 h-4" />
+              <span>{lang === 'en' ? 'Email Receipt' : 'ناردنی ئیمەیڵ'}</span>
+            </button>
+            <button
+              type="button"
               onClick={handlePrint}
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md active:scale-95 transition"
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md active:scale-95 transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>{lang === 'en' ? 'Print Receipt' : 'چاپکردنی پسوولە'}</span>

@@ -23,6 +23,8 @@ import {
   DoorClosed,
 } from "lucide-react";
 import { exportOrdersToCSV } from "../utils/export";
+import { OrderContactActions } from "./OrderContactActions";
+import { CutMathModal } from "./CutMathModal";
 
 interface FlattenedOrder {
   order: OrderAllocation;
@@ -64,6 +66,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
     highlightedId,
     isViewer,
     printCuttingSlip,
+    transactions,
   } = useInventory();
 
   const isKu = language === 'ku';
@@ -73,6 +76,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
   const [panelTypeFilter, setPanelTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "reserved" | "finalized">("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [cutMathTarget, setCutMathTarget] = useState<{ order: OrderAllocation; material: PanelMaterial } | null>(null);
   const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [qtyFilter, setQtyFilter] = useState<"all" | "small" | "medium" | "bulk">("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "highestQty" | "lowestQty">("newest");
@@ -535,6 +539,9 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                           {order.client}
                         </span>
                       </div>
+                       <div className="mt-1 flex justify-center">
+                         <OrderContactActions order={order} transactions={transactions} isKu={isKu} />
+                       </div>
                     </td>
 
                     {/* Assigned Panel */}
@@ -577,6 +584,13 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                     {/* Quantity */}
                     <td className="py-2 px-3 text-center font-mono font-black text-emerald-800 dark:text-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20">
                       {order.quantity} {t.panelUnit}
+                       <button
+                         type="button"
+                         onClick={(e) => { e.stopPropagation(); setCutMathTarget({ order, material }); }}
+                         className="block mx-auto mt-0.5 text-[10px] font-sans font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer whitespace-nowrap"
+                       >
+                         {isKu ? 'وردەکاری بڕین و بەفیڕۆچوون ←' : 'Inspect Cut Math ←'}
+                       </button>
                     </td>
 
                     {/* Status Pill (Reserved vs Finalized) */}
@@ -753,6 +767,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                       <div className="font-black text-slate-900 dark:text-white text-sm sm:text-base truncate">
                         {order.client}
                       </div>
+                       <OrderContactActions order={order} transactions={transactions} isKu={isKu} />
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-mono text-xs text-slate-400">
                           {order.date}
@@ -841,6 +856,13 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                     <div className="text-base font-black font-mono text-emerald-700 dark:text-emerald-400">
                       {order.quantity}
                     </div>
+                     <button
+                       type="button"
+                       onClick={(e) => { e.stopPropagation(); setCutMathTarget({ order, material }); }}
+                       className="mt-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer whitespace-nowrap"
+                     >
+                       {isKu ? 'وردەکاری بڕین و بەفیڕۆچوون ←' : 'Inspect Cut Math ←'}
+                     </button>
                   </div>
                 </div>
 
@@ -912,6 +934,9 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
             );
           })}
         </div>
+      )}
+      {cutMathTarget && (
+        <CutMathModal order={cutMathTarget.order} material={cutMathTarget.material} onClose={() => setCutMathTarget(null)} />
       )}
     </div>
   );

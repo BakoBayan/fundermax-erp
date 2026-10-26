@@ -940,7 +940,7 @@ function WarehouseApp() {
             <WarehouseGoodsSection />
           ) : (
             <AccessDeniedView
-              moduleName={language === 'ku' ? 'کەلوپەل و لۆجستی کۆگا' : 'Warehouse Goods & Logistics'}
+              moduleName={language === 'ku' ? 'کڕین و دابینکەران' : 'Purchases & Suppliers'}
               onReturn={() => setCurrentModule('hub')}
               language={language}
             />
