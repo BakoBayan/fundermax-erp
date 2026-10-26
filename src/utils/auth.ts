@@ -69,7 +69,7 @@ export function canAccessModule(
   if (mod === 'sales') return !!perms.canViewSales;
   if (mod === 'goods' || mod === 'shipping') return !!perms.canViewWarehouse;
   if (mod === 'profit') return !!perms.canViewFinancialAnalytics;
-  if (mod === 'audit') return !!perms.canAccessAdmin;
+  if (mod === 'audit') return isSuperAdmin(currentUser);
   return false;
 }
 
@@ -82,11 +82,11 @@ export function canManageUsers(
   currentUser: Partial<UserAccount> | null | undefined
 ): boolean {
   if (!currentUser) return false;
-  // Immediate, unconditional override for admin
+  // Immediate, unconditional override for admin only
   if (currentUser.role === 'admin' || currentUser.role === 'Admin' || isSuperAdmin(currentUser)) {
-    return true; // Admin bypasses all restrictions unconditionally
+    return true;
   }
-  return !!currentUser.permissions?.canAccessAdmin;
+  return false;
 }
 
 /**

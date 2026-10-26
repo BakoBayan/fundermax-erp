@@ -663,8 +663,8 @@ const INITIAL_USERS: UserAccount[] = [
 
 const INITIAL_POS_DRAFT: PosDraftState = {
   invoiceCode: "",
-  seller: "Bako Bayan",
-  bank: "FIB (First Iraqi Bank)",
+  seller: "",
+  bank: "",
   paymentType: "Cash (نەقد)",
   activeCurrency: "USD",
   items: [],

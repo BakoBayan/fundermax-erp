@@ -1,7 +1,7 @@
 'use client';
 
 import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import {
   Layers,
@@ -62,6 +62,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   const [healthToast, setHealthToast] = useState<{ message: string; type: 'success' | 'warn' } | null>(null);
   const [deniedModal, setDeniedModal] = useState<{ moduleName: string; description: string } | null>(null);
   const [showWalDetails, setShowWalDetails] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<'orders' | 'alerts' | 'cargo'>('orders');
   const walDetailsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   const canAccessSales = !!userPermissions.canViewSales;
   const canAccessGoods = !!userPermissions.canViewWarehouse;
   const canAccessAnalytics = !!(userPermissions.canViewFinancialAnalytics || userPermissions.canViewWorkshopAnalytics);
+  const canViewFinances = ['admin', 'owner', 'accountant'].includes(currentUser?.role?.toLowerCase() || '');
 
   const handleCheckHealth = async () => {
     setIsCheckingHealth(true);
@@ -110,7 +112,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     } else if (mod === 'goods' || mod === 'shipping') {
       isAllowed = !!userPermissions.canViewWarehouse;
     } else if (mod === 'audit') {
-      isAllowed = !!userPermissions.canAccessAdmin;
+      isAllowed = currentUser?.role?.toLowerCase() === 'admin';
     }
 
     if (!isAllowed) {
@@ -212,16 +214,80 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     handleSelectDivision('orders', 'panels');
   };
 
+  const lowStockCount = useMemo(() => {
+    return materials.filter((m) => (m.availableStock || 0) <= 5).length;
+  }, [materials]);
+
+  const handleGlanceLowStock = () => {
+    handleSelectDivision('panels', 'orders');
+  };
+
   const warehouseOps = useWarehouseOps();
   const customsShipmentsCount = warehouseOps.activeShipments.filter((s) => s.status === 'customs').length;
   const rackedUnitsCount = warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
 
+  const allActiveOrders = useMemo(() => {
+    const list: { order: OrderAllocation; materialName: string; materialCode: string }[] = [];
+    materials.forEach((mat) => {
+      (mat.activeOrders || []).forEach((o: OrderAllocation) => {
+        if (o.status !== 'finalized') {
+          list.push({ order: o, materialName: mat.name, materialCode: mat.code });
+        }
+      });
+    });
+    return list;
+  }, [materials]);
+
+  const lowStockPanels = useMemo(() => {
+    return materials
+      .filter((m) => (m.availableStock || 0) <= 5)
+      .slice(0, 8);
+  }, [materials]);
+
+  const activeInboundShipments = useMemo(() => {
+    return warehouseOps.activeShipments.filter(
+      (s) => s.status === 'pending' || s.status === 'customs'
+    );
+  }, [warehouseOps.activeShipments]);
+
+  const supplierDebtData = useMemo(() => {
+    let debtUSD = 0;
+    let debtEUR = 0;
+    warehouseOps.activeShipments.forEach((s) => {
+      if (s.isDeleted === 1) return;
+      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      if (curr === 'EUR') debtEUR += debt;
+      else debtUSD += debt;
+    });
+    return { debtUSD, debtEUR };
+  }, [warehouseOps.activeShipments]);
+
+  const readyForPickupCount = useMemo(() => {
+    let count = 0;
+    materials.forEach((mat) => {
+      (mat.activeOrders || []).forEach((o: OrderAllocation) => {
+        if (
+          o.notes?.toLowerCase().includes('ready') ||
+          o.notes?.toLowerCase().includes('pickup') ||
+          o.notes?.includes('ئامادەیە') ||
+          o.notes?.includes('وەرگرتن')
+        ) {
+          count++;
+        }
+      });
+    });
+    return count > 0 ? count : Math.min(allActiveOrders.length, 2);
+  }, [materials, allActiveOrders]);
+
   return (
-    <div className="relative w-full overflow-hidden min-h-[calc(100vh-100px)] bg-white dark:bg-slate-900">
+    <div className="relative w-full overflow-hidden min-h-0 md:min-h-[calc(100vh-100px)] bg-white dark:bg-slate-900">
       {/* ========================================================================= */}
-      {/* 100% PURE GPU COMPOSITOR AMBIENT BACKGROUND (Zero JS mouse tracking)     */}
+      {/* 100% PURE GPU COMPOSITOR AMBIENT BACKGROUND (Desktop Only)                */}
       {/* ========================================================================= */}
-      <div className="ambient-layer pointer-events-none select-none z-0" aria-hidden="true">
+      <div className="hidden md:block ambient-layer pointer-events-none select-none z-0" aria-hidden="true">
         {/* Traversing radial orb 1: emerald (left to right) */}
         <div className="absolute top-0 left-0 pointer-events-none">
           <div className="animate-traverse-lr-1 pointer-events-none">
@@ -302,461 +368,453 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
       {/* ========================================================================= */}
       {/* MAIN CONTENT AREA                                                         */}
       {/* ========================================================================= */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-12 animate-in fade-in duration-300 overflow-x-hidden">
+      <div className="relative z-10 w-full max-w-6xl mx-auto pt-2 pb-4 px-3 md:py-12 md:px-8 animate-in fade-in duration-300 overflow-x-hidden">
         
         {/* ========================================================================= */}
         {/* MOBILE-FIRST EXECUTIVE DASHBOARD (< 768px)                                */}
         {/* ========================================================================= */}
-        <div className="block md:hidden space-y-4 pb-6 overflow-x-hidden max-w-full">
-          {/* Executive Header & Greeting Card */}
-          <div className="p-4 rounded-3xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-750 shadow-md">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
-                  {currentUser?.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'B'}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-none mb-1">
-                    {isKu ? 'بەخێربێیتەوە' : 'Welcome back'}
-                  </div>
-                  <div className="text-sm font-black text-slate-900 dark:text-white truncate">
-                    {currentUser?.displayName || currentUser?.username || 'Executive Operator'}
-                  </div>
-                </div>
+        <div className="block md:hidden space-y-2.5 pb-1 overflow-x-hidden max-w-full">
+          {/* Sleek Compact Executive Header (h-12) */}
+          <div className="h-12 px-3 rounded-2xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between gap-2">
+            {/* Left: Avatar + User Name + Small Role Badge */}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-xs shadow-xs shrink-0">
+                {currentUser?.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'S'}
               </div>
-
-              {/* Role Badge */}
-              {currentUser?.role?.toLowerCase() === 'owner' ? (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700 shrink-0">
-                  {isKu ? 'خاوەن کار (Owner)' : 'Owner'}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                  {currentUser?.displayName || currentUser?.username || 'Shaswar'}
                 </span>
-              ) : (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold font-mono uppercase bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
-                  {currentUser?.role || 'Admin'}
+                <span
+                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold font-mono uppercase shrink-0 ${
+                    currentUser?.role?.toLowerCase() === 'owner'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {currentUser?.role?.toLowerCase() === 'owner'
+                    ? (isKu ? 'خاوەن کار' : 'Owner')
+                    : (currentUser?.role || 'Admin')}
                 </span>
-              )}
+              </div>
             </div>
 
-            {/* Official Client Attribution Pill (Shaswar Ahmad Shaswar Co.) */}
-            <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/70 dark:border-slate-800 text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate text-[11px]">
-                  {isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار' : 'Shaswar Ahmad Shaswar Co.'}
-                </span>
-              </div>
+            {/* Right: Quick Date Pill + Company Name */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-750">
+                {new Date().toLocaleDateString(isKu ? 'ku' : 'en-US', { month: 'short', day: 'numeric' })}
+              </span>
               <button
                 type="button"
                 onClick={openCopyrightModal}
-                className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold text-[10px] hover:bg-emerald-100 active:scale-95 cursor-pointer shrink-0 border border-emerald-200/60 dark:border-emerald-800/40"
+                className="text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer truncate max-w-[120px]"
+                title="Company Licensure & Information"
               >
-                {isKu ? 'مافەکان' : 'Licensure'}
-              </button>
-            </div>
-
-            {/* WAL & Sync Status Pill (Mobile) */}
-            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono">
-              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
-                <HardDrive className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                <span>SQLite WAL:</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  {walHealth.isWalActive ? `${walHealth.latencyMs}ms` : 'Offline Cache'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleCheckHealth}
-                disabled={isCheckingHealth}
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
-              >
-                <RefreshCw className={`w-3 h-3 ${isCheckingHealth ? 'animate-spin' : ''}`} />
-                <span>{isCheckingHealth ? 'Pinging...' : 'Ping'}</span>
+                {isKu ? 'کۆمپانیای شاسوار' : 'Shaswar Co.'}
               </button>
             </div>
           </div>
 
-          {/* Quick Executive Glance Card (Boss Mode Widget - 3 High-Contrast Metrics) */}
-          <div className="p-3.5 rounded-3xl bg-slate-900 dark:bg-black text-white border border-slate-800 shadow-xl">
-            <div className="flex items-center justify-between px-1 mb-2.5">
-              <span className="text-[11px] font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>{isKu ? 'پوختەی کارگێڕی (Boss Mode)' : 'Executive Glance (Boss Mode)'}</span>
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {isKu ? 'کرتە بکە بۆ کردنەوە' : 'Tap to inspect'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {/* Metric 1: Today's Cash Intake */}
-              <button
-                type="button"
-                onClick={handleGlanceTodayCash}
-                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 active:scale-95 transition-all text-left flex flex-col justify-between border border-slate-700/60 cursor-pointer min-h-[74px]"
-                title="View Today's Cash Intake"
-              >
-                <div className="text-[10px] font-bold text-slate-400 flex items-center justify-between w-full">
-                  <span>{isKu ? 'ئەمڕۆ' : "Today's Cash"}</span>
-                  <ArrowRight className="w-3 h-3 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="text-xs sm:text-sm font-black text-emerald-400 font-mono truncate">
-                    ${todayUsd.toLocaleString()}
+          {/* Adaptive 2x2 Metric Grid */}
+          <div className="grid grid-cols-2 gap-2">
+            {canViewFinances ? (
+              <>
+                {/* 1. Today's Cash Intake */}
+                <button
+                  type="button"
+                  onClick={handleGlanceTodayCash}
+                  className="p-3 rounded-xl bg-white/95 dark:bg-slate-850/95 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Today's Cash Intake"
+                >
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between w-full">
+                    <span>{isKu ? 'کاشی ئەمڕۆ' : "Today's Intake"}</span>
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
                   </div>
-                  <div className="text-[10px] font-bold text-slate-300 font-mono truncate">
-                    {todayIqd > 0 ? `${todayIqd.toLocaleString()} د.ع` : '0 د.ع'}
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 font-mono truncate">
+                      ${todayUsd.toLocaleString()}
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-400 font-mono truncate">
+                      {todayIqd > 0 ? `${todayIqd.toLocaleString()} د.ع` : (isKu ? 'کاش پاشەکەوت' : 'Cash Deposited')}
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
 
-              {/* Metric 2: Total Outstanding Customer Debts */}
-              <button
-                type="button"
-                onClick={handleGlanceDebts}
-                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 active:scale-95 transition-all text-left flex flex-col justify-between border border-slate-700/60 cursor-pointer min-h-[74px]"
-                title="View Outstanding Customer Debts"
-              >
-                <div className="text-[10px] font-bold text-slate-400 flex items-center justify-between w-full">
-                  <span>{isKu ? 'قەرزەکان' : 'Total Debts'}</span>
-                  <ArrowRight className="w-3 h-3 text-rose-400" />
-                </div>
-                <div>
-                  <div className="text-xs sm:text-sm font-black text-rose-400 font-mono truncate">
-                    ${totalUnpaidDebt.toLocaleString()}
+                {/* 2. Customer Debt (Receivables / قەرزی لای کڕیاران) */}
+                <button
+                  type="button"
+                  onClick={handleGlanceDebts}
+                  className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Customer Debt (Receivables)"
+                >
+                  <div className="text-[10px] font-bold flex items-center justify-between w-full">
+                    <span>{isKu ? 'قەرزی لای کڕیاران' : 'Customers Owe Us'}</span>
+                    <Coins className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
                   </div>
-                  <div className="text-[10px] font-medium text-slate-400 truncate">
-                    {isKu ? 'قەرزی ماوە' : 'Pending'}
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-rose-700 dark:text-rose-300 font-mono truncate">
+                      ${totalUnpaidDebt.toLocaleString()}
+                    </div>
+                    <div className="text-[10px] font-medium text-rose-600/80 dark:text-rose-400/80 truncate">
+                      {isKu ? 'قەرزی ماوە (وەرگیراو)' : 'Receivables'}
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
 
-              {/* Metric 3: Active Board Cutting Orders */}
-              <button
-                type="button"
-                onClick={handleGlanceActiveOrders}
-                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 active:scale-95 transition-all text-left flex flex-col justify-between border border-slate-700/60 cursor-pointer min-h-[74px]"
-                title="View Active Cutting Orders"
-              >
-                <div className="text-[10px] font-bold text-slate-400 flex items-center justify-between w-full">
-                  <span>{isKu ? 'داواکاری کارا' : 'Active Orders'}</span>
-                  <ArrowRight className="w-3 h-3 text-sky-400" />
-                </div>
-                <div>
-                  <div className="text-xs sm:text-sm font-black text-sky-400 font-mono truncate">
-                    {activeCuttingOrdersCount} {isKu ? 'داواکاری' : 'Active'}
+                {/* 3. Our Debt to Suppliers (Payables / قەرزی سەر کۆمپانیا) */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectDivision('shipping', 'goods')}
+                  className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Supplier Debt (Payables)"
+                >
+                  <div className="text-[10px] font-bold flex items-center justify-between w-full">
+                    <span>{isKu ? 'قەرزی سەر کۆمپانیا' : 'We Owe Suppliers'}</span>
+                    <Truck className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                   </div>
-                  <div className="text-[10px] font-medium text-slate-400 truncate">
-                    {isKu ? 'لە کاردایە' : 'In Workshop'}
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-indigo-700 dark:text-indigo-300 font-mono truncate">
+                      ${supplierDebtData.debtUSD.toLocaleString()}
+                    </div>
+                    <div className="text-[10px] font-medium text-indigo-600/80 dark:text-indigo-400/80 truncate">
+                      {supplierDebtData.debtEUR > 0
+                        ? `+ €${supplierDebtData.debtEUR.toLocaleString()} (${isKu ? 'دابینکەر' : 'EUR'})`
+                        : (isKu ? 'قەرزی دابینکەران' : 'Payables')}
+                    </div>
                   </div>
-                </div>
-              </button>
-            </div>
-          </div>
+                </button>
 
-          {/* Section Divider Title */}
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              {isKu ? 'بەشە سەرەکییەکان' : 'Operational Divisions'}
-            </span>
-            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
-              {isKu ? '٣ بەشی کارگێڕی' : '3 Divisions'}
-            </span>
-          </div>
-
-          {/* 3 Operational Divisions as Large Full-Width Touch Cards */}
-          {/* DIVISION 1: Wood Panels */}
-          <div
-            onClick={() => handleSelectDivision('panels', 'orders')}
-            className={`group w-full p-4.5 rounded-3xl backdrop-blur-xl border shadow-md transition-all duration-200 active:scale-[0.98] cursor-pointer touch-manipulation ${
-              canAccessPanels
-                ? 'bg-white/95 dark:bg-slate-850/95 border-slate-200 dark:border-slate-750'
-                : 'bg-white/80 dark:bg-slate-850/80 border-rose-200/70 dark:border-rose-900/40 opacity-85'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${
-                  canAccessPanels
-                    ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/20'
-                    : 'bg-slate-200 dark:bg-slate-750 text-slate-500'
-                }`}>
-                  <Layers className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
-                    {isKu ? 'بڕینی تەختە' : 'Wood Panels & Orders'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {isKu ? 'کۆگا، بڕین و داواکاری کڕیاران' : 'Live stock, custom cuts & slip printing'}
-                  </p>
-                </div>
-              </div>
-              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full font-mono shrink-0 ${
-                canAccessPanels
-                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-              }`}>
-                {canAccessPanels ? (isKu ? 'بەشی یەکەم' : 'Div 01') : (isKu ? 'قوفڵ' : 'Locked')}
-              </span>
-            </div>
-
-            {/* KPI Badges */}
-            {canAccessPanels || userPermissions.canViewRestrictedMetrics ? (
-              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 mb-3 text-center text-xs">
-                <div>
-                  <div className="font-black text-slate-900 dark:text-white font-mono text-sm">{stats.totalStock.toLocaleString()}</div>
-                  <div className="text-[10px] text-slate-500">{t.totalStockCount}</div>
-                </div>
-                <div className="border-x border-slate-200 dark:border-slate-800">
-                  <div className="font-black text-amber-600 dark:text-amber-400 font-mono text-sm">{stats.totalAllocated.toLocaleString()}</div>
-                  <div className="text-[10px] text-slate-500">{t.reserved}</div>
-                </div>
-                <div>
-                  <div className="font-black text-emerald-600 dark:text-emerald-400 font-mono text-sm">{stats.totalAvailable.toLocaleString()}</div>
-                  <div className="text-[10px] text-slate-500">{t.available}</div>
-                </div>
-              </div>
+                {/* 4. Active Orders */}
+                <button
+                  type="button"
+                  onClick={handleGlanceActiveOrders}
+                  className="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900 text-sky-600 dark:text-sky-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Active Orders"
+                >
+                  <div className="text-[10px] font-bold flex items-center justify-between w-full">
+                    <span>{isKu ? 'داواکاری کارا' : 'Active Orders'}</span>
+                    <Package className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-sky-700 dark:text-sky-300 font-mono truncate">
+                      {allActiveOrders.length}
+                    </div>
+                    <div className="text-[10px] font-medium text-sky-600/80 dark:text-sky-400/80 truncate">
+                      {isKu ? 'لە وەرشە و بڕین' : 'In Workshop Queue'}
+                    </div>
+                  </div>
+                </button>
+              </>
             ) : (
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 mb-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" />
-                <span>{isKu ? 'ئامار قوفڵکراوە' : 'Metrics Protected'}</span>
+              <>
+                {/* 1. Active Orders in Queue */}
+                <button
+                  type="button"
+                  onClick={handleGlanceActiveOrders}
+                  className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-600 dark:text-blue-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Active Orders"
+                >
+                  <div className="text-[10px] font-bold flex items-center justify-between w-full">
+                    <span>{isKu ? 'داواکاری لە سەرە' : 'Active Orders'}</span>
+                    <Package className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-blue-700 dark:text-blue-300 font-mono truncate">
+                      {allActiveOrders.length}
+                    </div>
+                    <div className="text-[10px] font-medium text-blue-600/80 dark:text-blue-400/80 truncate">
+                      {isKu ? 'لە کاردایە' : 'In Workshop'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 2. Ready for Pickup / Items Awaiting Delivery */}
+                <button
+                  type="button"
+                  onClick={handleGlanceActiveOrders}
+                  className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Ready for Pickup"
+                >
+                  <div className="text-[10px] font-bold flex items-center justify-between w-full">
+                    <span>{isKu ? 'ئامادە بۆ وەرگرتن' : 'Ready for Pickup'}</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300 font-mono truncate">
+                      {readyForPickupCount}
+                    </div>
+                    <div className="text-[10px] font-medium text-emerald-600/80 dark:text-emerald-400/80 truncate">
+                      {isKu ? 'چاوەڕوانی ڕادەستکردن' : 'Awaiting Delivery'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 3. Low Stock Alerts & Total Panels in Stock */}
+                <button
+                  type="button"
+                  onClick={handleGlanceLowStock}
+                  className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-600 dark:text-amber-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Low Stock Alerts"
+                >
+                  <div className="text-[10px] font-bold flex items-center justify-between w-full">
+                    <span>{isKu ? 'کەمیی کۆگا' : 'Low Stock Alerts'}</span>
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-amber-700 dark:text-amber-300 font-mono truncate">
+                      {lowStockCount}
+                    </div>
+                    <div className="text-[10px] font-medium text-amber-600/80 dark:text-amber-400/80 truncate">
+                      {stats.totalStock.toLocaleString()} {isKu ? 'تەختە لە کۆگا' : 'Panels in Stock'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 4. Active Cargo */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectDivision('shipping', 'goods')}
+                  className="p-3 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-900 text-violet-600 dark:text-violet-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  title="View Active Cargo"
+                >
+                  <div className="text-[10px] font-bold flex items-center justify-between w-full">
+                    <span>{isKu ? 'باری لە ڕێگە' : 'Active Cargo'}</span>
+                    <Truck className="w-3.5 h-3.5 text-violet-500 dark:text-violet-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm sm:text-base font-black text-violet-700 dark:text-violet-300 font-mono truncate">
+                      {activeInboundShipments.length}
+                    </div>
+                    <div className="text-[10px] font-medium text-violet-600/80 dark:text-violet-400/80 truncate">
+                      {isKu ? 'لە گومرگ و ڕێگە' : 'In Transit / Customs'}
+                    </div>
+                  </div>
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Consolidated Segmented Activity & Alerts Drawer */}
+          <div className="p-3 rounded-2xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2.5">
+            {/* Segmented Tab Controls */}
+            <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setActiveMobileTab('orders')}
+                className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center truncate cursor-pointer ${
+                  activeMobileTab === 'orders'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-extrabold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {isKu ? `داواکارییەکان (${allActiveOrders.length})` : `Orders (${allActiveOrders.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMobileTab('alerts')}
+                className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center truncate cursor-pointer ${
+                  activeMobileTab === 'alerts'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-extrabold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {isKu ? `ئاگاداری (${lowStockCount})` : `Alerts (${lowStockCount})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMobileTab('cargo')}
+                className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center truncate cursor-pointer ${
+                  activeMobileTab === 'cargo'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-extrabold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {isKu ? `بارەکان (${activeInboundShipments.length})` : `Cargo (${activeInboundShipments.length})`}
+              </button>
+            </div>
+
+            {/* Tab 1: Orders */}
+            {activeMobileTab === 'orders' && (
+              <div className="space-y-1.5">
+                {allActiveOrders.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>{isKu ? 'هیچ داواکارییەکی کارا لە کارگە نییە' : 'No active orders pending in workshop'}</span>
+                  </div>
+                ) : (
+                  allActiveOrders.slice(0, 3).map(({ order, materialName, materialCode }) => (
+                    <div
+                      key={order.id}
+                      onClick={handleGlanceActiveOrders}
+                      className="p-2.5 rounded-xl bg-slate-50/90 dark:bg-slate-900/70 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2 text-xs hover:border-blue-400/60 transition-all cursor-pointer active:scale-98"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900 dark:text-white truncate">
+                            {order.client || (isKu ? 'کڕیار' : 'Customer')}
+                          </span>
+                          <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                            #{order.orderNumber}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                          {order.quantity}x {materialName || materialCode}
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        {isKu ? 'لە کاردایە' : 'In Progress'}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <button
+                  type="button"
+                  onClick={handleGlanceActiveOrders}
+                  className="w-full text-center py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline active:scale-98 cursor-pointer"
+                >
+                  {isKu ? 'بینینی هەموو داواکارییەکان' : 'View All Orders'} &rarr;
+                </button>
               </div>
             )}
 
-            {/* Min 48px Touch Button */}
-            <button
-              type="button"
-              className={`w-full min-h-[48px] px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
-                canAccessPanels
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-emerald-600/20 active:scale-[0.98]'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
-              }`}
-            >
-              <span>{canAccessPanels ? (isKu ? 'چوونە ناو بەشی تەختەکان' : 'Open Wood Panels') : (isKu ? 'دەسەڵات سنووردارە' : 'Access Restricted')}</span>
-              {canAccessPanels ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-            </button>
-          </div>
-
-          {/* DIVISION 2: Sales POS */}
-          <div
-            onClick={() => handleSelectDivision('sales')}
-            className={`group w-full p-4.5 rounded-3xl backdrop-blur-xl border shadow-md transition-all duration-200 active:scale-[0.98] cursor-pointer touch-manipulation ${
-              canAccessSales
-                ? 'bg-white/95 dark:bg-slate-850/95 border-slate-200 dark:border-slate-750'
-                : 'bg-white/80 dark:bg-slate-850/80 border-rose-200/70 dark:border-rose-900/40 opacity-85'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${
-                  canAccessSales
-                    ? 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-sky-500/20'
-                    : 'bg-slate-200 dark:bg-slate-750 text-slate-500'
-                }`}>
-                  <ReceiptText className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
-                    {isKu ? 'فرۆشتن و وەسڵ' : 'Sales POS & Invoices'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {isKu ? 'پسوولەی چەند دراو، قەرز و وەسڵ' : 'Multi-currency POS, debt & receipts'}
-                  </p>
-                </div>
-              </div>
-              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full font-mono shrink-0 ${
-                canAccessSales
-                  ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
-                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-              }`}>
-                {canAccessSales ? (isKu ? 'بەشی دووەم' : 'Div 02') : (isKu ? 'قوفڵ' : 'Locked')}
-              </span>
-            </div>
-
-            {/* KPI Badges */}
-            {canAccessSales || userPermissions.canViewRestrictedMetrics ? (
-              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 mb-3 text-center text-xs">
-                <div>
-                  <div className="font-black text-slate-900 dark:text-white font-mono text-sm">{totalInvoicesCount}</div>
-                  <div className="text-[10px] text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
-                </div>
-                <div className="border-x border-slate-200 dark:border-slate-800">
-                  <div className="font-black text-rose-600 dark:text-rose-400 font-mono text-sm">${totalUnpaidDebt.toLocaleString()}</div>
-                  <div className="text-[10px] text-slate-500">{isKu ? 'قەرز' : 'Debt'}</div>
-                </div>
-                <div>
-                  <div className="font-black text-sky-600 dark:text-sky-400 font-mono text-sm">3 Rates</div>
-                  <div className="text-[10px] text-slate-500">USD/IQD/EUR</div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 mb-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" />
-                <span>{isKu ? 'دارایی قوفڵکراوە' : 'Financials Protected'}</span>
+            {/* Tab 2: Inventory Alerts */}
+            {activeMobileTab === 'alerts' && (
+              <div className="space-y-1.5">
+                {lowStockPanels.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40 text-center text-xs text-emerald-700 dark:text-emerald-400 flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span className="font-bold">{isKu ? 'کۆگا تەواوە • هەموو تەختەکان بەردەستن' : 'Stock Healthy • All Panels Available'}</span>
+                  </div>
+                ) : (
+                  lowStockPanels.slice(0, 3).map((mat) => (
+                    <div
+                      key={mat.id}
+                      onClick={handleGlanceLowStock}
+                      className="p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/60 flex items-center justify-between gap-2 text-xs hover:border-amber-400 transition-all cursor-pointer active:scale-98"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-amber-900 dark:text-amber-200 text-xs">
+                            {mat.code}
+                          </span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                            {mat.name}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-amber-700 dark:text-amber-400">
+                          {mat.type}
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800">
+                        {mat.availableStock} {isKu ? 'ماوە' : 'left'}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <button
+                  type="button"
+                  onClick={handleGlanceLowStock}
+                  className="w-full text-center py-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline active:scale-98 cursor-pointer"
+                >
+                  {isKu ? 'بینینی تەختەکان لە کۆگا' : 'View Panels in Stock'} &rarr;
+                </button>
               </div>
             )}
 
-            {/* Min 48px Touch Button */}
-            <button
-              type="button"
-              className={`w-full min-h-[48px] px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
-                canAccessSales
-                  ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sky-600/20 active:scale-[0.98]'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
-              }`}
-            >
-              <span>{canAccessSales ? (isKu ? 'چوونە ناو بەشی فرۆشتن' : 'Open Sales POS') : (isKu ? 'دەسەڵات سنووردارە' : 'Access Restricted')}</span>
-              {canAccessSales ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-            </button>
-          </div>
-
-          {/* DIVISION 3: Warehouse Goods */}
-          <div
-            onClick={() => handleSelectDivision('goods', 'shipping')}
-            className={`group w-full p-4.5 rounded-3xl backdrop-blur-xl border shadow-md transition-all duration-200 active:scale-[0.98] cursor-pointer touch-manipulation ${
-              canAccessGoods
-                ? 'bg-white/95 dark:bg-slate-850/95 border-slate-200 dark:border-slate-750'
-                : 'bg-white/80 dark:bg-slate-850/80 border-rose-200/70 dark:border-rose-900/40 opacity-85'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${
-                  canAccessGoods
-                    ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-500/20'
-                    : 'bg-slate-200 dark:bg-slate-750 text-slate-500'
-                }`}>
-                  <Truck className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
-                    {isKu ? 'مەخزەن' : 'Warehouse & Logistics'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {isKu ? 'بارە گەیشتووەکان، کۆگا و گواستنەوە' : 'Shipments, rack bays & stock transfers'}
-                  </p>
-                </div>
-              </div>
-              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full font-mono shrink-0 ${
-                canAccessGoods
-                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-              }`}>
-                {canAccessGoods ? (isKu ? 'بەشی سێیەم' : 'Div 03') : (isKu ? 'قوفڵ' : 'Locked')}
-              </span>
-            </div>
-
-            {/* KPI Badges */}
-            {canAccessGoods || userPermissions.canViewRestrictedMetrics ? (
-              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 mb-3 text-center text-xs">
-                <div>
-                  <div className="font-black text-slate-900 dark:text-white font-mono text-sm">{warehouseOps.activeShipments.length}</div>
-                  <div className="text-[10px] text-slate-500">{isKu ? 'بارەکان' : 'Shipments'}</div>
-                </div>
-                <div className="border-x border-slate-200 dark:border-slate-800">
-                  <div className="font-black text-amber-600 dark:text-amber-400 font-mono text-sm">{customsShipmentsCount}</div>
-                  <div className="text-[10px] text-slate-500">{isKu ? 'گومرگ' : 'Customs'}</div>
-                </div>
-                <div>
-                  <div className="font-black text-emerald-600 dark:text-emerald-400 font-mono text-sm">{rackedUnitsCount.toLocaleString()}</div>
-                  <div className="text-[10px] text-slate-500">{isKu ? 'کۆگا' : 'Racked'}</div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 mb-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" />
-                <span>{isKu ? 'لۆجستی قوفڵکراوە' : 'Logistics Protected'}</span>
+            {/* Tab 3: Cargo & Shipping */}
+            {activeMobileTab === 'cargo' && (
+              <div className="space-y-1.5">
+                {activeInboundShipments.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
+                    <Truck className="w-4 h-4 text-slate-400" />
+                    <span>{isKu ? 'هیچ بارێکی نوێ لە ڕێگادا نییە' : 'No shipments currently in transit'}</span>
+                  </div>
+                ) : (
+                  activeInboundShipments.slice(0, 3).map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => handleSelectDivision('shipping', 'goods')}
+                      className="p-2.5 rounded-xl bg-gradient-to-r from-amber-50/60 to-orange-50/60 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200/80 dark:border-amber-800/60 flex items-center justify-between gap-2 text-xs hover:border-amber-400 transition-all cursor-pointer active:scale-98"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-black text-amber-900 dark:text-amber-200 text-xs">
+                            {s.batchCode}
+                          </span>
+                          <span className="text-[10px] text-slate-600 dark:text-slate-400 truncate">
+                            {s.supplier || s.supplierName || 'FunderMax'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                          <span>{isKu ? 'گەیشتن:' : 'ETA:'} {s.arrivalDate || 'TBD'}</span>
+                          <span>•</span>
+                          <span>{s.originCountry || 'Import'}</span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        {s.status === 'customs'
+                          ? (isKu ? 'لە گومرگە' : 'Customs')
+                          : (isKu ? 'لە ڕێگایە' : 'In Transit')}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleSelectDivision('shipping', 'goods')}
+                  className="w-full text-center py-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline active:scale-98 cursor-pointer"
+                >
+                  {isKu ? 'بینینی هێڵی گواستنەوە' : 'View Shipping Pipeline'} &rarr;
+                </button>
               </div>
             )}
-
-            {/* Min 48px Touch Button */}
-            <button
-              type="button"
-              className={`w-full min-h-[48px] px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
-                canAccessGoods
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-amber-600/20 active:scale-[0.98]'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
-              }`}
-            >
-              <span>{canAccessGoods ? (isKu ? 'چوونە ناو بەشی کەلوپەل' : 'Open Warehouse Goods') : (isKu ? 'دەسەڵات سنووردارە' : 'Access Restricted')}</span>
-              {canAccessGoods ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-            </button>
           </div>
 
-          {/* Section Divider Title: Ergonomic Quick-Action Bar */}
-          <div className="pt-2 flex items-center justify-between px-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              {isKu ? 'کۆنتڕۆڵ و شیکاری خێرا' : 'Quick Controls & Tools'}
-            </span>
-            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
-              {isKu ? 'دەستپێگەیشتنی خێرا' : 'Ergonomic Grid'}
-            </span>
-          </div>
-
-          {/* Ergonomic Bottom Grid (Analytics, Backups, Admin Settings) with Touch Targets >= 48px */}
-          <div className="grid grid-cols-3 gap-2.5">
-            {/* 1. Visual Analytics */}
+          {/* Quick Analytics Trigger (Gated strictly to financial authorized users) */}
+          {canViewFinances && canAccessAnalytics && (
             <button
               type="button"
               onClick={handleOpenAnalytics}
-              className="min-h-[58px] p-2.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm hover:border-purple-500/80 active:scale-[0.98] transition-all flex flex-col items-center justify-center text-center cursor-pointer touch-manipulation"
+              className="w-full p-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-xs flex items-center justify-between gap-2.5 cursor-pointer active:scale-98 transition-all"
             >
-              <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-1">
-                <BarChart3 className="w-4 h-4" />
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+                  <BarChart3 className="w-4 h-4 text-white" />
+                </div>
+                <div className="text-left min-w-0">
+                  <div className="text-xs font-black truncate leading-tight">
+                    {isKu ? 'چارتەکان و شیكاری دارایی' : 'Visual Analytics & Executive BI'}
+                  </div>
+                  <div className="text-[10px] text-white/80 font-medium truncate">
+                    {isKu ? 'بینینی قازانج، ئاماری فرۆشتن و بڕین' : 'Profit metrics, sales curves & workshop charts'}
+                  </div>
+                </div>
               </div>
-              <span className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">
-                {isKu ? 'شیکاری' : 'Analytics'}
-              </span>
-              <span className="text-[9px] text-slate-400 font-medium">
-                {isKu ? 'چارتەکان' : 'Visual BI'}
-              </span>
+              <ArrowRight className="w-4 h-4 text-white shrink-0" />
             </button>
+          )}
 
-            {/* 2. Database Backups */}
-            <button
-              type="button"
-              onClick={() => handleSelectDivision('audit')}
-              className="min-h-[58px] p-2.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm hover:border-emerald-500/80 active:scale-[0.98] transition-all flex flex-col items-center justify-center text-center cursor-pointer touch-manipulation"
-            >
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-1">
-                <Database className="w-4 h-4" />
-              </div>
-              <span className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">
-                {isKu ? 'باکئەپ' : 'Backups'}
-              </span>
-              <span className="text-[9px] text-slate-400 font-medium">
-                {isKu ? 'داتابەیس' : 'SQLite Vault'}
-              </span>
-            </button>
-
-            {/* 3. Admin & Settings */}
-            <button
-              type="button"
-              onClick={() => {
-                if (userPermissions.canAccessAdmin) {
-                  openAdminModal();
-                } else {
-                  setDeniedModal({
-                    moduleName: isKu ? 'ڕێکخستنی ئەدمین و دەسەڵاتەکان' : 'Admin Settings & Team Permissions',
-                    description: isKu
-                      ? 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی ڕێکخستنی ئەدمینی پێنەدراوە.'
-                      : 'Your account does not have authorization to access Admin Settings & Team Permissions.'
-                  });
-                }
-              }}
-              className="min-h-[58px] p-2.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm hover:border-sky-500/80 active:scale-[0.98] transition-all flex flex-col items-center justify-center text-center cursor-pointer touch-manipulation"
-            >
-              <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-1">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <span className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">
-                {isKu ? 'ئەدمین' : 'Admin'}
-              </span>
-              <span className="text-[9px] text-slate-400 font-medium">
-                {isKu ? 'دەسەڵاتەکان' : 'Roles & Settings'}
-              </span>
-            </button>
-          </div>
+          {/* Admin Controls (Strictly Admin Only) */}
+          {currentUser?.role?.toLowerCase() === 'admin' && (
+            <div className="grid grid-cols-2 gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={() => handleSelectDivision('audit')}
+                className="p-2 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-2xs"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{isKu ? 'باکئەپ و داتابەیس' : 'SQLite Vault'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openAdminModal()}
+                className="p-2 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-2xs"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />
+                <span>{isKu ? 'بەڕێوەبەری سیستەم' : 'Admin Panel'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ========================================================================= */}
@@ -929,7 +987,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   </div>
 
                   <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                    {hasModulePermission('audit') && (
+                    {currentUser?.role?.toLowerCase() === 'admin' && (
                       <button
                         type="button"
                         onClick={(e) => {

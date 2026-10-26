@@ -135,7 +135,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
       titleEn: "Audit & Logs",
       titleKu: "داتابەیس",
       icon: ShieldCheck,
-      isAllowed: !!userPermissions?.canAccessAdmin,
+      isAllowed: currentUser?.role?.toLowerCase() === "admin",
       colorClass: "text-rose-600 dark:text-rose-400",
     },
   ];
@@ -444,16 +444,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               </button>
             </div>
 
-            {/* Theme Toggle: Day vs Night (Desktop) */}
+            {/* Theme Toggle: Day vs Night (Mobile & Desktop) */}
             <button
               type="button"
               id="header-theme-toggle"
               aria-label="Toggle dark and light theme"
               onClick={handleToggleTheme}
-              className="hidden md:inline-flex relative z-20 pointer-events-auto h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750 items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+              className="inline-flex relative z-20 pointer-events-auto p-2 h-9 w-9 rounded-lg md:rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
               title={theme === "light" ? "Switch to Night Mode (Dark)" : "Switch to Day Mode (Light)"}
             >
-              {theme === "light" ? <Moon className="w-4 h-4 text-slate-700" /> : <Sun className="w-4 h-4 text-amber-400" />}
+              {theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700 dark:text-slate-300" />}
             </button>
 
             {/* Dropdown Options & Presets Manager */}
@@ -486,7 +486,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             ) : null}
 
             {/* Persistent Admin Panel Trigger */}
-            {isAdmin && userPermissions?.canAccessAdmin && (
+            {currentUser?.role?.toLowerCase() === "admin" && (
               <button
                 type="button"
                 onClick={openAdminPanel}
@@ -558,7 +558,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               })}
 
             {/* Admin Panel Link in Mobile Menu if Admin */}
-            {isAdmin && userPermissions?.canAccessAdmin && (
+            {currentUser?.role?.toLowerCase() === "admin" && (
               <button
                 type="button"
                 onClick={() => {
@@ -618,7 +618,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
       />
 
       <AdminPanelModal
-        isOpen={isAdminModalOpen}
+        isOpen={isAdminModalOpen && currentUser?.role?.toLowerCase() === "admin"}
         onClose={closeAdminModal}
       />
 

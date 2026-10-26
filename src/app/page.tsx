@@ -38,7 +38,8 @@ import {
   BarChart3,
   Home,
   ReceiptText,
-  Package
+  Package,
+  Truck
 } from 'lucide-react';
 
 type PrintScope = 'panels' | 'orders' | 'all' | 'individual-panels' | 'individual-orders' | 'batch-selection';
@@ -251,10 +252,10 @@ function WarehouseApp() {
     
     } else if ((currentModule === 'goods' || currentModule === 'shipping') && !userPermissions.canViewWarehouse) {
       setCurrentModule('hub');
-    } else if (currentModule === 'audit' && !userPermissions.canAccessAdmin) {
+    } else if (currentModule === 'audit' && currentUser?.role?.toLowerCase() !== 'admin') {
       setCurrentModule('hub');
     }
-  }, [currentModule, userPermissions, setCurrentModule]);
+  }, [currentModule, userPermissions, currentUser, setCurrentModule]);
 
   // If user is not logged in, render the secure Login screen
   if (!currentUser) {
@@ -959,7 +960,7 @@ function WarehouseApp() {
         )}
 
         {currentModule === 'audit' && (
-          userPermissions.canAccessAdmin ? (
+          currentUser?.role?.toLowerCase() === 'admin' ? (
             <AuditBackupsSection />
           ) : (
             <AccessDeniedView
@@ -983,16 +984,17 @@ function WarehouseApp() {
         )}
       </main>
 
-      {/* Fixed Bottom Navigation Bar (Mobile Only: 4 Thumb Tabs) */}
+      {/* Fixed Bottom Navigation Bar (Mobile Only: 5 Thumb Tabs) */}
       <nav
         dir="ltr"
         aria-label="Mobile Navigation"
-        className="fixed bottom-0 inset-x-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 md:hidden flex justify-around items-center h-16 px-2 safe-bottom no-print print:hidden shadow-lg"
+        className="fixed bottom-0 inset-x-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 md:hidden flex justify-around items-center h-16 px-1 safe-bottom no-print print:hidden shadow-lg"
       >
         {[
           { id: 'hub' as const, labelKu: 'سەرەکی', labelEn: 'Hub', icon: Home },
           { id: 'sales' as const, labelKu: 'فرۆشتن', labelEn: 'Sales', icon: ReceiptText },
           { id: 'panels' as const, labelKu: 'تەختەکان', labelEn: 'Panels', icon: Layers },
+          { id: 'shipping' as const, labelKu: 'گواستنەوە', labelEn: 'Shipping', icon: Truck },
           { id: 'orders' as const, labelKu: 'داواکاری', labelEn: 'Orders', icon: Package },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -1007,15 +1009,15 @@ function WarehouseApp() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
               }}
-              className={`flex-1 flex flex-col items-center justify-center py-1 transition-all active:scale-95 cursor-pointer ${
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition-all active:scale-95 cursor-pointer min-w-0 ${
                 isActive
                   ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium'
               }`}
             >
-              <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
-              <span className="text-[10px] leading-tight font-sans">
-                {language === 'ku' ? `${tab.labelKu} / ${tab.labelEn}` : `${tab.labelEn} / ${tab.labelKu}`}
+              <Icon className={`w-4 h-4 sm:w-5 sm:h-5 mb-0.5 shrink-0 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+              <span className="text-[11px] font-medium leading-tight font-sans whitespace-nowrap">
+                {language === 'ku' ? tab.labelKu : tab.labelEn}
               </span>
             </button>
           );

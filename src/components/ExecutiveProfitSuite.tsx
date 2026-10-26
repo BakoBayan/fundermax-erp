@@ -418,6 +418,123 @@ export const ExecutiveProfitSuite: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
+      {/* DUAL DEBT LEDGER: RECEIVABLES (CUSTOMER DEBT) VS PAYABLES (SUPPLIER DEBT) */}
+      {/* ========================================================================= */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                <Coins className="w-5 h-5" />
+              </span>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                {isKu ? 'تەرازووی قەرزەکان: وەرگیراو بەرامبەر دراو (Dual Debt Ledger)' : 'Dual Debt Ledger: Receivables vs. Payables'}
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {isKu
+                ? 'جیاکردنەوەی تەواوی قەرزی کڕیاران (ئێمە وەریدەگرینەوە) لە بەرامبەر قەرزی دابینکەران (ئێمە دەبێت بیدەین)'
+                : 'Clear accounting separation between customer receivables and company supplier liabilities.'}
+            </p>
+          </div>
+
+          {/* 3. Net Cash Position / تەرازووی قەرز */}
+          <div className={`px-4 py-2.5 rounded-2xl border text-xs font-bold flex items-center gap-2.5 self-start sm:self-auto shadow-xs ${
+            (financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD) >= 0
+              ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
+              : 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+          }`}>
+            <span className="text-base">{(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD) >= 0 ? '📈' : '📉'}</span>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider opacity-80">
+                {isKu ? 'تەرازووی قەرز (Net Balance = Receivables − Payables)' : 'Net Balance = Receivables − Payables'}
+              </div>
+              <div className="font-mono text-sm font-black">
+                {(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD) >= 0 ? '+' : ''}${Math.round(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD).toLocaleString()} USD
+                <span className="text-[10px] font-normal ms-1">
+                  ({(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD) >= 0
+                    ? (isKu ? 'باڵانسی ئەرێنی لە بازاڕ' : 'Net Positive in Street Credit')
+                    : (isKu ? 'قەرزی سەر کۆمپانیا زیاترە' : 'Net Negative in Street Credit')})
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card 1: Money Owed TO Us (قەرزی لای خەڵک / Receivables) */}
+          <div className="p-5 rounded-2xl border-2 border-rose-400/90 dark:border-rose-500/80 bg-gradient-to-br from-rose-50/80 via-white to-rose-50/40 dark:from-rose-950/40 dark:via-slate-900 dark:to-rose-950/20 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300">
+                  {isKu ? 'Money Owed TO Us (قەرزی لای خەڵک / Receivables)' : 'Money Owed TO Us (قەرزی لای خەڵک / Receivables)'}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/80 dark:text-rose-200 border border-rose-300 dark:border-rose-700">
+                  {isKu ? 'ئێمە وەریدەگرینەوە' : 'We Collect'}
+                </span>
+              </div>
+              <p className="text-xs text-rose-700/80 dark:text-rose-300/80 font-medium mb-3">
+                {isKu ? 'پارەی داواکراو لە کڕیاران (ئێمە وەریدەگرینەوە)' : 'پارەی داواکراو لە کڕیاران (ئێمە وەریدەگرینەوە)'}
+              </p>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-rose-600 dark:text-rose-400">
+                ${financials.customerDebtUSD.toLocaleString()}
+              </div>
+              {financials.customerDebtIQD > 0 && (
+                <div className="text-xs font-mono font-bold text-rose-700 dark:text-rose-300 mt-1">
+                  +{financials.customerDebtIQD.toLocaleString()} IQD
+                </div>
+              )}
+            </div>
+            <div className="pt-3 mt-4 border-t border-rose-200 dark:border-rose-900/60 flex items-center justify-between text-xs text-rose-700 dark:text-rose-300">
+              <span>{isKu ? 'سەرچاوە: فرۆشتن و وەسڵ (POS)' : 'Source: Sales Invoices (POS)'}</span>
+              <button
+                type="button"
+                onClick={() => setCurrentModule('sales')}
+                className="font-bold underline hover:text-rose-900 dark:hover:text-white cursor-pointer"
+              >
+                {isKu ? 'بینینی فرۆشتن ←' : 'View Invoices ←'}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2: Money Owed BY Us (قەرزی سەر ئێمە / Payables) */}
+          <div className="p-5 rounded-2xl border-2 border-amber-400/90 dark:border-amber-500/80 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 dark:from-amber-950/40 dark:via-slate-900 dark:to-amber-950/20 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                  {isKu ? 'Money Owed BY Us (قەرزی سەر ئێمە / Payables)' : 'Money Owed BY Us (قەرزی سەر ئێمە / Payables)'}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/80 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                  {isKu ? 'ئێمە دەبێت بیدەین' : 'We Pay Out'}
+                </span>
+              </div>
+              <p className="text-xs text-amber-700/80 dark:text-amber-300/80 font-medium mb-3">
+                {isKu ? 'پارەی قەرزی دابینکەران (ئێمە دەبێت بیدەین)' : 'پارەی قەرزی دابینکەران (ئێمە دەبێت بیدەین)'}
+              </p>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-amber-600 dark:text-amber-400">
+                €{supplierPayables.debtEUR.toLocaleString()}
+              </div>
+              {supplierPayables.debtUSD > 0 && (
+                <div className="text-xs font-mono font-bold text-amber-700 dark:text-amber-300 mt-1">
+                  +${supplierPayables.debtUSD.toLocaleString()} USD
+                </div>
+              )}
+            </div>
+            <div className="pt-3 mt-4 border-t border-amber-200 dark:border-amber-900/60 flex items-center justify-between text-xs text-amber-700 dark:text-amber-300">
+              <span>{isKu ? 'سەرچاوە: کاروانەکانی فاندەرمەکس' : 'Source: FunderMax Shipments'}</span>
+              <button
+                type="button"
+                onClick={() => setCurrentModule('shipping')}
+                className="font-bold underline hover:text-amber-900 dark:hover:text-white cursor-pointer"
+              >
+                {isKu ? 'بینینی گواستنەوە ←' : 'View Shipping ←'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
       {/* EXECUTIVE VISUAL PROFIT TRAJECTORY CHART (Mobile Responsive)              */}
       {/* ========================================================================= */}
       {dailyProfitTrend.length > 0 && (

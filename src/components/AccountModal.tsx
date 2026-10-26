@@ -167,8 +167,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose, onO
             </button>
           )}
 
-          {/* Admin Panel button if current user is Admin with canAccessAdmin clearance */}
-          {isAdmin && userPermissions?.canAccessAdmin && onOpenAdminPanel && (
+          {/* Admin Panel button if current user is Admin */}
+          {currentUser?.role?.toLowerCase() === "admin" && onOpenAdminPanel && (
             <button
               onClick={() => {
                 onClose();
