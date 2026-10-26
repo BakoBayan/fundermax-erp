@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore, revalidatePath } from "next/cache";
 import fs from "fs";
 import path from "path";
 import {
@@ -24,6 +25,7 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export async function GET(req: NextRequest) {
+  noStore();
   try {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
@@ -236,6 +238,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "Missing backupId or snapshot" }, { status: 400 });
       }
       const result = restoreDatabaseBackup(target);
+      revalidatePath('/', 'layout');
       return NextResponse.json(result);
     }
 
@@ -250,6 +253,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "wipe") {
       saveInventoryToDB([], ["HPL"]);
+      revalidatePath('/', 'layout');
       return NextResponse.json({ success: true, message: "Database wiped cleanly." });
     }
 

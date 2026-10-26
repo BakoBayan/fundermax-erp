@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getDB } from '@/lib/db';
 import { parseLegacyData, generateAuditSummary, commitMigration } from '@/lib/importer';
 
@@ -69,6 +70,7 @@ export async function POST(req: Request) {
         );
       }
 
+      revalidatePath('/', 'layout');
       return NextResponse.json({
         success: true,
         action: 'commit',

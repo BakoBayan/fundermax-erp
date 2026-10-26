@@ -62,6 +62,7 @@ async function pushToServer(): Promise<void> {
     localStorage.setItem(DIRTY_KEY, '1');
     const res = await fetch('/api/warehouse', {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ state: current }),
     });

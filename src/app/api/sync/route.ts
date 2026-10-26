@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore, revalidatePath } from "next/cache";
 import {
   getUnifiedDataFromDB,
   saveUnifiedDataToDB,
@@ -14,6 +15,7 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export async function GET() {
+  noStore();
   try {
     const data = getUnifiedDataFromDB();
     const health = getDatabaseHealth();
@@ -121,6 +123,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = withActor(actor, () => saveUnifiedDataToDB(body));
+    revalidatePath('/', 'layout');
     return NextResponse.json(result, {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",

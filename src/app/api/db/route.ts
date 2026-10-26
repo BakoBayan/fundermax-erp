@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
 import fs from 'fs';
 import path from 'path';
 
@@ -221,6 +222,7 @@ function writeStore(data: ServerStore): boolean {
 }
 
 export async function GET(req: NextRequest) {
+  noStore();
   const { searchParams } = new URL(req.url);
   const action = searchParams.get('action');
 
@@ -326,6 +328,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to write data' }, { status: 500 });
     }
 
+    revalidatePath('/', 'layout');
     return NextResponse.json({
       success: true,
       version: updated.version,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
 import { getWarehouseOpsRawFromDB, saveWarehouseOpsRawToDB } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,7 @@ export const fetchCache = 'force-no-store';
 const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' };
 
 export async function GET() {
+  noStore();
   try {
     const raw = getWarehouseOpsRawFromDB();
     return NextResponse.json({ state: raw ? JSON.parse(raw) : null }, { headers: NO_STORE });
@@ -38,6 +40,7 @@ export async function POST(req: Request) {
     }
 
     saveWarehouseOpsRawToDB(JSON.stringify(body.state));
+    revalidatePath('/', 'layout');
     return NextResponse.json({ success: true }, { headers: NO_STORE });
   } catch (error) {
     console.error('[API POST /api/warehouse Error]', error);

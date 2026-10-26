@@ -1163,6 +1163,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const res = await fetch("/api/sync", {
           method: "POST",
+          cache: "no-store",
           headers: {
             "Content-Type": "application/json",
             "x-user-name": currentUser?.username || "System",
@@ -2415,6 +2416,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const res = await fetch("/api/backup", {
           method: "POST",
+          cache: "no-store",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "create", type: "manual", label }),
         });
@@ -2461,6 +2463,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const isObject = typeof backupIdOrSnapshot === "object" && backupIdOrSnapshot !== null;
         const res = await fetch("/api/backup", {
           method: "POST",
+          cache: "no-store",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "restore",
@@ -2484,6 +2487,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       await fetch("/api/backup", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", backupId }),
       });

@@ -390,7 +390,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [networkUrl, setNetworkUrl] = useState<string>('http://localhost:3000');
 
   useEffect(() => {
-    fetch('/api/network')
+    fetch('/api/network', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (data.ip) setNetworkUrl(`http://${data.ip}:3000`);
@@ -406,7 +406,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Fetch Backups & Health
   const fetchBackupsInfo = async () => {
     try {
-      const res = await fetch('/api/backup');
+      const res = await fetch('/api/backup', { cache: 'no-store' });
       const data = await res.json();
       if (data && data.success) {
         if (Array.isArray(data.snapshots)) setWalSnapshots(data.snapshots);
@@ -419,7 +419,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const fetchServerData = async () => {
     setLoadingServerInfo(true);
     try {
-      const res = await fetch('/api/server-info');
+      const res = await fetch('/api/server-info', { cache: 'no-store' });
       const data = await res.json();
       setServerInfo(data);
     } catch {} finally {
@@ -441,6 +441,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       const res = await fetch('/api/backup', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'optimize' }),
       });
@@ -470,6 +471,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       const res = await fetch('/api/backup', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create_snapshot' }),
       });
@@ -493,6 +495,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       const res = await fetch('/api/backup', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'export_usb', targetDir }),
       });
@@ -535,6 +538,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       const res = await fetch('/api/backup', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'restore', snapshot: snapshotName }),
       });
@@ -570,6 +574,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
       const res = await fetch('/api/migrate', {
         method: 'POST',
+        cache: 'no-store',
         body: formData,
       });
       const data = await res.json();
@@ -597,6 +602,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
       const res = await fetch('/api/migrate', {
         method: 'POST',
+        cache: 'no-store',
         body: formData,
       });
       const data = await res.json();

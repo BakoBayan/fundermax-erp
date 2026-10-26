@@ -1,5 +1,6 @@
 import { APP_CONFIG } from '@/config/appConfig';
 import { NextResponse } from 'next/server';
+import { unstable_noStore as noStore } from 'next/cache';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
@@ -110,6 +111,7 @@ function computeSystemStats() {
 }
 
 export async function GET() {
+  noStore();
   try {
     const interfaces = os.networkInterfaces();
     let detectedIp = '127.0.0.1';
