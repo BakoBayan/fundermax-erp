@@ -24,7 +24,9 @@ import {
   Coins,
   RefreshCw,
   SlidersHorizontal,
-  BarChart3
+  BarChart3,
+  Menu,
+  X
 } from "lucide-react";
 import { AccountModal } from "./AccountModal";
 import { AdminPanelModal } from "./AdminPanelModal";
@@ -77,6 +79,66 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
   const [isDropdownModalOpen, setIsDropdownModalOpen] = useState(false);
   const [headerToast, setHeaderToast] = useState<string | null>(null);
   const [isPinging, setIsPinging] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const navModules = [
+    {
+      id: "hub" as PlatformModule,
+      titleEn: "Main Menu",
+      titleKu: "سەرەکی",
+      icon: Home,
+      isAllowed: true,
+      colorClass: "text-slate-600 dark:text-slate-300",
+    },
+    {
+      id: "panels" as PlatformModule,
+      titleEn: "Wood Panels",
+      titleKu: "تەختەی دار",
+      icon: Layers,
+      isAllowed: !!userPermissions?.canViewPanels,
+      colorClass: "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      id: "orders" as PlatformModule,
+      titleEn: "Orders",
+      titleKu: "داواکارییەکان",
+      icon: Package,
+      isAllowed: !!userPermissions?.canViewPanels,
+      colorClass: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      id: "sales" as PlatformModule,
+      titleEn: "Sales & POS",
+      titleKu: "فرۆشتن",
+      icon: ReceiptText,
+      isAllowed: !!userPermissions?.canViewSales,
+      colorClass: "text-purple-600 dark:text-purple-400",
+    },
+    {
+      id: "goods" as PlatformModule,
+      titleEn: "Warehouse",
+      titleKu: "مەخزەن",
+      icon: Truck,
+      isAllowed: !!userPermissions?.canViewWarehouse,
+      colorClass: "text-amber-600 dark:text-amber-400",
+    },
+    {
+      id: "profit" as PlatformModule,
+      titleEn: "Profit & Finance",
+      titleKu: "قازانج",
+      icon: Coins,
+      isAllowed: !!userPermissions?.canViewFinancialAnalytics,
+      colorClass: "text-teal-600 dark:text-teal-400",
+    },
+    {
+      id: "audit" as PlatformModule,
+      titleEn: "Audit & Logs",
+      titleKu: "داتابەیس",
+      icon: ShieldCheck,
+      isAllowed: !!userPermissions?.canAccessAdmin,
+      colorClass: "text-rose-600 dark:text-rose-400",
+    },
+  ];
 
   useEffect(() => {
     setMounted(true);
@@ -186,7 +248,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
 
   return (
     <>
-      <header dir="ltr" className="sticky top-0 z-[80] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs no-print print:hidden w-full max-w-full pointer-events-auto">
+      <header dir="ltr" className="relative sticky top-0 z-[80] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs no-print print:hidden w-full max-w-full pointer-events-auto">
         {/* Admin Preview Session Active Banner */}
         {isImpersonating && (
           <div className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white text-xs font-semibold px-4 py-2 flex items-center justify-between shadow-inner animate-in fade-in duration-200">
@@ -234,9 +296,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               </div>
             </button>
 
-            {/* Persistent 1-Click Return to Main Menu Hub */}
+            {/* Persistent 1-Click Return to Main Menu Hub (Hidden on mobile) */}
             {currentModule !== "hub" && (
-              <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
                 <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                 <button
                   type="button"
@@ -247,7 +309,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                   <Home className="w-3.5 h-3.5" />
                   <span>Main Menu</span>
                 </button>
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 hidden md:inline truncate max-w-[220px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate max-w-[220px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   {getModuleTitle(currentModule)}
                 </span>
               </div>
@@ -256,56 +318,49 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
 
           {/* Right: Status Pill, Undo/Redo, Language, Theme, Presets, Admin & Account */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 relative z-30 pointer-events-auto">
-            {/* Resilience Status Pill Badge: Live vs Offline */}
-            <button
-              type="button"
-              onClick={handleSyncPing}
-              className={`relative z-20 pointer-events-auto h-9 px-3 rounded-xl text-xs font-bold shadow-2xs select-none border inline-flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
-                isOnline && syncStatus === "synced"
-                  ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400/80 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100/80"
-                  : syncStatus === "syncing" || isPinging
-                  ? "bg-sky-50 dark:bg-sky-950/60 border-sky-400/80 text-sky-700 dark:text-sky-400 hover:bg-sky-100/80"
-                  : "bg-amber-50 dark:bg-amber-950/60 border-amber-400/80 text-amber-700 dark:text-amber-400 hover:bg-amber-100/80"
-              }`}
-              title={
-                isOnline && syncStatus === "synced"
-                  ? `Live Connected: SQLite WAL Active (${walHealth.latencyMs}ms latency • ${walHealth.dbSize} DB). Click to re-verify.`
-                  : syncStatus === "syncing" || isPinging
-                  ? "Network restored; flushing cached offline mutations to local SQLite server..."
-                  : "Offline Mode: Wi-Fi disconnected; local mutations safely queueing to storage. Click to test reconnect."
-              }
-            >
-              <span className="relative flex h-2 w-2">
-                {syncStatus === "syncing" || isPinging ? (
-                  <>
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
-                  </>
-                ) : isOnline && syncStatus === "synced" ? (
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                ) : (
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-                )}
-              </span>
-              <span className="hidden sm:inline font-mono">
-                {syncStatus === "syncing" || isPinging
-                  ? "Syncing..."
-                  : isOnline && syncStatus === "synced"
-                  ? walHealth.isWalActive
-                    ? `WAL Synced (${walHealth.latencyMs}ms)`
-                    : `Online / Synced (${walHealth.latencyMs}ms)`
-                  : "Offline Mode"}
-              </span>
-              <span className="sm:hidden font-mono">
-                {syncStatus === "syncing" || isPinging
-                  ? "Syncing"
-                  : isOnline && syncStatus === "synced"
-                  ? walHealth.isWalActive
-                    ? `WAL (${walHealth.latencyMs}ms)`
-                    : "Online"
-                  : "Offline"}
-              </span>
-            </button>
+            {/* Resilience Status Pill Badge: Live vs Offline (Telemetry hidden on mobile) */}
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSyncPing}
+                className={`relative z-20 pointer-events-auto h-9 px-3 rounded-xl text-xs font-bold shadow-2xs select-none border inline-flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                  isOnline && syncStatus === "synced"
+                    ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400/80 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100/80"
+                    : syncStatus === "syncing" || isPinging
+                    ? "bg-sky-50 dark:bg-sky-950/60 border-sky-400/80 text-sky-700 dark:text-sky-400 hover:bg-sky-100/80"
+                    : "bg-amber-50 dark:bg-amber-950/60 border-amber-400/80 text-amber-700 dark:text-amber-400 hover:bg-amber-100/80"
+                }`}
+                title={
+                  isOnline && syncStatus === "synced"
+                    ? `Live Connected: SQLite WAL Active (${walHealth.latencyMs}ms latency • ${walHealth.dbSize} DB). Click to re-verify.`
+                    : syncStatus === "syncing" || isPinging
+                    ? "Network restored; flushing cached offline mutations to local SQLite server..."
+                    : "Offline Mode: Wi-Fi disconnected; local mutations safely queueing to storage. Click to test reconnect."
+                }
+              >
+                <span className="relative flex h-2 w-2">
+                  {syncStatus === "syncing" || isPinging ? (
+                    <>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
+                    </>
+                  ) : isOnline && syncStatus === "synced" ? (
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  ) : (
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                  )}
+                </span>
+                <span className="font-mono">
+                  {syncStatus === "syncing" || isPinging
+                    ? "Syncing..."
+                    : isOnline && syncStatus === "synced"
+                    ? walHealth.isWalActive
+                      ? `WAL Synced (${walHealth.latencyMs}ms)`
+                      : `Online / Synced (${walHealth.latencyMs}ms)`
+                    : "Offline Mode"}
+                </span>
+              </button>
+            </div>
 
             {/* Undo / Redo Buttons */}
             {!isViewer && (
@@ -380,7 +435,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               <button
                 type="button"
                 onClick={() => setIsDropdownModalOpen(true)}
-                className="relative z-20 pointer-events-auto h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750 inline-flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95 group"
+                className="hidden md:inline-flex relative z-20 pointer-events-auto h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750 items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95 group"
                 title="Manage Dropdown Options & Presets"
               >
                 <SlidersHorizontal className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
@@ -394,7 +449,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                 onClick={openCharts}
                 id="header-charts-button"
                 aria-label="Open visual charts and executive analytics"
-                className="relative z-20 pointer-events-auto h-9 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700/40 text-white inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 group"
+                className="hidden md:inline-flex relative z-20 pointer-events-auto h-9 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700/40 text-white items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 group"
                 title="View Visual Charts & Executive Analytics"
               >
                 <BarChart3 className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
@@ -409,7 +464,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               <button
                 type="button"
                 onClick={openAdminPanel}
-                className="relative z-20 pointer-events-auto h-9 px-3.5 rounded-xl bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-800/90 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 border border-slate-300/80 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 shadow-2xs inline-flex items-center gap-2 text-xs font-bold transition-all cursor-pointer group active:scale-95"
+                className="hidden md:inline-flex relative z-20 pointer-events-auto h-9 px-3.5 rounded-xl bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-800/90 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 border border-slate-300/80 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 shadow-2xs items-center gap-2 text-xs font-bold transition-all cursor-pointer group active:scale-95"
                 title="Open Admin Control Panel (Wi-Fi QR Code, Database, Backups & Logs)"
               >
                 <ShieldCheck className="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
@@ -426,7 +481,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
             <button
               type="button"
               onClick={() => setIsAccountModalOpen(true)}
-              className="relative z-20 pointer-events-auto h-9 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750 inline-flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 transition-all cursor-pointer shadow-2xs active:scale-95 group"
+              className="hidden sm:inline-flex relative z-20 pointer-events-auto h-9 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750 items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 transition-all cursor-pointer shadow-2xs active:scale-95 group"
               title="User Account & Security"
             >
               <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
@@ -434,8 +489,93 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                 {currentUser?.displayName || "Bako Bayan Madhhar"}
               </span>
             </button>
+
+            {/* Mobile Hamburger Button */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="block md:hidden p-2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white ml-2"
+              aria-label="Toggle Menu"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isMobileMenuOpen 
+                  ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                }
+              </svg>
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Menu overlay */}
+        {isMobileMenuOpen && (
+          <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-lg md:hidden z-50 flex flex-col">
+            {navModules
+              .filter((m) => m.isAllowed)
+              .map((item) => {
+                const Icon = item.icon;
+                const isActive = currentModule === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setCurrentModule(item.id);
+                      setIsMobileMenuOpen(false);
+                      if (typeof window !== "undefined") {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }
+                    }}
+                    className={`w-full min-h-12 flex items-center justify-between px-6 py-4 text-lg font-medium border-b border-slate-100 dark:border-slate-900 active:bg-slate-50 dark:active:bg-slate-900 transition-colors cursor-pointer text-left ${
+                      isActive
+                        ? "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold"
+                        : "text-slate-800 dark:text-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? "text-emerald-600 dark:text-emerald-400" : item.colorClass}`} />
+                      <span>{item.titleKu} ({item.titleEn})</span>
+                    </div>
+                    {isActive && (
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
+                  </button>
+                );
+              })}
+
+            {/* Admin Panel Link in Mobile Menu if Admin */}
+            {isAdmin && userPermissions?.canAccessAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  openAdminPanel();
+                }}
+                className="w-full min-h-12 flex items-center gap-3 px-6 py-4 text-lg font-medium border-b border-slate-100 dark:border-slate-900 active:bg-slate-50 dark:active:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer text-left"
+              >
+                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>{language === 'ku' ? 'کۆنترۆڵی ئەدمین (Admin Panel)' : 'Admin Control Panel'}</span>
+              </button>
+            )}
+
+            {/* User Account / Role Link in Mobile Menu */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                setIsAccountModalOpen(true);
+              }}
+              className="w-full min-h-12 flex items-center justify-between px-6 py-4 text-lg font-medium active:bg-slate-50 dark:active:bg-slate-900 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3">
+                <Shield className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>{currentUser?.displayName || "Bako Bayan Madhhar"}</span>
+              </div>
+              <span className="text-xs uppercase font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                {currentUser?.role || "user"}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Instant Action Feedback Toast */}
         {headerToast && (

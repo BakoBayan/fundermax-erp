@@ -843,7 +843,7 @@ function WarehouseApp() {
       )}
 
       {/* Dynamic Main Workspace Container */}
-      <main className="flex-1 flex flex-col w-full max-w-full min-h-0 pb-16 sm:pb-14 no-print print:hidden">
+      <main className="flex-1 flex flex-col w-full max-w-full min-h-0 pb-4 md:pb-16 no-print print:hidden">
         {currentModule === 'hub' && (
           <ModuleHub
             onOpenBatchPrint={() => setIsBatchPrintModalOpen(true)}

@@ -387,6 +387,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   } | null>(null);
   const [loadingServerInfo, setLoadingServerInfo] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [networkUrl, setNetworkUrl] = useState<string>('http://localhost:3000');
+
+  useEffect(() => {
+    fetch('/api/network')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ip) setNetworkUrl(`http://${data.ip}:3000`);
+      })
+      .catch(console.error);
+  }, []);
 
   // Audit Logs State
   const [logFilter, setLogFilter] = useState<'all' | 'sale' | 'inventory' | 'settings' | 'system'>('all');
@@ -2070,10 +2080,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Wi-Fi LAN Connection Card */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center gap-6">
                 {/* QR Code */}
-                {serverInfo?.qrDataUrl ? (
+                <div className="flex flex-col items-center justify-center shrink-0">
                   <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0">
                     <img
-                      src={serverInfo.qrDataUrl}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+                        networkUrl
+                      )}&color=0f172a&bgcolor=ffffff`}
                       alt="Wi-Fi Connection QR Code"
                       className="w-36 h-36 rounded-xl object-contain"
                     />
@@ -2081,11 +2093,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       Scan with iPad / Phone
                     </span>
                   </div>
-                ) : (
-                  <div className="w-36 h-36 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-xs shrink-0">
-                    Generating QR...
+
+                  <div className="mt-4 flex flex-col items-center justify-center space-y-2">
+                    {/* Assuming your QRCode component is here: <QRCode ... value="{networkUrl}"/> */}
+                    
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      ناونیشانی مۆبایل:
+                    </p>
+                    <code className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-md select-all text-lg border border-slate-200 dark:border-slate-700 font-mono">
+                      {networkUrl}
+                    </code>
                   </div>
-                )}
+                </div>
 
                 <div className="flex-1 space-y-3 text-center md:text-left">
                   <div>
