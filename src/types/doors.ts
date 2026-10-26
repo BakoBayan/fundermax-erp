@@ -22,11 +22,11 @@ export interface DoorOrderSpec {
 
 export const DOOR_TYPE_LABELS_KU: Record<DoorTypeCategory, string> = {
   interior: 'ژوور (Interior)',
-  waterproof_wc: 'گەرماو / دژە ئاو (Waterproof WC)',
+  waterproof_wc: 'پێکهاتەی دژە ئاو (Waterproof)',
   entrance: 'دەرگای سەرەکی (Main Entrance)',
 };
 
 export const DOOR_DIRECTION_LABELS_KU: Record<DoorOpeningDirection, string> = {
-  right: 'دەستە ڕاست (Right)',
-  left: 'دەستە چەپ (Left)',
+  right: 'لای ڕاست',
+  left: 'لای چەپ',
 };

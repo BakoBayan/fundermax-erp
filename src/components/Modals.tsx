@@ -373,7 +373,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     addToDropdownPresets,
     removeFromDropdownPresets,
     isViewer,
+    language,
   } = useInventory();
+
+  const isKu = language === 'ku';
 
   const [selectedMatId, setSelectedMatId] = useState("");
   const [client, setClient] = useState("");
@@ -571,8 +574,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             {jobType === "door" ? <DoorClosed className="w-5 h-5 text-emerald-200" /> : null}
             <h3 className="font-bold text-base sm:text-lg">
               {orderToEdit
-                ? (jobType === "door" ? "دەستکاری داواکاری دەرگا" : t.edit)
-                : (jobType === "door" ? "داواکاری نوێی دروستکردنی دەرگا" : t.addOrder)}
+                ? (jobType === "door" ? (isKu ? "دەستکاری داواکاری دەرگا" : "Edit Door Order") : t.edit)
+                : (jobType === "door" ? (isKu ? "داواکاری نوێی دروستکردنی دەرگا" : "New Custom Door Order") : t.addOrder)}
             </h3>
           </div>
           <button
@@ -595,7 +598,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              <span>بڕینی تەختەی ئاسایی (Generic Cuts)</span>
+              <span>{isKu ? "بڕینی تەختەی ئاسایی (Generic Cuts)" : "Generic Sheet Cutting"}</span>
             </button>
             <button
               type="button"
@@ -607,7 +610,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               }`}
             >
               <DoorClosed className="w-4 h-4 shrink-0" />
-              <span>دروستکردنی دەرگا (Custom Door)</span>
+              <span>{isKu ? "دروستکردنی دەرگا (Custom Door)" : "Custom Door Fabrication"}</span>
             </button>
           </div>
         </div>
@@ -624,7 +627,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-                {jobType === "door" ? "تەختە و ڕووکەشی دەرگا (Material)" : t.materials} *
+                {jobType === "door" ? (isKu ? "تەختە و ڕووکەشی دەرگا (Material)" : "Door Skin & Material") : t.materials} *
               </label>
               {orderToEdit ? (
                 <div className="w-full h-9 px-3 flex items-center bg-slate-100 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-500 font-medium text-xs sm:text-sm">
@@ -663,7 +666,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-slate-700 dark:text-slate-200 font-semibold">
-                {jobType === "door" ? "ژمارەی دەرگا (Door Quantity)" : `${t.quantity} (${t.panelUnit})`} *
+                {jobType === "door" ? (isKu ? "ژمارەی دەرگا (Door Quantity)" : "Door Quantity") : `${t.quantity} (${t.panelUnit})`} *
               </label>
               <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
                 {t.available}: {maxAvailable}
@@ -691,22 +694,22 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <div className="flex items-center justify-between border-b border-emerald-200 dark:border-emerald-800/50 pb-2">
                 <span className="font-bold text-xs sm:text-sm text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
                   <DoorClosed className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
-                  <span>تایبەتمەندی و ئەندازەی دروستکردنی دەرگا</span>
+                  <span>{isKu ? "تایبەتمەندی و ئەندازەی دروستکردنی دەرگا" : "Custom Door Specifications"}</span>
                 </span>
                 <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md">
-                  سلێمانی
+                  {isKu ? "سلێمانی" : "Sulaymaniyah"}
                 </span>
               </div>
 
               {/* Door Dimensions & Frame Depth */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
-                  ئەندازەی دەرگا و قووڵی چوارچێوە (Door &amp; Frame Dimensions) *
+                  {isKu ? "ئەندازەی دەرگا و قووڵی چوارچێوە (Door & Frame Dimensions) *" : "Door & Frame Dimensions *"}
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <span className="block text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1">
-                      بەرزی (Height mm)
+                      {isKu ? "بەرزی (Height mm)" : "Height (mm)"}
                     </span>
                     <input
                       type="number"
@@ -725,7 +728,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   <div>
                     <span className="block text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1">
-                      پانی (Width mm)
+                      {isKu ? "پانی (Width mm)" : "Width (mm)"}
                     </span>
                     <input
                       type="number"
@@ -744,7 +747,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   <div>
                     <span className="block text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1">
-                      قووڵی دیوار/چوارچێوە
+                      {isKu ? "قووڵی دیوار/چوارچێوە" : "Wall / Frame Depth"}
                     </span>
                     <input
                       type="number"
@@ -764,12 +767,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                 {/* Quick Frame Depth Preset Pills */}
                 <div className="flex items-center gap-1.5 mt-2">
-                  <span className="text-[10px] font-bold text-slate-500">پێوانەی خێرا:</span>
+                  <span className="text-[10px] font-bold text-slate-500">{isKu ? "پێوانەی خێرا:" : "Presets:"}</span>
                   {[
-                    { label: "10 سم (100mm)", val: "100" },
-                    { label: "15 سم (150mm)", val: "150" },
-                    { label: "20 سم (200mm)", val: "200" },
-                    { label: "25 سم (250mm)", val: "250" },
+                    { label: isKu ? "10 سم (100mm)" : "10 cm (100mm)", val: "100" },
+                    { label: isKu ? "15 سم (150mm)" : "15 cm (150mm)", val: "150" },
+                    { label: isKu ? "20 سم (200mm)" : "20 cm (200mm)", val: "200" },
+                    { label: isKu ? "25 سم (250mm)" : "25 cm (250mm)", val: "250" },
                   ].map((chip) => (
                     <button
                       key={chip.val}
@@ -778,7 +781,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
                         frameDepth === chip.val
                           ? "bg-emerald-700 text-white border-emerald-700 font-bold"
-                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-650 hover:bg-slate-100"
                       }`}
                     >
                       {chip.label}
@@ -790,7 +793,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               {/* Opening Direction (Right / Left Handing) */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
-                  ئاڕاستەی کردنەوە / قوفڵ (Hinge &amp; Opening Direction) *
+                  {isKu ? "لای کردنەوە (دەستە) *" : "Hinge & Opening Direction *"}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -802,7 +805,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700"
                     }`}
                   >
-                    <span>دەستە ڕاست (Right Hand)</span>
+                    <span>{isKu ? "لای ڕاست" : "Right-Hand Opening"}</span>
                     {openingDirection === "right" && <Check className="w-4 h-4" />}
                   </button>
 
@@ -815,7 +818,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700"
                     }`}
                   >
-                    <span>دەستە چەپ (Left Hand)</span>
+                    <span>{isKu ? "لای چەپ" : "Left-Hand Opening"}</span>
                     {openingDirection === "left" && <Check className="w-4 h-4" />}
                   </button>
                 </div>
@@ -824,13 +827,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               {/* Door Type Category */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
-                  جۆری دەرگا (Door Type Category) *
+                  {isKu ? "جۆری دەرگا (Door Type Category) *" : "Door Type Category *"}
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { id: "interior" as DoorTypeCategory, label: "ژوور (Interior)" },
-                    { id: "waterproof_wc" as DoorTypeCategory, label: "گەرماو / دژە ئاو" },
-                    { id: "entrance" as DoorTypeCategory, label: "سەرەکی (Entrance)" },
+                    { id: "interior" as DoorTypeCategory, label: isKu ? "ژوور (Interior)" : "Interior Room" },
+                    { id: "waterproof_wc" as DoorTypeCategory, label: isKu ? "پێکهاتەی دژە ئاو (Waterproof)" : "Waterproof / WC" },
+                    { id: "entrance" as DoorTypeCategory, label: isKu ? "سەرەکی (Entrance)" : "Main Entrance" },
                   ].map((dt) => (
                     <button
                       key={dt.id}
@@ -851,7 +854,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               {/* Door Model & CNC Pattern */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1 text-xs">
-                  ناوی مۆدێل / نەخشی CNC (Model &amp; Pattern Design)
+                  {isKu ? "ناوی مۆدێل / نەخشی CNC (Model & Pattern Design)" : "Model & CNC Pattern Design"}
                 </label>
                 <input
                   type="text"
@@ -872,7 +875,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-700"
                   />
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    تاج و کەتیبە (Casing)
+                    {isKu ? "تاج و کەتیبە (Casing)" : "Casing Included"}
                   </span>
                 </label>
 
@@ -884,7 +887,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-700"
                   />
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    قوفڵ و دەسک (Hardware)
+                    {isKu ? "بەستنی قوفڵ و ئێکسسوارات لە کارگە" : "Hardware Included"}
                   </span>
                 </label>
               </div>
@@ -894,12 +897,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           {/* Design Sketch / Photo Attachment */}
           <div>
             <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-              {jobType === "door" ? "کامێرا / وێنەی دیزاین و نەخشی دەرگا (Sketch / CNC Photo)" : t.image}
+              {jobType === "door" ? (isKu ? "کامێرا / وێنەی دیزاین و نەخشی دەرگا (Sketch / CNC Photo)" : "Design Photo / Sketch") : t.image}
             </label>
             <div className="flex items-center gap-2">
               <label className="cursor-pointer flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-650 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors">
                 <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>{jobType === "door" ? "وێنە بگرە یان دیزاین هەڵبژێرە" : t.attachImage}</span>
+                <span>{jobType === "door" ? (isKu ? "وێنە بگرە یان دیزاین هەڵبژێرە" : "Upload Photo / Design") : t.attachImage}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -946,13 +949,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           {/* Notes */}
           <div>
             <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-              {jobType === "door" ? "تێبینی و ڕێنمایی بۆ دارتاش / وەستاکار" : t.notes}
+              {jobType === "door" ? (isKu ? "تێبینی و ڕێنمایی بۆ دارتاش / وەستاکار" : "Carpenter / Workshop Notes") : t.notes}
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder={jobType === "door" ? "تێبینی لەسەر قوفڵ، گێڕ، ڕەنگی کەتیبە..." : "..."}
+              placeholder={jobType === "door" ? (isKu ? "تێبینی لەسەر قوفڵ، گێڕ، ڕەنگی کەتیبە..." : "Notes on lock, frame, architrave...") : "..."}
               className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
@@ -971,7 +974,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               className="min-h-[46px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm cursor-pointer flex items-center gap-1.5"
             >
               {jobType === "door" && <DoorClosed className="w-4 h-4" />}
-              <span>{orderToEdit ? t.save : (jobType === "door" ? "تۆمارکردنی داواکاری دەرگا" : t.save)}</span>
+              <span>{orderToEdit ? t.save : (jobType === "door" ? (isKu ? "تۆمارکردنی داواکاری دەرگا" : "Save Door Order") : t.save)}</span>
             </button>
           </div>
         </form>

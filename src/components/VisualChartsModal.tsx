@@ -200,8 +200,8 @@ export const SvgDonutChart: React.FC<{
         </div>
       </div>
 
-      {/* Legend Grid */}
-      <div className="w-full mt-4 grid grid-cols-2 gap-2 text-xs">
+      {/* Legend Grid - Responsive 1 col on mobile, 2 cols on sm+, scrollable if many items */}
+      <div className="w-full mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 sm:max-h-56 overflow-y-auto pr-1">
         {data.map((item, idx) => {
           const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
           const isHovered = activeHoverIdx === idx;
@@ -216,7 +216,7 @@ export const SvgDonutChart: React.FC<{
                   : 'bg-slate-50/50 dark:bg-slate-900/40 border-transparent hover:border-slate-200 dark:hover:border-slate-750'
               }`}
             >
-              <div className="flex items-center gap-2 truncate pr-1">
+              <div className="flex items-center gap-2 truncate pr-1 min-w-0">
                 <span className="w-3 h-3 rounded-md shrink-0 shadow-2xs" style={{ backgroundColor: item.color }} />
                 <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{item.label}</span>
               </div>
@@ -280,129 +280,131 @@ export const SvgGroupedBarChart: React.FC<{
 
   return (
     <div className="w-full flex flex-col">
-      <div className="relative w-full overflow-x-auto no-scrollbar">
-        <svg
-          viewBox={`0 0 ${chartWidth} ${height}`}
-          className="w-full h-auto min-w-[340px] select-none overflow-visible"
-        >
-          {/* Y-axis gridlines & labels */}
-          {yTicks.map((pct, i) => {
-            const val = Math.round(maxValue * pct);
-            const y = paddingTop + innerHeight - innerHeight * pct;
-            return (
-              <g key={i}>
-                <line
-                  x1={paddingLeft}
-                  y1={y}
-                  x2={chartWidth - paddingRight}
-                  y2={y}
-                  stroke="currentColor"
-                  strokeDasharray="3 3"
-                  className="text-slate-200 dark:text-slate-800"
-                />
-                <text
-                  x={paddingLeft - 8}
-                  y={y + 4}
-                  textAnchor="end"
-                  fontSize="10"
-                  fontFamily="monospace"
-                  className="fill-slate-400 dark:fill-slate-500 font-semibold"
-                >
-                  {val.toLocaleString()}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Grouped Bars */}
-          {data.map((item, idx) => {
-            const groupX = paddingLeft + idx * groupWidth;
-            const centerX = groupX + groupWidth / 2;
-
-            const h1 = (Math.max(0, item.v1) / maxValue) * innerHeight;
-            const y1 = paddingTop + innerHeight - h1;
-
-            const hasV2 = item.v2 !== undefined && item.color2;
-            const xBar1 = hasV2 ? centerX - barWidth - 2 : centerX - barWidth / 2;
-            const xBar2 = centerX + 2;
-
-            const h2 = hasV2 ? (Math.max(0, item.v2!) / maxValue) * innerHeight : 0;
-            const y2 = paddingTop + innerHeight - h2;
-
-            const isHovered = hoveredIdx === idx;
-
-            return (
-              <g
-                key={idx}
-                onMouseEnter={() => setHoveredIdx(idx)}
-                onMouseLeave={() => setHoveredIdx(null)}
-                className="cursor-pointer"
-              >
-                {/* Background column highlight on hover */}
-                {isHovered && (
-                  <rect
-                    x={groupX + 2}
-                    y={paddingTop}
-                    width={groupWidth - 4}
-                    height={innerHeight}
-                    fill="currentColor"
-                    className="text-slate-100 dark:text-slate-800/60"
-                    rx="6"
+      <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
+        <div className="min-w-[500px] sm:min-w-full">
+          <svg
+            viewBox={`0 0 ${chartWidth} ${height}`}
+            className="w-full h-auto select-none overflow-visible"
+          >
+            {/* Y-axis gridlines & labels */}
+            {yTicks.map((pct, i) => {
+              const val = Math.round(maxValue * pct);
+              const y = paddingTop + innerHeight - innerHeight * pct;
+              return (
+                <g key={i}>
+                  <line
+                    x1={paddingLeft}
+                    y1={y}
+                    x2={chartWidth - paddingRight}
+                    y2={y}
+                    stroke="currentColor"
+                    strokeDasharray="3 3"
+                    className="text-slate-200 dark:text-slate-800"
                   />
-                )}
+                  <text
+                    x={paddingLeft - 8}
+                    y={y + 4}
+                    textAnchor="end"
+                    fontSize="10"
+                    fontFamily="monospace"
+                    className="fill-slate-400 dark:fill-slate-500 font-semibold"
+                  >
+                    {val.toLocaleString()}
+                  </text>
+                </g>
+              );
+            })}
 
-                {/* Bar 1 */}
-                <rect
-                  x={xBar1}
-                  y={y1}
-                  width={barWidth}
-                  height={Math.max(2, h1)}
-                  fill={item.color1}
-                  rx="4"
-                  className="transition-all duration-200"
-                  style={{
-                    filter: isHovered ? 'brightness(1.15) drop-shadow(0 2px 4px rgba(0,0,0,0.2))' : 'none',
-                  }}
-                />
+            {/* Grouped Bars */}
+            {data.map((item, idx) => {
+              const groupX = paddingLeft + idx * groupWidth;
+              const centerX = groupX + groupWidth / 2;
 
-                {/* Bar 2 (if present) */}
-                {hasV2 && (
+              const h1 = (Math.max(0, item.v1) / maxValue) * innerHeight;
+              const y1 = paddingTop + innerHeight - h1;
+
+              const hasV2 = item.v2 !== undefined && item.color2;
+              const xBar1 = hasV2 ? centerX - barWidth - 2 : centerX - barWidth / 2;
+              const xBar2 = centerX + 2;
+
+              const h2 = hasV2 ? (Math.max(0, item.v2!) / maxValue) * innerHeight : 0;
+              const y2 = paddingTop + innerHeight - h2;
+
+              const isHovered = hoveredIdx === idx;
+
+              return (
+                <g
+                  key={idx}
+                  onMouseEnter={() => setHoveredIdx(idx)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                  className="cursor-pointer"
+                >
+                  {/* Background column highlight on hover */}
+                  {isHovered && (
+                    <rect
+                      x={groupX + 2}
+                      y={paddingTop}
+                      width={groupWidth - 4}
+                      height={innerHeight}
+                      fill="currentColor"
+                      className="text-slate-100 dark:text-slate-800/60"
+                      rx="6"
+                    />
+                  )}
+
+                  {/* Bar 1 */}
                   <rect
-                    x={xBar2}
-                    y={y2}
+                    x={xBar1}
+                    y={y1}
                     width={barWidth}
-                    height={Math.max(2, h2)}
-                    fill={item.color2}
+                    height={Math.max(2, h1)}
+                    fill={item.color1}
                     rx="4"
                     className="transition-all duration-200"
                     style={{
                       filter: isHovered ? 'brightness(1.15) drop-shadow(0 2px 4px rgba(0,0,0,0.2))' : 'none',
                     }}
                   />
-                )}
 
-                {/* Category label below X axis */}
-                <text
-                  x={centerX}
-                  y={height - 12}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fontWeight={isHovered ? 'bold' : 'normal'}
-                  className="fill-slate-600 dark:fill-slate-300 transition-colors"
-                >
-                  {item.category.length > 9 ? `${item.category.substring(0, 8)}…` : item.category}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                  {/* Bar 2 (if present) */}
+                  {hasV2 && (
+                    <rect
+                      x={xBar2}
+                      y={y2}
+                      width={barWidth}
+                      height={Math.max(2, h2)}
+                      fill={item.color2}
+                      rx="4"
+                      className="transition-all duration-200"
+                      style={{
+                        filter: isHovered ? 'brightness(1.15) drop-shadow(0 2px 4px rgba(0,0,0,0.2))' : 'none',
+                      }}
+                    />
+                  )}
+
+                  {/* Category label below X axis */}
+                  <text
+                    x={centerX}
+                    y={height - 12}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight={isHovered ? 'bold' : 'normal'}
+                    className="fill-slate-600 dark:fill-slate-300 transition-colors"
+                  >
+                    {item.category.length > 9 ? `${item.category.substring(0, 8)}…` : item.category}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
       </div>
 
       {/* Dynamic Hover Tooltip Banner */}
       {hoveredIdx !== null && data[hoveredIdx] && (
-        <div className="mt-2 p-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 flex items-center justify-between text-xs animate-in fade-in duration-150">
+        <div className="mt-2 p-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 flex flex-wrap items-center justify-between text-xs max-w-full gap-2 animate-in fade-in duration-150">
           <span className="font-bold">{data[hoveredIdx].category}</span>
-          <div className="flex items-center gap-4 font-mono">
+          <div className="flex items-center gap-3 sm:gap-4 font-mono flex-wrap">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data[hoveredIdx].color1 }} />
               <span>{data[hoveredIdx].label1}:</span>
@@ -503,102 +505,104 @@ export const SvgAreaTrendChart: React.FC<{
 
   return (
     <div className="w-full flex flex-col">
-      <div className="relative w-full overflow-x-auto no-scrollbar">
-        <svg
-          viewBox={`0 0 ${chartWidth} ${height}`}
-          className="w-full h-auto min-w-[340px] select-none overflow-visible"
-        >
-          <defs>
-            <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={lineColor} stopOpacity="0.45" />
-              <stop offset="100%" stopColor={lineColor} stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
+      <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
+        <div className="min-w-[500px] sm:min-w-full">
+          <svg
+            viewBox={`0 0 ${chartWidth} ${height}`}
+            className="w-full h-auto select-none overflow-visible"
+          >
+            <defs>
+              <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={lineColor} stopOpacity="0.45" />
+                <stop offset="100%" stopColor={lineColor} stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
 
-          {/* Grid lines */}
-          {[0, 0.5, 1].map((pct, i) => {
-            const y = paddingTop + innerH - innerH * pct;
-            const v = Math.round(maxVal * pct);
-            return (
-              <g key={i}>
-                <line
-                  x1={paddingLeft}
-                  y1={y}
-                  x2={chartWidth - paddingRight}
-                  y2={y}
-                  stroke="currentColor"
-                  strokeDasharray="2 3"
-                  className="text-slate-200 dark:text-slate-800"
-                />
-                <text
-                  x={paddingLeft - 6}
-                  y={y + 3}
-                  textAnchor="end"
-                  fontSize="9"
-                  fontFamily="monospace"
-                  className="fill-slate-400 font-semibold"
+            {/* Grid lines */}
+            {[0, 0.5, 1].map((pct, i) => {
+              const y = paddingTop + innerH - innerH * pct;
+              const v = Math.round(maxVal * pct);
+              return (
+                <g key={i}>
+                  <line
+                    x1={paddingLeft}
+                    y1={y}
+                    x2={chartWidth - paddingRight}
+                    y2={y}
+                    stroke="currentColor"
+                    strokeDasharray="2 3"
+                    className="text-slate-200 dark:text-slate-800"
+                  />
+                  <text
+                    x={paddingLeft - 6}
+                    y={y + 3}
+                    textAnchor="end"
+                    fontSize="10"
+                    fontFamily="monospace"
+                    className="fill-slate-400 font-semibold"
+                  >
+                    {valuePrefix}
+                    {v.toLocaleString()}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Area fill */}
+            {areaD && <path d={areaD} fill={`url(#${fillGradientId})`} />}
+
+            {/* Line stroke */}
+            {pathD && (
+              <path
+                d={pathD}
+                fill="none"
+                stroke={lineColor}
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="drop-shadow-sm"
+              />
+            )}
+
+            {/* Data Points */}
+            {points.map((pt, i) => {
+              const isHovered = activePt === i;
+              return (
+                <g
+                  key={i}
+                  onMouseEnter={() => setActivePt(i)}
+                  onMouseLeave={() => setActivePt(null)}
+                  className="cursor-pointer"
                 >
-                  {valuePrefix}
-                  {v.toLocaleString()}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Area fill */}
-          {areaD && <path d={areaD} fill={`url(#${fillGradientId})`} />}
-
-          {/* Line stroke */}
-          {pathD && (
-            <path
-              d={pathD}
-              fill="none"
-              stroke={lineColor}
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="drop-shadow-sm"
-            />
-          )}
-
-          {/* Data Points */}
-          {points.map((pt, i) => {
-            const isHovered = activePt === i;
-            return (
-              <g
-                key={i}
-                onMouseEnter={() => setActivePt(i)}
-                onMouseLeave={() => setActivePt(null)}
-                className="cursor-pointer"
-              >
-                <circle
-                  cx={pt.x}
-                  cy={pt.y}
-                  r={isHovered ? 6 : 4}
-                  fill="#ffffff"
-                  stroke={lineColor}
-                  strokeWidth={isHovered ? 3 : 2}
-                  className="transition-all duration-200"
-                />
-                {/* X-axis labels */}
-                <text
-                  x={pt.x}
-                  y={height - 10}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight={isHovered ? 'bold' : 'normal'}
-                  className="fill-slate-500 dark:fill-slate-400"
-                >
-                  {pt.label}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                  <circle
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={isHovered ? 6 : 4}
+                    fill="#ffffff"
+                    stroke={lineColor}
+                    strokeWidth={isHovered ? 3 : 2}
+                    className="transition-all duration-200"
+                  />
+                  {/* X-axis labels */}
+                  <text
+                    x={pt.x}
+                    y={height - 10}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight={isHovered ? 'bold' : 'normal'}
+                    className="fill-slate-500 dark:fill-slate-400"
+                  >
+                    {pt.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
       </div>
 
       {activePt !== null && points[activePt] && (
-        <div className="mt-1 p-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 flex items-center justify-between text-xs animate-in fade-in duration-150">
+        <div className="mt-1 p-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 flex flex-wrap items-center justify-between text-xs max-w-full gap-2 animate-in fade-in duration-150">
           <span className="font-semibold text-slate-300">{points[activePt].label}</span>
           <span className="font-bold font-mono text-emerald-400">
             {valuePrefix}

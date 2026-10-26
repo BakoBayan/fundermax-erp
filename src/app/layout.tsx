@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { unstable_noStore as noStore } from "next/cache";
 import "./globals.css";
 import { APP_CONFIG } from "@/config/appConfig";
 
@@ -38,6 +39,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  noStore();
   return (
     <html lang="en" suppressHydrationWarning className="w-full max-w-full overflow-x-hidden">
       <head>

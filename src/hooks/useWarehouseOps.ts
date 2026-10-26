@@ -63,7 +63,12 @@ async function pushToServer(): Promise<void> {
     const res = await fetch('/api/warehouse', {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
+      next: { revalidate: 0 } as any,
+      headers: {
+        'Content-Type': 'application/json',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-store, max-age=0',
+      },
       body: JSON.stringify({ state: current }),
     });
     const data = (await res.json()) as { success?: boolean; stale?: boolean; state?: unknown };
@@ -81,7 +86,14 @@ async function pushToServer(): Promise<void> {
 
 async function syncFromServer(): Promise<void> {
   try {
-    const res = await fetch('/api/warehouse', { cache: 'no-store' });
+    const res = await fetch('/api/warehouse', {
+      cache: 'no-store',
+      next: { revalidate: 0 } as any,
+      headers: {
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    });
     const data = (await res.json()) as { state?: unknown };
     serverReachable = true;
     const server = data.state ? normalize(data.state) : null;

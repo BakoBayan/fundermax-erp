@@ -132,48 +132,56 @@ export const MobileView: React.FC<MobileViewProps> = ({
     <div className="w-full max-w-full overflow-x-hidden flex-1 flex flex-col bg-slate-100 dark:bg-slate-900 pb-24 select-none no-print touch-pan-y">
       {/* Mobile Sticky Control Bar: Search + Add Panel + Filters + Sorting */}
       <div className="sticky top-[49px] z-30 bg-white/95 dark:bg-slate-850/95 backdrop-blur-md px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 shadow-2xs w-full max-w-full box-border overflow-hidden">
-        <div className="max-w-xl mx-auto space-y-2 w-full box-border">
-          {/* Top Row: Search Input & Primary + Panel Button */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                id="mobile-panels-search-input"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.searchPanels}
-                className="w-full h-9 ps-9 pe-8 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute end-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  title={t.clearSearch}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* + Panel Button: Hidden for Viewers */}
-            {!isViewer && (
+        <div className="max-w-xl mx-auto space-y-2.5 w-full box-border">
+          {/* Search bar: Full width, h-12, text-base */}
+          <div className="relative w-full">
+            <Search className="w-5 h-5 absolute start-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              id="mobile-panels-search-input"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={language === 'ku' ? 'گەڕان لە تەختەکان...' : t.searchPanels}
+              className="w-full h-12 ps-11 pe-9 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+            />
+            {searchQuery && (
               <button
-                onClick={() => onOpenMaterialModal(null)}
-                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white px-3.5 h-9 rounded-xl font-bold text-xs sm:text-sm shadow-sm shrink-0 transition-all"
-                title={t.addPanel}
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                title={t.clearSearch}
               >
-                <Plus className="w-4 h-4" />
-                <span>{t.addPanel}</span>
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          {/* Bottom Filter & Sort Row */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Horizontally scrolling filter pills */}
+          <div className="flex items-center overflow-x-auto no-scrollbar gap-2 py-0.5 scroll-smooth">
+            {[
+              { id: 'all', label: language === 'ku' ? 'هەموو' : 'All' },
+              { id: 'in_stock', label: language === 'ku' ? 'بەردەست' : 'In Stock' },
+              { id: 'out_of_stock', label: language === 'ku' ? 'لە کۆگا نەماوە' : 'Out of Stock' },
+            ].map((pill) => {
+              const isSelected = stockStatusFilter === pill.id;
+              return (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={() => setStockStatusFilter(pill.id as any)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer border ${
+                    isSelected
+                      ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              );
+            })}
+
             {/* Type Filter */}
-            <div className="flex-1 min-w-[110px]">
+            <div className="shrink-0 min-w-[120px]">
               <SearchableDropdown
                 options={[t.allTypes, ...customTypes]}
                 value={typeFilter === "all" ? t.allTypes : typeFilter}
@@ -182,28 +190,29 @@ export const MobileView: React.FC<MobileViewProps> = ({
                 onDeleteOption={!isViewer ? deleteCustomType : undefined}
                 placeholder={t.allTypes}
                 allowDelete={!isViewer}
+                compact={true}
               />
             </div>
 
-            {/* Stock Filter Pill */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-              <select
-                value={stockStatusFilter}
-                onChange={(e) => setStockStatusFilter(e.target.value as "all" | "in_stock" | "out_of_stock")}
-                className="bg-transparent focus:outline-none cursor-pointer"
+            {/* + Add Panel Button */}
+            {!isViewer && (
+              <button
+                type="button"
+                onClick={() => onOpenMaterialModal(null)}
+                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-xs shrink-0 whitespace-nowrap transition-all"
+                title={t.addPanel}
               >
-                <option value="all" className="dark:bg-slate-800">{t.allStock}</option>
-                <option value="in_stock" className="dark:bg-slate-800">{t.inStockOnly}</option>
-                <option value="out_of_stock" className="dark:bg-slate-800">{t.outOfStockOnly}</option>
-              </select>
-            </div>
+                <Plus className="w-3.5 h-3.5" />
+                <span>{language === 'ku' ? 'تەختەی نوێ' : t.addPanel}</span>
+              </button>
+            )}
 
-            {/* Sorting Dropdown (Feature Parity with PC) */}
-            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
+            {/* Sorting Dropdown */}
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
               <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "mostStock" | "leastStock" | "code")}
+                onChange={(e) => setSortBy(e.target.value as any)}
                 className="bg-transparent focus:outline-none cursor-pointer"
               >
                 <option value="newest" className="dark:bg-slate-800">{t.newest}</option>
@@ -616,19 +625,31 @@ export const MobileView: React.FC<MobileViewProps> = ({
                   );
                 })()}
 
-                {/* 5. Card Footer: Full-width Primary + Order Button (Strictly unmounted unless canCreatePanels) */}
-                {userPermissions.canCreatePanels && (
-                  <div className="p-3 bg-white dark:bg-slate-800">
+                {/* 5. Card Footer: Large tap buttons for [دەستکاری / Edit] and [+ داواکاری / Reserve] */}
+                <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-750/80 flex items-center gap-2">
+                  {userPermissions.canEditPanels && (
                     <button
+                      type="button"
+                      onClick={() => onOpenMaterialModal(mat)}
+                      className="flex-1 min-h-[48px] py-3 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-650 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-98 transition-all cursor-pointer"
+                    >
+                      <Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                      <span>{language === 'ku' ? 'دەستکاری' : 'Edit'}</span>
+                    </button>
+                  )}
+
+                  {userPermissions.canCreatePanels && (
+                    <button
+                      type="button"
                       onClick={() => onOpenOrderModal(mat.id)}
                       disabled={isOutOfStock}
-                      className="w-full min-h-[48px] py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all cursor-pointer"
+                      className="flex-1 min-h-[48px] py-3 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition-all cursor-pointer"
                     >
-                      <PackagePlus className="w-5 h-5" />
-                      <span>{t.addOrder}</span>
+                      <PackagePlus className="w-4 h-4" />
+                      <span>{language === 'ku' ? '+ داواکاری' : '+ Reserve'}</span>
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })

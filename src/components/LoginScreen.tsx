@@ -19,11 +19,7 @@ export const LoginScreen: React.FC = () => {
     setErrorMsg("");
 
     if (!username.trim() || !password.trim()) {
-      setErrorMsg(
-        language === "ku"
-          ? "تکایە ناوی بەکارهێنەر و وشەی نهێنی بنووسە"
-          : "Please enter your username and password."
-      );
+      setErrorMsg("Please enter your username and password.");
       return;
     }
 
@@ -32,25 +28,21 @@ export const LoginScreen: React.FC = () => {
       const success = login(username, password);
       setIsLoading(false);
       if (!success) {
-        setErrorMsg(
-          language === "ku"
-            ? "ناوی بەکارهێنەر یان وشەی نهێنی هەڵەیە."
-            : "Invalid username or password. Please check your credentials."
-        );
+        setErrorMsg("Invalid username or password. Please check your credentials.");
       }
     }, 200);
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-between bg-gradient-to-br from-slate-100 via-slate-50 to-emerald-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20 text-slate-900 dark:text-slate-100 p-4 transition-colors select-none">
+    <div dir="ltr" className="min-h-screen w-full flex flex-col items-center justify-between bg-gradient-to-br from-slate-100 via-slate-50 to-emerald-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20 text-slate-900 dark:text-slate-100 p-4 transition-colors select-none">
       {/* Top Bar: Language & Theme Toggles */}
       <div className="w-full max-w-md flex items-center justify-between pt-2">
-        {/* Language Switcher */}
+        {/* Language Preference Switcher for post-login session */}
         <button
           type="button"
           onClick={() => setLanguage(language === "en" ? "ku" : "en")}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs transition-all active:scale-95"
-          title="Toggle English / Kurdish"
+          title={language === "en" ? "Switch post-login language to Kurdish" : "Switch post-login language to English"}
         >
           <Globe className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           <span>{language === "en" ? "کوردی" : "English"}</span>
@@ -71,7 +63,7 @@ export const LoginScreen: React.FC = () => {
         </button>
       </div>
 
-      {/* Main Centered Login Card */}
+      {/* Main Centered Login Card - Always in English */}
       <div className="w-full max-w-sm my-auto">
         <div className="bg-white/95 dark:bg-slate-850/95 backdrop-blur-md rounded-3xl border border-slate-200 dark:border-slate-750 shadow-xl overflow-hidden p-6 sm:p-7 space-y-6">
           {/* Logo & Branding */}
@@ -80,31 +72,29 @@ export const LoginScreen: React.FC = () => {
             <div>
               <div className="flex items-center justify-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                  {language === "ku" ? "سیستەمی سەرەکی باکۆ" : "Bako's Master System"}
+                  Bako&apos;s Master System
                 </h1>
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 dark:bg-emerald-400/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-400/25">
                   {APP_CONFIG.version}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                {language === "ku"
-                  ? "ناوەندی یەکگرتووی کۆگا، فرۆشتن و دارایی"
-                  : "Unified Panels, Sales POS & Warehouse Operations"}
+                Unified Panels, Sales POS &amp; Warehouse Operations
               </p>
             </div>
             {/* Security Pill */}
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
               <Shield className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              <span>{language === "ku" ? "چوونەژوورەوەی پارێزراو" : "Secure Authentication"}</span>
+              <span>Secure Authentication</span>
             </div>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username Input */}
-            <div className="space-y-1.5 text-start">
+            <div className="space-y-1.5 text-left">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                {language === "ku" ? "ناوی بەکارهێنەر" : "Username"}
+                Username
               </label>
               <div className="relative">
                 <User className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -112,7 +102,7 @@ export const LoginScreen: React.FC = () => {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={language === "ku" ? "ناوی بەکارهێنەر بنووسە" : "Enter username"}
+                  placeholder="Enter username"
                   autoFocus
                   autoComplete="username"
                   className="w-full h-11 ps-9 pe-3 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-medium text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
@@ -121,9 +111,9 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             {/* Password Input */}
-            <div className="space-y-1.5 text-start">
+            <div className="space-y-1.5 text-left">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                {language === "ku" ? "وشەی نهێنی" : "Password"}
+                Password
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -131,7 +121,7 @@ export const LoginScreen: React.FC = () => {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={language === "ku" ? "وشەی نهێنی بنووسە" : "Enter password"}
+                  placeholder="Enter password"
                   autoComplete="current-password"
                   className="w-full h-11 ps-9 pe-10 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-medium text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
                 />
@@ -164,7 +154,7 @@ export const LoginScreen: React.FC = () => {
               ) : (
                 <>
                   <LogIn className="w-4 h-4" />
-                  <span>{language === "ku" ? "چوونەژوورەوە" : "Sign In"}</span>
+                  <span>Sign In</span>
                 </>
               )}
             </button>

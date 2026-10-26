@@ -59,8 +59,12 @@ export default function PrintInvoiceModal({
   // 1. Initial image list with optional attachment toggle
   const [images, setImages] = useState<PrintableImageItem[]>([]);
   const [isImageDrawerOpen, setIsImageDrawerOpen] = useState(false);
-  const [shareLang, setShareLang] = useState<'ku' | 'en'>('ku');
+  const [shareLang, setShareLang] = useState<'ku' | 'en'>(lang === 'en' ? 'en' : 'ku');
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setShareLang(lang === 'en' ? 'en' : 'ku');
+  }, [lang]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Mouse drag-to-resize state (Zero lag, no scrollbars!)
@@ -813,7 +817,7 @@ export default function PrintInvoiceModal({
                 <p>Bako&apos;s Master System • v{APP_CONFIG.version}</p>
                 <div className="pt-2 text-center text-[9px] text-slate-700 font-mono">
                   - - - - - - - - - - - - - - - - - - - - - - - -
-                  <span className="block mt-0.5 font-bold">[ CUT HERE / لێرە بیبڕە ]</span>
+                  <span className="block mt-0.5 font-bold">{lang === 'en' ? '[ CUT HERE ]' : '[ CUT HERE / لێرە بیبڕە ]'}</span>
                 </div>
               </div>
             </div>
@@ -890,19 +894,19 @@ export default function PrintInvoiceModal({
             {/* Quick Meta Strip: Seller, Bank, Method, Currency */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 mb-3 text-[11px]">
               <div>
-                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">Seller / فرۆشیار:</span>
+                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">{lang === 'en' ? 'Seller:' : 'Seller / فرۆشیار:'}</span>
                 <span className="font-bold text-slate-800">{tx.seller || 'Bako Bayan'}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">Method / شێواز:</span>
+                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">{lang === 'en' ? 'Method:' : 'Method / شێواز:'}</span>
                 <span className="font-bold text-slate-800">{tx.paymentType || 'Cash'}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">Bank / بانک:</span>
+                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">{lang === 'en' ? 'Bank:' : 'Bank / بانک:'}</span>
                 <span className="font-bold text-slate-800">{tx.bank || '-'}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">Currency / دراو:</span>
+                <span className="text-slate-400 block text-[9.5px] uppercase font-bold">{lang === 'en' ? 'Currency:' : 'Currency / دراو:'}</span>
                 <span className="font-mono font-bold text-slate-800">{tx.currency || 'USD'}</span>
               </div>
             </div>
@@ -912,11 +916,11 @@ export default function PrintInvoiceModal({
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b-2 border-slate-300 text-slate-700 font-black text-[10px] uppercase">
-                    <th className="py-1 text-left">Item / کاڵا</th>
-                    <th className="py-1 text-center">Qty / ژمارە</th>
-                    <th className="py-1 text-center">Type / جۆر</th>
-                    <th className="py-1 text-right">Price / نرخ</th>
-                    <th className="py-1 text-right">Total / کۆ</th>
+                    <th className="py-1 text-left">{lang === 'en' ? 'Item' : 'Item / کاڵا'}</th>
+                    <th className="py-1 text-center">{lang === 'en' ? 'Qty' : 'Qty / ژمارە'}</th>
+                    <th className="py-1 text-center">{lang === 'en' ? 'Type' : 'Type / جۆر'}</th>
+                    <th className="py-1 text-right">{lang === 'en' ? 'Price' : 'Price / نرخ'}</th>
+                    <th className="py-1 text-right">{lang === 'en' ? 'Total' : 'Total / کۆ'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -961,29 +965,29 @@ export default function PrintInvoiceModal({
             {/* Financial Breakdown (Totals) */}
             <div className="border-t border-slate-300 pt-2 text-xs space-y-1 bg-slate-50/60 p-2.5 rounded-lg">
               <div className="flex justify-between font-semibold text-slate-600">
-                <span>Subtotal / کۆی سەرەتایی:</span>
+                <span>{lang === 'en' ? 'Subtotal:' : 'Subtotal / کۆی سەرەتایی:'}</span>
                 <span className="font-mono">{formatMoney(tx.sellingAmount, tx.currency)}</span>
               </div>
 
               {tx.discountDollars !== undefined && tx.discountDollars > 0 && (
                 <div className="flex justify-between text-amber-700 font-semibold">
-                  <span>Discount / داشکاندن:</span>
+                  <span>{lang === 'en' ? 'Discount:' : 'Discount / داشکاندن:'}</span>
                   <span className="font-mono">-{formatMoney(tx.discountDollars, tx.currency)}</span>
                 </div>
               )}
 
               <div className="flex justify-between text-sm font-black border-t border-slate-300 pt-1 text-slate-950">
-                <span>Total Net / کۆی گشتی:</span>
+                <span>{lang === 'en' ? 'Total Net:' : 'Total Net / کۆی گشتی:'}</span>
                 <span className="font-mono">{formatMoney(tx.totalAfterDiscount, tx.currency)}</span>
               </div>
 
               <div className="flex justify-between font-bold text-emerald-700">
-                <span>Amount Paid / دراو:</span>
+                <span>{lang === 'en' ? 'Amount Paid:' : 'Amount Paid / دراو:'}</span>
                 <span className="font-mono">{formatMoney(tx.amountPaidNow || 0, tx.currency)}</span>
               </div>
 
               <div className="flex justify-between font-black text-rose-700">
-                <span>Remaining Debt / قەرز:</span>
+                <span>{lang === 'en' ? 'Remaining Debt:' : 'Remaining Debt / قەرز:'}</span>
                 <span className="font-mono">{formatMoney(tx.combinedTotalDebt || 0, tx.currency)}</span>
               </div>
             </div>
@@ -991,7 +995,7 @@ export default function PrintInvoiceModal({
             {/* Notes Section (Never clipped or cut off!) */}
             {tx.notes && (
               <div className="mt-2.5 p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] overflow-visible">
-                <span className="font-bold text-slate-700 block mb-1">Notes / تێبینی:</span>
+                <span className="font-bold text-slate-700 block mb-1">{lang === 'en' ? 'Notes:' : 'Notes / تێبینی:'}</span>
                 <p className="whitespace-pre-wrap break-words leading-relaxed text-slate-800">{tx.notes}</p>
               </div>
             )}
@@ -1003,7 +1007,7 @@ export default function PrintInvoiceModal({
               <div className="mt-3 pt-2 border-t border-slate-200 space-y-3 print-avoid-break">
                 <div className="flex items-center justify-between">
                   <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Attached Photos / وێنەکان ({printableImages.length}):
+                    {lang === 'en' ? `Attached Photos (${printableImages.length}):` : `Attached Photos / وێنەکان (${printableImages.length}):`}
                   </span>
                   <span className="text-[10px] text-slate-400 print-hide">
                     Drag corner ⤡ to resize • Hover for position controls

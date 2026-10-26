@@ -1,0 +1,1664 @@
+================================================================================
+BAKO'S MASTER SYSTEM — COMPLETE BILINGUAL LOCALIZATION & TERMINOLOGY DICTIONARY
+Language Pairs: English (en) <-> Kurdish Sorani (ku)
+Target Audience: Reviewing AI / Localization Editor
+Purpose: Natural, fluent, professional, and idiomatic Sorani Kurdish refinement
+================================================================================
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS:
+1. Core Dictionary (src/utils/i18n.ts)
+   1.1 General Application Shell & Header
+   1.2 Unified Master Hub & Navigation Modules
+   1.3 Wood Panels, Physical Dimensions & Inventory
+   1.4 Orders, Factory Workshop Cutting Division & Blueprints
+   1.5 Sorting, Views, Print Options & PDF Slips
+   1.6 Sales, Point of Sale (POS), Invoicing & Multi-Currency Engine
+   1.7 Warehouse Goods, Racks, Shipments & Logistics Pipeline
+   1.8 User Accounts, Security Roles & CSV Data Exports
+2. Component-Level Dynamic Bilingual Terms (isKu ? ... : ...)
+   2.1 Custom Door Fabrication Workshop Division (Modals.tsx & OrderDetailsModal.tsx)
+   2.2 Unified Print Engine & Factory Workshop Slips (UnifiedPrintEngine.tsx & page.tsx)
+   2.3 Executive Profit & Financial Solvency Suite (ExecutiveProfitSuite.tsx)
+   2.4 WhatsApp & Email Customer Receipt Sharing Payloads
+   2.5 Legal Notice, Copyright & Developer Commissioning (CopyrightModal.tsx)
+--------------------------------------------------------------------------------
+
+================================================================================
+1. CORE DICTIONARY (src/utils/i18n.ts)
+================================================================================
+
+--- 1.1 GENERAL APPLICATION SHELL & HEADER ---
+[KEY] appTitle
+[EN] Bako's Master System
+[KU] سیستەمی سەرەکی باکۆ
+[CONTEXT] Primary application branding and title header.
+
+[KEY] mainMenu
+[EN] Main Menu
+[KU] مێنیو
+[CONTEXT] Button to return to the universal modules overview hub.
+
+[KEY] managerTitle
+[EN] Awat (Manager)
+[KU] بەڕێوەبەر
+[CONTEXT] Current manager account role and profile badge.
+
+[KEY] online
+[EN] Online
+[KU] سەرهێڵ
+[CONTEXT] System telemetry online status badge.
+
+[KEY] liveSynced
+[EN] Live (Synced)
+[KU] سەرهێڵ (پەیوەستە)
+[CONTEXT] Real-time SQLite WAL database replication status.
+
+[KEY] offlineMode
+[EN] Offline Mode (Showing cached data)
+[KU] ئۆفلاین
+[CONTEXT] Displayed when local network disconnects, running on local cache.
+
+[KEY] syncing
+[EN] Syncing...
+[KU] پەیوەست دەبێت...
+[CONTEXT] Temporary loading spinner during background data synchronization.
+
+[KEY] day
+[EN] Day
+[KU] ڕۆژ
+[CONTEXT] Theme toggle option for light mode.
+
+[KEY] night
+[EN] Night
+[KU] شەو
+[CONTEXT] Theme toggle option for dark mode.
+
+[KEY] pc
+[EN] PC View
+[KU] کۆمپیوتەر
+[CONTEXT] View mode switch for desktop dense spreadsheet grid layout.
+
+[KEY] mobile
+[EN] Mobile View
+[KU] مۆبایل
+[CONTEXT] View mode switch for responsive mobile touch card layout.
+
+[KEY] auto
+[EN] Auto
+[KU] خۆکار
+[CONTEXT] Automatic system detection mode.
+
+[KEY] search
+[EN] Search...
+[KU] گەڕان...
+[CONTEXT] Universal search bar placeholder text.
+
+[KEY] clearSearch
+[EN] Clear search
+[KU] سڕینەوەی گەڕان
+[CONTEXT] Button to reset and clear search input filter.
+
+[KEY] pressToSearch
+[EN] Press / to search
+[KU] داگرتنی / بۆ گەڕان
+[CONTEXT] Keyboard hotkey hint tooltip for fast search focus.
+
+[KEY] save
+[EN] Save
+[KU] پاشەکەوت
+[CONTEXT] Primary action button to commit and save form changes.
+
+[KEY] cancel
+[EN] Cancel
+[KU] داخستن
+[CONTEXT] Action button to discard changes and close dialog.
+
+[KEY] confirm
+[EN] Confirm
+[KU] تەواو
+[CONTEXT] Modal button to confirm destructive or permanent actions.
+
+[KEY] close
+[EN] Close
+[KU] داخستن
+[CONTEXT] Generic button or icon tooltip to dismiss an open modal window.
+
+[KEY] actions
+[EN] Actions
+[KU] کردار
+[CONTEXT] Table column heading for edit, delete, and print actions.
+
+[KEY] edit
+[EN] Edit
+[KU] دەستکاری
+[CONTEXT] Row button to open the modification modal for an item.
+
+[KEY] delete
+[EN] Delete
+[KU] سڕینەوە
+[CONTEXT] Row button to delete an entry.
+
+[KEY] print
+[EN] Print
+[KU] چاپ
+[CONTEXT] Action button to trigger print portal or send to thermal printer.
+
+[KEY] contact
+[EN] Contact
+[KU] پەیوەندی
+[CONTEXT] Footer contact label.
+
+[KEY] networkLink
+[EN] Network URL
+[KU] بەستەری تۆڕ
+[CONTEXT] Local IPv4 LAN network link for wireless mobile access.
+
+[KEY] connectPhone
+[EN] Connect Phone
+[KU] بەستنی مۆبایل
+[CONTEXT] Admin panel QR code modal title for connecting mobile devices.
+
+[KEY] copyLink
+[EN] Copy Link
+[KU] کۆپیکردنی بەستەر
+[CONTEXT] Button to copy the local network IP URL to system clipboard.
+
+[KEY] copied
+[EN] Copied!
+[KU] کۆپی کرا!
+[CONTEXT] Temporary confirmation badge shown after successful copy.
+
+[KEY] scanQrNote
+[EN] Scan with your phone camera on the same Wi-Fi:
+[KU] کۆدەکە سکان بکە لەسەر هەمان وایفای:
+[CONTEXT] QR code scanning instructions for staff in warehouse/workshop.
+
+[KEY] sameWifiTip
+[EN] Both devices must be connected to the same Wi-Fi.
+[KU] لەسەر یەک وایفای بن.
+[CONTEXT] Network connectivity guidance note.
+
+
+--- 1.2 UNIFIED MASTER HUB & NAVIGATION MODULES ---
+[KEY] operationsHub
+[EN] Bako's Master System
+[KU] سیستەمی سەرەکی باکۆ
+[CONTEXT] Central navigation hub main brand title.
+
+[KEY] hubSubtitle
+[EN] Unified Multi-Device Industrial & Sales Operations Hub
+[KU] ناوەندی یەکگرتووی کارگا، مەخزەن، فرۆشتن و حسابات
+[CONTEXT] Central hub subtitle describing ERP scope.
+
+[KEY] module1Title
+[EN] Wood Panel Operations & Orders
+[KU] بڕینی تەختە
+[CONTEXT] Navigation card 1 header: Wood panel warehouse and cutting operations.
+
+[KEY] module1Badge
+[EN] Panel Warehouse
+[KU] کارگای بڕین
+[CONTEXT] Badge pill for Module 1.
+
+[KEY] module1Desc
+[EN] Physical mm dimension tracking, active client reservation balance, dispatch workflows & batch slip printing.
+[KU] کۆگای تەختەکان، بڕین و داواکاری کڕیاران و چاپی پسوولە.
+[CONTEXT] Explanatory description of panel warehouse module.
+
+[KEY] module2Title
+[EN] Sales, Invoicing & Multi-Currency
+[KU] فرۆشتن و وەسڵ
+[CONTEXT] Navigation card 2 header: POS and sales invoicing module.
+
+[KEY] module2Badge
+[EN] POS & Financials
+[KU] کاش و قەرز
+[CONTEXT] Badge pill for Module 2.
+
+[KEY] module2Desc
+[EN] Interactive multi-item sales POS, manual 3-rate currency engine (USD/IQD/EUR), debt tracking & profit margins.
+[KU] وەسڵی فرۆشتن بە USD/IQD/EUR، تۆماری قەرز و حسابات.
+[CONTEXT] Explanatory description of POS and multi-currency engine.
+
+[KEY] module3Title
+[EN] Warehouse Goods & Shipping Pipeline
+[KU] مەخزەن
+[CONTEXT] Navigation card 3 header: Warehouse inventory & logistics.
+
+[KEY] module3Badge
+[EN] Logistics & Stock
+[KU] کۆگا و بار
+[CONTEXT] Badge pill for Module 3.
+
+[KEY] module3Desc
+[EN] General warehouse items catalog, low-stock threshold lanes, and Kanban shipping pipeline (Pending → In Transit → Delivered).
+[KU] کەلوپەل، بارە گەیشتووەکان و گواستنەوە.
+[CONTEXT] Explanatory description of warehouse goods and shipping pipeline.
+
+[KEY] module4Title
+[EN] Audit Trail & System Security
+[KU] ئامار و حسابات
+[CONTEXT] Navigation card 4 header: Administrative tools, database backups, logs.
+
+[KEY] module4Badge
+[EN] System Core
+[KU] ئاسایش و داتابەیس
+[CONTEXT] Badge pill for Module 4.
+
+[KEY] module4Desc
+[EN] Unified system-wide activity logs, 1-tap administrative SQLite snapshots & local Wi-Fi device networking.
+[KU] تۆماری ئاسایش، کۆپی بۆ فلاش (USB) و باکئەپ.
+[CONTEXT] Explanatory description of system security and database management.
+
+
+--- 1.3 WOOD PANELS, PHYSICAL DIMENSIONS & INVENTORY ---
+[KEY] hplWoodPanels
+[EN] HPL Wood Panels
+[KU] تەختەی MDF و HPL
+[CONTEXT] Section title for High-Pressure Laminate & MDF wood panels.
+
+[KEY] materials
+[EN] Panels
+[KU] تەختەکان
+[CONTEXT] Tab label for panels inventory.
+
+[KEY] panels
+[EN] Panels
+[KU] تەختەکان
+[CONTEXT] Short tab label.
+
+[KEY] panelsSection
+[EN] Panels
+[KU] تەختەکان
+[CONTEXT] Segmented toggle button label for wood panels.
+
+[KEY] addMaterial
+[EN] + Panel
+[KU] + تەختە
+[CONTEXT] Button to open new panel creation dialog.
+
+[KEY] addPanel
+[EN] + Panel
+[KU] + تەختە
+[CONTEXT] Alternate button label for adding a panel.
+
+[KEY] code
+[EN] Code
+[KU] کۆد
+[CONTEXT] Panel code column header (e.g. 101, 102).
+
+[KEY] codePlaceholder
+[EN] e.g. 101
+[KU] وەک ١٠١
+[CONTEXT] Input field placeholder for material identification code.
+
+[KEY] codeGuidance
+[EN] Enter 3-digit number (e.g. 101) or custom code
+[KU] کۆدی ٣ ژمارەیی یان دڵخواز بنووسە
+[CONTEXT] Guidance text below code input field.
+
+[KEY] autoCode
+[EN] Auto 3-Digit
+[KU] کۆدی خۆکار
+[CONTEXT] Button to auto-increment next available 3-digit panel number.
+
+[KEY] type
+[EN] Type
+[KU] جۆر
+[CONTEXT] Category or finish of wood panel (e.g. High Gloss, Matte, Wood Grain).
+
+[KEY] name
+[EN] Panel Name
+[KU] ناوی تەختە
+[CONTEXT] Display name of panel finish or decor (e.g. Teak Wood HPL, Oak, Slate).
+
+[KEY] namePlaceholder
+[EN] e.g. Teak Wood HPL
+[KU] وەک MDF گوێزی، HPL
+[CONTEXT] Placeholder example for panel name input.
+
+[KEY] dimensions
+[EN] Dimensions
+[KU] قەبارە
+[CONTEXT] Dimension column header in spreadsheet table.
+
+[KEY] length
+[EN] Length (mm)
+[KU] درێژی (ملم)
+[CONTEXT] Physical panel length in millimeters.
+
+[KEY] width
+[EN] Width (mm)
+[KU] پانی (ملم)
+[CONTEXT] Physical panel width in millimeters.
+
+[KEY] thickness
+[EN] Thickness (mm)
+[KU] ئەستووری (ملم)
+[CONTEXT] Physical panel thickness in millimeters (e.g. 18mm, 12mm).
+
+[KEY] quantity
+[EN] Quantity
+[KU] ژمارە
+[CONTEXT] Total count of items/panels.
+
+[KEY] panelUnit
+[EN] panels
+[KU] تەختە
+[CONTEXT] Unit of measurement for panel inventory counts.
+
+[KEY] inStock
+[EN] Stock
+[KU] کۆگا
+[CONTEXT] Total physical quantity present in warehouse.
+
+[KEY] currentStock
+[EN] Current Stock
+[KU] عەمبار
+[CONTEXT] Column header for current warehouse physical quantity.
+
+[KEY] totalStockCount
+[EN] Total Stock
+[KU] کۆی تەختە
+[CONTEXT] Header metric card showing total sum of panels across all types.
+
+[KEY] reserved
+[EN] Reserved
+[KU] بڕاو (حجز)
+[CONTEXT] Metric card showing panels committed/reserved to active cutting jobs.
+
+[KEY] usedForOrder
+[EN] Reserved
+[KU] بڕاو (حجز)
+[CONTEXT] Stock allocated to a customer cutting order.
+
+[KEY] available
+[EN] Available
+[KU] بەردەست
+[CONTEXT] Net sellable panels remaining (Stock minus Reserved).
+
+[KEY] formula
+[EN] Available = Stock - Reserved
+[KU] بەردەست = کۆگا - بڕاو
+[CONTEXT] Stock deduction formula explanation tooltip.
+
+[KEY] insufficientStock
+[EN] Not enough panels in stock!
+[KU] تەختەی پێویست لە کۆگا نییە!
+[CONTEXT] Validation error when attempting to allocate more panels than available.
+
+[KEY] emptyMaterials
+[EN] No panels added yet. Click '+ Panel' to start.
+[KU] هیچ تەختەیەک نییە. '+ تەختە' دابگرە.
+[CONTEXT] Empty state message when inventory database has no panels.
+
+[KEY] confirmDeleteMaterial
+[EN] Delete this panel?
+[KU] ئەم تەختەیە بسڕدرێتەوە؟
+[CONTEXT] Confirmation prompt before permanently removing a material.
+
+[KEY] allTypes
+[EN] All Types
+[KU] هەموو جۆرەکان
+[CONTEXT] Filter dropdown option to show all material finish categories.
+
+[KEY] addType
+[EN] + Add Type
+[KU] + جۆری نوێ
+[CONTEXT] Button to add a new category to the material types list.
+
+[KEY] deleteType
+[EN] Delete
+[KU] سڕینەوە
+[CONTEXT] Action button to delete an unused material category.
+
+[KEY] searchType
+[EN] Search or type new...
+[KU] گەڕان یان جۆری نوێ...
+[CONTEXT] Dropdown input to search existing categories or add custom.
+
+[KEY] noTypesYet
+[EN] No types yet. Type name above to add.
+[KU] هیچ جۆرێک نییە.
+[CONTEXT] Empty state inside material type dropdown.
+
+[KEY] outOfStock
+[EN] Out of Stock
+[KU] تەواوبوو
+[CONTEXT] Status badge displayed when available quantity is 0.
+
+[KEY] outOfStockBadge
+[EN] Out of Stock
+[KU] تەواوبوو
+[CONTEXT] Visual pill badge on zero-inventory rows.
+
+[KEY] allStock
+[EN] All Stock
+[KU] هەموو
+[CONTEXT] Filter tab to view both in-stock and depleted panels.
+
+[KEY] inStockOnly
+[EN] In Stock Only
+[KU] بەردەست
+[CONTEXT] Filter tab to isolate panels with available inventory.
+
+[KEY] outOfStockOnly
+[EN] Out of Stock (0)
+[KU] تەواوبوو (٠)
+[CONTEXT] Filter tab to quickly find exhausted inventory requiring reorder.
+
+[KEY] stockStatus
+[EN] Status
+[KU] دۆخی عەمبار
+[CONTEXT] Column header indicating inventory availability status.
+
+[KEY] searchPanels
+[EN] Search panels by code, name, notes...
+[KU] گەڕان بەپێی کۆد، ناو، تێبینی...
+[CONTEXT] Search input placeholder in panels section.
+
+
+--- 1.4 ORDERS, FACTORY WORKSHOP CUTTING DIVISION & BLUEPRINTS ---
+[KEY] orders
+[EN] Orders
+[KU] داواکارییەکان
+[CONTEXT] Navigation tab for all workshop cutting jobs and door fabrications.
+
+[KEY] ordersSection
+[EN] Orders
+[KU] بڕینی تەختە
+[CONTEXT] Segmented tab label for factory cutting division.
+
+[KEY] addOrder
+[EN] + Order
+[KU] + داواکاری
+[CONTEXT] Action button to create a new cutting allocation order.
+
+[KEY] client
+[EN] Client
+[KU] کڕیار
+[CONTEXT] Client, carpenter, or contractor entity name.
+
+[KEY] notes
+[EN] Notes
+[KU] تێبینی
+[CONTEXT] Workshop instructions, CNC pattern codes, grain specifications.
+
+[KEY] searchOrders
+[EN] Search orders by client, order #, panel...
+[KU] گەڕان بەپێی کڕیار، داواکاری، تەختە...
+[CONTEXT] Search input placeholder for filtering orders.
+
+[KEY] emptyOrders
+[EN] No active orders yet. Click '+ Order' to create one.
+[KU] هیچ داواکارییەک نییە. '+ داواکاری' دابگرە.
+[CONTEXT] Empty state message when there are no pending orders.
+
+[KEY] noOrdersFound
+[EN] No orders found matching your search.
+[KU] هیچ داواکارییەک نەدۆزرایەوە.
+[CONTEXT] Zero results feedback after applying search keywords.
+
+[KEY] confirmDeleteOrder
+[EN] Delete this order? (Reserved panels will return to available stock)
+[KU] داواکارییەکە بسڕدرێتەوە؟ تەختەکان دەگەڕێنەوە بۆ کۆگا.
+[CONTEXT] Warning prompt when canceling an unfinalized cutting order.
+
+[KEY] confirmDeleteFinalizedOrder
+[EN] Delete this finalized order? (Panels were already consumed, stock will not change)
+[KU] داواکارییە تەواوکراوەکە بسڕدرێتەوە؟ کاریگەری لەسەر کۆگا نابێت.
+[CONTEXT] Warning prompt when deleting an archived, finalized cutting order.
+
+[KEY] finalize
+[EN] Finalize
+[KU] تەواوکردن
+[CONTEXT] Action button to mark a cutting order complete and deduct stock permanently.
+
+[KEY] finalized
+[EN] Finalized
+[KU] تەواوکراو
+[CONTEXT] Status badge indicating cutting job is complete and panels discharged.
+
+[KEY] finalizeOrderPrompt
+[EN] Finalize this order? Work is completed and panels will be permanently consumed from stock.
+[KU] داواکارییەکە تەواو بکرێت؟ تەختەکان لە عەمبار کەم دەکرێنەوە.
+[CONTEXT] Confirmation modal dialog before final stock consumption.
+
+[KEY] orderStatusReserved
+[EN] Reserved
+[KU] لە کاردایە
+[CONTEXT] Status badge indicating order is currently queued/in workshop.
+
+[KEY] orderStatusFinalized
+[EN] Finalized
+[KU] تەواوکراو
+[CONTEXT] Status badge indicating order is completed.
+
+[KEY] orderDetails
+[EN] Order Details
+[KU] وردەکاری داواکاری
+[CONTEXT] Order inspection modal dialog title.
+
+[KEY] orderNumber
+[EN] Order #
+[KU] داواکاری #
+[CONTEXT] Sequential factory job identification number (e.g. #1042).
+
+[KEY] assignedPanel
+[EN] Assigned Panel
+[KU] تەختە
+[CONTEXT] Material assigned for the cutting allocation.
+
+[KEY] quantityUsed
+[EN] Panels Reserved
+[KU] بڕاو (حجز)
+[CONTEXT] Number of panel sheets assigned to this specific order.
+
+[KEY] date
+[EN] Date
+[KU] بەروار
+[CONTEXT] Order creation timestamp.
+
+[KEY] stockDeductedNotice
+[EN] Directly taken from warehouse stock
+[KU] لە عەمبار کەمکراوەتەوە
+[CONTEXT] Audit confirmation that stock was subtracted from physical inventory.
+
+[KEY] viewDetails
+[EN] View Details
+[KU] وردەکاری
+[CONTEXT] Action button to inspect full order data and blueprints.
+
+[KEY] attachedImage
+[EN] Attached Photo / Blueprint
+[KU] وێنە / نەخشە
+[CONTEXT] Header for attached customer drawings, blueprints, or door groove designs.
+
+[KEY] noImageAttached
+[EN] No image attached to this order
+[KU] هیچ وێنەیەک نییە
+[CONTEXT] Feedback when an order contains no blueprint photo.
+
+[KEY] latestOrdersTitle
+[EN] Orders (Latest 3)
+[KU] داواکارییەکان (٣ نوێترین)
+[CONTEXT] Compact overview card header displaying recent cutting orders.
+
+[KEY] latestThreeBadge
+[EN] Latest 3
+[KU] ٣ نوێترین
+[CONTEXT] Badge pill.
+
+[KEY] latestThreeOf
+[EN] Latest 3 of
+[KU] نوێترین ۳ لە
+[CONTEXT] Pagination indicator text.
+
+[KEY] moreInOrdersTab
+[EN] more in Orders tab →
+[KU] داواکاری تر لە بەشی داواکارییەکان →
+[CONTEXT] Link button to jump to full orders division.
+
+
+--- 1.5 SORTING, VIEWS, PRINT OPTIONS & PDF SLIPS ---
+[KEY] sortBy
+[EN] Sort
+[KU] ڕیزبەندی
+[CONTEXT] Dropdown label for sorting table records.
+
+[KEY] newest
+[EN] Newest
+[KU] نوێترین
+[CONTEXT] Sort option by descending timestamp.
+
+[KEY] oldest
+[EN] Oldest
+[KU] کۆنترین
+[CONTEXT] Sort option by ascending timestamp.
+
+[KEY] highestQty
+[EN] Highest Quantity
+[KU] زۆرترین ژمارە
+[CONTEXT] Sort option by descending sheet count.
+
+[KEY] lowestQty
+[EN] Lowest Quantity
+[KU] کەمترین ژمارە
+[CONTEXT] Sort option by ascending sheet count.
+
+[KEY] mostStock
+[EN] Most Stock
+[KU] زۆرترین کۆگا
+[CONTEXT] Sort option by highest physical stock.
+
+[KEY] leastStock
+[EN] Least Stock
+[KU] کەمترین کۆگا
+[CONTEXT] Sort option by lowest physical stock.
+
+[KEY] codeAZ
+[EN] Code (A-Z)
+[KU] کۆد (A-Z)
+[CONTEXT] Sort option alphanumerically by material code.
+
+[KEY] printOrder
+[EN] Print Order
+[KU] چاپی داواکاری
+[CONTEXT] Action button to print workshop cutting dispatch slip.
+
+[KEY] printIndividualSlip
+[EN] Print Slip
+[KU] چاپی پسوولە
+[CONTEXT] Button to print a single targeted job ticket.
+
+[KEY] printIndividualPanels
+[EN] Each Panel (1 per page)
+[KU] هەر تەختەیەک لە پەڕەیەک
+[CONTEXT] Batch print format where each material gets its own sheet.
+
+[KEY] printIndividualOrders
+[EN] Each Order (1 per page)
+[KU] هەر داواکارییەک لە پەڕەیەک
+[CONTEXT] Batch print format where each cutting order gets an isolated page.
+
+[KEY] panelSlip
+[EN] Panel Slip
+[KU] پسوولەی تەختە
+[CONTEXT] Document format title for warehouse inventory sheets.
+
+[KEY] orderSlip
+[EN] Order Dispatch Slip
+[KU] پسوولەی بڕین
+[CONTEXT] Document format title for factory floor cutting slips.
+
+[KEY] printImages
+[EN] Images in Print
+[KU] وێنەی چاپ
+[CONTEXT] Print preview customizer control for blueprint photos.
+
+[KEY] noImages
+[EN] Text Only (Ink Saver)
+[KU] تەنها دەق (بێ وێنە)
+[CONTEXT] Print option to omit photos and save printer toner/ink.
+
+[KEY] smallImages
+[EN] Small Photos
+[KU] وێنەی بچووک
+[CONTEXT] Print option to render thumbnail size blueprint sketches.
+
+[KEY] mediumImages
+[EN] Medium Photos
+[KU] وێنەی ئاسایی
+[CONTEXT] Print option to render medium size drawings.
+
+[KEY] printedOn
+[EN] Printed On
+[KU] بەروار
+[CONTEXT] Printed footer timestamp label.
+
+[KEY] printSheetTitle
+[EN] BAKO'S PANEL MANAGER — INVENTORY & ORDERS SHEET
+[KU] BAKO'S PANEL MANAGER — ڕاپۆرتی تەختەکان
+[CONTEXT] Formal header banner across all printed management sheets.
+
+
+--- 1.6 SALES, POINT OF SALE (POS), INVOICING & MULTI-CURRENCY ENGINE ---
+[KEY] salesInvoicing
+[EN] Sales & Invoicing
+[KU] فرۆشتن و وەسڵ
+[CONTEXT] Section header for retail, wholesale, and multi-currency POS.
+
+[KEY] newInvoice
+[EN] New Sales Invoice
+[KU] وەسڵی نوێ
+[CONTEXT] Tab label for POS cash register and invoice creation.
+
+[KEY] invoiceHistory
+[EN] Invoice History
+[KU] مێژووی وەسڵەکان
+[CONTEXT] Tab label for historical sales ledger and debt records.
+
+[KEY] invoiceCode
+[EN] Invoice Code
+[KU] کۆدی وەسڵ
+[CONTEXT] Sequential invoice code (e.g. INV-10023).
+
+[KEY] seller
+[EN] Seller
+[KU] فرۆشیار
+[CONTEXT] Cashier or salesperson issuing the invoice.
+
+[KEY] bank
+[EN] Bank / Account
+[KU] حساب / کاش
+[CONTEXT] Target financial account (e.g. Cash Safe, FIB, Cihan Bank).
+
+[KEY] paymentType
+[EN] Payment Method
+[KU] شێوازی پارەدان
+[CONTEXT] Settlement method: Cash, Bank Transfer, or On Credit (Debt).
+
+[KEY] sellingType
+[EN] Selling Type
+[KU] جۆری فرۆشتن
+[CONTEXT] Transaction pricing tier: Wholesale, Retail, or Contract.
+
+[KEY] price
+[EN] Unit Price
+[KU] نرخ
+[CONTEXT] Selling price per single panel or goods unit.
+
+[KEY] grossTotal
+[EN] Gross Total
+[KU] کۆی گشتی
+[CONTEXT] Raw calculated sum before applying discounts.
+
+[KEY] discount
+[EN] Discount
+[KU] داشکاندن
+[CONTEXT] Total monetary discount subtracted from invoice.
+
+[KEY] discountPercent
+[EN] Discount (%)
+[KU] داشکاندن (%)
+[CONTEXT] Percentage discount applied across line items.
+
+[KEY] netPayable
+[EN] Net Payable
+[KU] کۆی گشتی
+[CONTEXT] Final invoice balance payable after discounts.
+
+[KEY] paidNow
+[EN] Amount Paid Now
+[KU] پارەی دراو
+[CONTEXT] Cash amount handed over by customer at time of sale.
+
+[KEY] remainingDebt
+[EN] Remaining Debt
+[KU] قەرزی ماوە
+[CONTEXT] Unpaid portion of current invoice added to customer ledger.
+
+[KEY] oldDebt
+[EN] Old Unpaid Debt
+[KU] قەرزی پێشوو
+[CONTEXT] Customer's outstanding ledger debt from previous transactions.
+
+[KEY] totalDebt
+[EN] Combined Total Debt
+[KU] کۆی گشتی قەرز
+[CONTEXT] Total debt sum: (Old Debt + New Remaining Debt).
+
+[KEY] grossProfit
+[EN] Gross Profit
+[KU] قازانج
+[CONTEXT] Realized markup profit (Selling Price minus Landed Cost).
+
+[KEY] profitMargin
+[EN] Margin (%)
+[KU] ڕێژەی قازانج (%)
+[CONTEXT] Calculated profit percentage on the transaction.
+
+[KEY] costPrice
+[EN] Cost Price
+[KU] نرخی کڕین
+[CONTEXT] Base acquisition cost of goods.
+
+[KEY] addRow
+[EN] + Add Item Row
+[KU] + دانانی کاڵا
+[CONTEXT] Button to add an additional line item to sales invoice draft.
+
+[KEY] saveInvoice
+[EN] Save & Record Invoice
+[KU] پاشەکەوت
+[CONTEXT] Primary POS button to commit sale to database and update stock.
+
+[KEY] clearForm
+[EN] Clear Draft
+[KU] نوێکردنەوە
+[CONTEXT] Button to wipe draft inputs and start a fresh sales receipt.
+
+[KEY] printInvoice
+[EN] Print Invoice
+[KU] چاپ
+[CONTEXT] Action button to open thermal receipt or A4 invoice dialog.
+
+[KEY] mathAudit
+[EN] Math Breakdown
+[KU] وردبینی حسابات
+[CONTEXT] Dropdown toggle to view line-item currency and profit math.
+
+[KEY] financialBreakdown
+[EN] Financial Math Audit
+[KU] شیکاری ژمێریاری و قەرز
+[CONTEXT] Header for detailed financial breakdown table.
+
+[KEY] debtStatus
+[EN] Debt
+[KU] قەرز
+[CONTEXT] Status badge for invoices with zero upfront payment.
+
+[KEY] partialStatus
+[EN] Partial
+[KU] بەشێکی دراوە
+[CONTEXT] Status badge for invoices with partial upfront cash payment.
+
+[KEY] completedStatus
+[EN] Paid / Completed
+[KU] دراوە (تەواو)
+[CONTEXT] Status badge for invoices settled in full at checkout.
+
+[KEY] operationalRates
+[EN] Operational Rates
+[KU] نرخی کارپێکردن
+[CONTEXT] Custom exchange rates actively used for POS transactions.
+
+[KEY] referenceRates
+[EN] Market Reference
+[KU] نرخی بازاڕ
+[CONTEXT] Daily Sulaymaniyah market exchange rates for currency orientation.
+
+[KEY] copyToOperational
+[EN] Copy to Operational Rates
+[KU] کۆپیکردن بۆ نرخی کارپێکردن
+[CONTEXT] Button to sync reference market rates into active operational rates.
+
+[KEY] copySuccess
+[EN] Rates Copied to Operational!
+[KU] نرخەکان گواسترانەوە بۆ نرخی کارپێکردن!
+[CONTEXT] Toast confirmation after updating operational currency rates.
+
+[KEY] marketNotice
+[EN] Note: Reference rates are for orientation only. Always confirm local transaction cash rates.
+[KU] تێبینی: نرخەکان بۆ ڕێنمایین. لە کاتی مامەڵە دڵنیا بکەرەوە.
+[CONTEXT] Regulatory currency disclaimer on exchange rate cards.
+
+
+--- 1.7 WAREHOUSE GOODS, RACKS, SHIPMENTS & LOGISTICS PIPELINE ---
+[KEY] goodsInventory
+[EN] Goods Catalog
+[KU] مەخزەن
+[CONTEXT] Tab label for general warehouse commodities, hardware & edges.
+
+[KEY] shippingPipeline
+[EN] Shipping Pipeline
+[KU] هێڵی بار
+[CONTEXT] Tab label for incoming consignments, trucks, and customs containers.
+
+[KEY] newShipment
+[EN] New Shipment
+[KU] باری نوێ
+[CONTEXT] Button to record a new inbound logistics shipment.
+
+[KEY] trackingCode
+[EN] Tracking Code
+[KU] کۆدی بەدواداچوون
+[CONTEXT] Container reference or shipping tracking number (e.g. BATCH-2026-04).
+
+[KEY] destination
+[EN] Destination
+[KU] شوێنی گەیشتن
+[CONTEXT] Target warehouse location (e.g. Sulaymaniyah Main Facility).
+
+[KEY] cargoSummary
+[EN] Cargo Summary
+[KU] پوختەی بار
+[CONTEXT] Overview summary of item descriptions and units in shipment.
+
+[KEY] statusPending
+[EN] Pending
+[KU] چاوەڕوانکراو
+[CONTEXT] Shipment status: Ordered/Awaiting departure at origin.
+
+[KEY] statusInTransit
+[EN] In Transit
+[KU] لە ڕێگایە
+[CONTEXT] Shipment status: In customs or on maritime/overland transit.
+
+[KEY] statusDelivered
+[EN] Delivered
+[KU] گەیشتووە
+[CONTEXT] Shipment status: Arrived at warehouse and inspected onto racks.
+
+[KEY] inStockLane
+[EN] In Stock
+[KU] لە کۆگادا هەیە
+[CONTEXT] Kanban board lane for healthy commodity stock levels.
+
+[KEY] lowStockLane
+[EN] Low Stock Alert
+[KU] کەم ماوە
+[CONTEXT] Kanban board lane for items that breached reorder threshold.
+
+[KEY] outOfStockLane
+[EN] Out of Stock
+[KU] تەواوبووە
+[CONTEXT] Kanban board lane for completely depleted commodities.
+
+[KEY] boardView
+[EN] Kanban Board
+[KU] خشتەی کانبان
+[CONTEXT] View switch button to view stock in visual columns.
+
+[KEY] tableView
+[EN] Spreadsheet Table
+[KU] خشتەی ئێکسڵ
+[CONTEXT] View switch button to view stock in dense spreadsheet rows.
+
+
+--- 1.8 USER ACCOUNTS, SECURITY ROLES & CSV DATA EXPORTS ---
+[KEY] viewerRole
+[EN] Viewer (Read-Only)
+[KU] بینەر (تەنها سەیرکردن)
+[CONTEXT] Role badge for staff members restricted from editing.
+
+[KEY] readOnly
+[EN] Read-Only
+[KU] تەنها بینین
+[CONTEXT] Status pill badge.
+
+[KEY] viewerNotice
+[EN] Viewer account: Read-only access (no modifications allowed)
+[KU] ئەکاونتی بینەر: تەنها بۆ بینینە و دەستکاری قەدەغەیە
+[CONTEXT] Notice displayed to viewers explaining disabled edit buttons.
+
+[KEY] editLoginInfo
+[EN] Edit Login Info
+[KU] دەستکاری زانیاری چوونەژوورەوە
+[CONTEXT] Button to change account username and access PIN/password.
+
+[KEY] showPassword
+[EN] Show Password
+[KU] پیشاندانی وشەی نهێنی
+[CONTEXT] Toggle button to unmask password text.
+
+[KEY] hidePassword
+[EN] Hide Password
+[KU] شاردنەوەی وشەی نهێنی
+[CONTEXT] Toggle button to mask password text.
+
+[KEY] saveChanges
+[EN] Save Changes
+[KU] پاشەکەوت
+[CONTEXT] Commit button for updating user credentials.
+
+[KEY] loginInfoUpdated
+[EN] Login credentials updated successfully!
+[KU] زانیارییەکان نوێکرانەوە!
+[CONTEXT] Toast confirmation message after changing account password.
+
+[KEY] exportCSV
+[EN] Export CSV
+[KU] دەرکردنی CSV
+[CONTEXT] Menu button to export tabular data to spreadsheet CSV files.
+
+[KEY] exportPanels
+[EN] Export Panels (CSV)
+[KU] دەرکردنی تەختەکان (CSV)
+[CONTEXT] Export action for wood panel inventory.
+
+[KEY] exportOrders
+[EN] Export Orders (CSV)
+[KU] دەرکردنی داواکارییەکان (CSV)
+[CONTEXT] Export action for workshop cutting orders.
+
+[KEY] exportTransactions
+[EN] Export Invoices (CSV)
+[KU] دەرکردنی وەسڵەکان (CSV)
+[CONTEXT] Export action for sales ledger invoices.
+
+[KEY] exportGoods
+[EN] Export Goods (CSV)
+[KU] دەرکردنی مەخزەن (CSV)
+[CONTEXT] Export action for warehouse commodity inventory.
+
+[KEY] exportShipments
+[EN] Export Shipments (CSV)
+[KU] دەرکردنی بارەکان (CSV)
+[CONTEXT] Export action for inbound logistics shipments.
+
+[KEY] exportAuditLogs
+[EN] Export Audit Logs (CSV)
+[KU] دەرکردنی لۆگەکان (CSV)
+[CONTEXT] Export action for system security and activity audit records.
+
+
+================================================================================
+2. COMPONENT-LEVEL DYNAMIC BILINGUAL TERMS (isKu ? ... : ...)
+================================================================================
+
+--- 2.1 CUSTOM DOOR FABRICATION WORKSHOP DIVISION ---
+(Components: Modals.tsx, OrderDetailsModal.tsx, OrdersSection.tsx)
+
+[EN] New Door Fabrication Order
+[KU] داواکاری نوێی دروستکردنی دەرگا
+[CONTEXT] Modal title when ordering custom wooden door fabrication.
+
+[EN] Standard Cuts
+[KU] بڕینی ستاندارد
+[CONTEXT] Tab option for standard rectilinear panel cutting jobs.
+
+[EN] Door Fabrication
+[KU] دروستکردنی دەرگا
+[CONTEXT] Tab option for specialized door fabrication with CNC routing.
+
+[EN] Assigned Material / Panel
+[KU] جۆری تەختە / پەنەلی دیاریکراو
+[CONTEXT] Material selector label in door builder dialog.
+
+[EN] Doors to Manufacture
+[KU] ژمارەی دەرگای داواکراو
+[CONTEXT] Quantity input label for door manufacturing.
+
+[EN] Door Dimensions (Finished Height × Width)
+[KU] پێوانەی دەرگا (بەرزی × پانی بە ملم)
+[CONTEXT] Section header for millimeter door size.
+
+[EN] Height (mm)
+[KU] بەرزی (ملم)
+[CONTEXT] Door height input label.
+
+[EN] Width (mm)
+[KU] پانی (ملم)
+[CONTEXT] Door width input label.
+
+[EN] Frame Depth (Wall Thickness)
+[KU] قووڵی چوارچێوە (ئەستووری دیوار بە ملم)
+[CONTEXT] Wall jamb/frame thickness input label.
+
+[EN] Quick Presets (cm):
+[KU] قەبارە باوەکان (سم):
+[CONTEXT] Label for fast dimension preset chips.
+
+[EN] Standard Room
+[KU] ژووری ستاندارد
+[CONTEXT] Door dimension preset (210cm × 90cm × 15cm).
+
+[EN] Bathroom / WC
+[KU] گەرماو / WC
+[CONTEXT] Door dimension preset (210cm × 80cm × 15cm).
+
+[EN] Entrance
+[KU] سەرەکی
+[CONTEXT] Door dimension preset (215cm × 100cm × 20cm).
+
+[EN] Opening Direction (Handing)
+[KU] ئاڕاستەی کردنەوە (دەستەوانە)
+[CONTEXT] Hinge swing and lock handing section header.
+
+[EN] Left Hand
+[KU] دەستە چەپ
+[CONTEXT] Door opening swing direction option.
+
+[EN] Right Hand
+[KU] دەستە ڕاست
+[CONTEXT] Door opening swing direction option.
+
+[EN] From outside looking in
+[KU] بەپێی وەستان لە دەرەوە بەرەو ژوورەوە
+[CONTEXT] Guidance note for determining door swing direction correctly.
+
+[EN] Door Category / Application
+[KU] جۆری بەکارهێنانی دەرگا
+[CONTEXT] Selector label for interior vs waterproof door cores.
+
+[EN] Interior Room
+[KU] ژووری ناوەوە
+[CONTEXT] Standard interior wooden door core.
+
+[EN] Waterproof WC / Bathroom
+[KU] دژە ئاو / گەرماو
+[CONTEXT] High moisture resistant waterproof door core.
+
+[EN] Main Entrance
+[KU] دەرگای سەرەکی
+[CONTEXT] Reinforced exterior entrance door.
+
+[EN] Model / CNC Groove Pattern
+[KU] ناوی مۆدێل یان نەخشی مەکینەی CNC
+[CONTEXT] Input field for CNC groove code or door face design model.
+
+[EN] Include Casing / Architrave
+[KU] دروستکردنی تاج و کەتیبە (Casing)
+[CONTEXT] Checkbox toggle to include matching wooden architrave/moulding.
+
+[EN] Pre-install Lock & Handles
+[KU] دانانی قوفڵ و دەسک لە کارگە (Hardware)
+[CONTEXT] Checkbox toggle to pre-mortise and install locks in factory.
+
+[EN] Attach Photo / Sketch
+[KU] دانانی وێنەی دیزاین / نەخشە
+[CONTEXT] Upload input for carpenter blueprint, CNC pattern or photo.
+
+[EN] Workshop Notes
+[KU] تێبینی بۆ وەستاکاری دارتاش / CNC
+[CONTEXT] Specific manufacturing guidance for workshop craftsmen.
+
+[EN] Confirm & Send to Workshop
+[KU] تەواوکردن و ناردن بۆ کارگە
+[CONTEXT] Submit button to dispatch door fabrication job to factory floor.
+
+[EN] Door Specifications (Shaswar Ahmad Shaswar Co.)
+[KU] تایبەتمەندی دەرگا (کۆمپانیای شاسوار ئەحمەد شاسوار)
+[CONTEXT] Inspection card header in OrderDetailsModal.
+
+[EN] Door Size
+[KU] قەبارەی دەرگا
+[CONTEXT] Metric card title displaying Height × Width in cm and mm.
+
+[EN] Frame / Wall
+[KU] چوارچێوە / دیوار
+[CONTEXT] Metric card title displaying jamb thickness in cm and mm.
+
+[EN] Handing
+[KU] ئاڕاستەی کردنەوە
+[CONTEXT] Metric card title displaying Left Hand or Right Hand.
+
+[EN] Door Type
+[KU] جۆری دەرگا
+[CONTEXT] Metric card title displaying door application category.
+
+[EN] Casing:
+[KU] تاج و کەتیبە:
+[CONTEXT] Specification line indicating whether casing is included.
+
+[EN] Hardware:
+[KU] قوفڵ و دەسک:
+[CONTEXT] Specification line indicating whether locks are included.
+
+[EN] Model / Pattern:
+[KU] ناوی مۆدێل / نەخش:
+[CONTEXT] Specification line displaying CNC groove model name.
+
+[EN] Yes ✅
+[KU] هەیە ✅
+[CONTEXT] Affirmative badge indicating feature is included.
+
+[EN] None ❌
+[KU] نییە ❌
+[CONTEXT] Negative badge indicating feature is not included.
+
+
+--- 2.2 UNIFIED PRINT ENGINE & FACTORY WORKSHOP SLIPS ---
+(Components: UnifiedPrintEngine.tsx, PrintInvoiceModal.tsx, page.tsx)
+
+[EN] Door Production Slip - Shaswar Ahmad Shaswar Co. (Sulaymaniyah)
+[KU] پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+[CONTEXT] Formal top banner on printed door manufacturing slips.
+
+[EN] Sulaymaniyah Custom Door Production Workflow & Division
+[KU] بەشی دروستکردنی دەرگای تایبەت • هێڵی کارگەی سلێمانی
+[CONTEXT] Subtitle banner on door manufacturing slips.
+
+[EN] Shaswar Ahmad Shaswar Co. (Sulaymaniyah)
+[KU] کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+[CONTEXT] Official enterprise signature stamp.
+
+[EN] Client / Project Entity
+[KU] ناوی کڕیار / خاوەن پڕۆژە
+[CONTEXT] Customer/contractor heading on slips.
+
+[EN] Model & Design:
+[KU] مۆدێل و دیزاین:
+[CONTEXT] Label displaying the door design model.
+
+[EN] Total Doors To Manufacture
+[KU] ژمارەی دەرگای داواکراو
+[CONTEXT] Prominent quantity card on door production slip.
+
+[EN] pcs
+[KU] دانە
+[CONTEXT] Pieces unit label.
+
+[EN] Status:
+[KU] دۆخ:
+[CONTEXT] Manufacturing state indicator label.
+
+[EN] FINALIZED
+[KU] تەواوکراوە
+[CONTEXT] Order state badge.
+
+[EN] IN WORKSHOP
+[KU] لە کاردایە
+[CONTEXT] Order state badge.
+
+[EN] Floor Carpenter Essential Badges
+[KU] ڕێنمایی و ئەندازەی دارتاشی کارگە (FLOOR CARPENTER ESSENTIAL BADGES)
+[CONTEXT] High-visibility section title for workshop floor carpenters.
+
+[EN] Door Height × Width
+[KU] بەرزی × پانی پاکی دەرگا
+[CONTEXT] Measurement clarification note for carpenters.
+
+[EN] Frame & Wall Depth
+[KU] قووڵی چوارچێوە و دیوار
+[CONTEXT] Measurement clarification note for wall jamb depth.
+
+[EN] Depth
+[KU] قووڵی
+[CONTEXT] Depth unit note.
+
+[EN] Opening Handing
+[KU] ئاڕاستەی قوفڵ (Handing)
+[CONTEXT] Lock handing badge header.
+
+[EN] Door Swing Direction
+[KU] دەستەوانەی کردنەوە
+[CONTEXT] Carpenter guidance label on handing badge.
+
+[EN] Waterproof Core
+[KU] پێکهاتەی دژە شێ
+[CONTEXT] Material specification label for bathroom doors.
+
+[EN] Standard Core
+[KU] تەختەی ستاندارد
+[CONTEXT] Material specification label for standard doors.
+
+[EN] Material & Hardware Specs
+[KU] جۆری تەختە و تایبەتمەندییەکان (MATERIAL & HARDWARE SPECS)
+[CONTEXT] Table banner for raw panel skins and lock specifications.
+
+[EN] Material / Skin
+[KU] جۆری تەختە (Material/Skin)
+[CONTEXT] Table column header.
+
+[EN] Panel Code
+[KU] کۆدی پەنەل
+[CONTEXT] Table column header.
+
+[EN] Casing
+[KU] تاج و کەتیبە (Casing)
+[CONTEXT] Table column header.
+
+[EN] Hardware
+[KU] قوفڵ و دەسک (Hardware)
+[CONTEXT] Table column header.
+
+[EN] Thickness
+[KU] ئەستووری (Thickness)
+[CONTEXT] Table column header.
+
+[EN] Panel Specs / Code:
+[KU] تایبەتمەندی تەختە / کۆد:
+[CONTEXT] Sub-row detail label.
+
+[EN] Workshop Notes for Carpenters & CNC:
+[KU] ڕێنمایی و تێبینییەکانی وەستاکار بۆ دارتاش و CNC:
+[CONTEXT] Section header for workshop notes.
+
+[EN] Door CNC Pattern & Groove Design
+[KU] وێنەی دیزاین و نەخشی CNC دەرگا (GROOVE / PATTERN PREVIEW)
+[CONTEXT] Blueprint and CNC pattern drawing container header.
+
+[EN] Carpenters, CNC Operator & QA Sign-Off
+[KU] واژۆی دارتاش، کارپێکەری CNC و پشکنەری کارگە (SULAYMANIYAH WORKSHOP SIGN-OFF)
+[CONTEXT] Official 3-signature sign-off box at the bottom of the door slip.
+
+[EN] Frame & Door Carpenter
+[KU] دارتاشی چوارچێوە و دەرگا
+[CONTEXT] Sign-off slot 1 for the assembly carpenter.
+
+[EN] CNC Machine Operator
+[KU] کارپێکەری مەکینەی CNC
+[CONTEXT] Sign-off slot 2 for the CNC router operator.
+
+[EN] Quality Assurance & Delivery
+[KU] پشکنەری کوالێتی و ڕادەستکردن
+[CONTEXT] Sign-off slot 3 for the workshop supervisor / QA inspector.
+
+[EN] OFFICIAL FACTORY CUTTING SLIP
+[KU] پسوڵەی فەرمی بڕینی تەختە لە کارگە
+[CONTEXT] Formal title on standard rectangular panel cutting slips.
+
+[EN] Wood Panels & Automated Workshop Cutting Division
+[KU] بەشی تەختەکان و هێڵی بڕینی دارتاشی
+[CONTEXT] Subtitle banner on factory cutting slips.
+
+[EN] Assigned Material:
+[KU] تەختەی دیاریکراو:
+[CONTEXT] Material identification line.
+
+[EN] Total Panels To Cut
+[KU] بڕی تەختەی داواکراو
+[CONTEXT] Quantity box on cutting slip.
+
+[EN] SPECIFICATIONS & CUTTING DIMENSION TABLE
+[KU] خشتەی ئەندازە و تایبەتمەندییەکانی بڕین
+[CONTEXT] Heading above the cutting millimeter dimensions table.
+
+[EN] Material / Finish
+[KU] جۆری دار / پەنەل
+[CONTEXT] Table column header.
+
+[EN] Grain / Edge Notes
+[KU] ئاڕاستەی نەخش / تێبینی
+[CONTEXT] Table column header for wood grain orientation and edge banding.
+
+[EN] Standard Factory Grain
+[KU] بەپێی پێوانەی ستاندارد
+[CONTEXT] Default note when no special grain direction is requested.
+
+[EN] Cut Done
+[KU] تەواوکراو
+[CONTEXT] Status badge for finished cut rows.
+
+[EN] In Queue
+[KU] ئامادە بۆ بڕین
+[CONTEXT] Status badge for pending cut rows.
+
+[EN] OPERATOR WORKSHOP INSTRUCTIONS:
+[KU] ڕێنمایی و تێبینییەکانی وەستا:
+[CONTEXT] Notes container header on cutting slips.
+
+[EN] ATTACHED ORDER BLUEPRINT / SKETCH
+[KU] نەخشە و دیزاینی هاوپێچکراوی داواکاری
+[CONTEXT] Drawing header on cutting slips.
+
+[EN] OFFICIAL WORKSHOP DISPATCH & QUALITY VERIFICATION
+[KU] مۆر و واژۆی دەستەی جێبەجێکار و چاودێری
+[CONTEXT] Standard 3-signature sign-off box on cutting slips.
+
+[EN] Saw Machine Operator
+[KU] وەستای بڕین (Machine Operator)
+[CONTEXT] Sign-off slot 1 for panel saw operator.
+
+[EN] Quality Inspector
+[KU] پشکنەری کوالێتی (Quality Inspector)
+[CONTEXT] Sign-off slot 2 for dimensions verification inspector.
+
+[EN] Client Dispatch Receiver
+[KU] وەرگری کاڵا (Client Receiver)
+[CONTEXT] Sign-off slot 3 for customer/driver accepting dispatch.
+
+[EN] OFFICIAL SALES RECEIPT
+[KU] SALES RECEIPT / پسوولەی فرۆشتن
+[CONTEXT] Header on 80mm thermal receipt roll slips.
+
+[EN] [ CUT HERE ]
+[KU] [ CUT HERE / لێرە بیبڕە ]
+[CONTEXT] Dotted cut line indicator at the bottom of thermal receipts.
+
+[EN] OFFICIAL SALES & WHOLESALE INVOICE VOUCHER
+[KU] پسوولەی فەرمی فرۆشتن و دارایی
+[CONTEXT] Header on standard formal A4 printed sales invoices.
+
+[EN] Shaswar Ahmad Shaswar Co. • General Trading & Wood Panel Supply
+[KU] کۆمپانیای شاسوار ئەحمەد شاسوار • بازرگانی گشتی تەختە و مەواد
+[CONTEXT] Subtitle on formal A4 printed sales invoices.
+
+[EN] Payment & Settlement Terms
+[KU] شێوازی پارەدان و هەژمار
+[CONTEXT] Payment terms block header on A4 invoices.
+
+[EN] Transaction Currency:
+[KU] دراوی مامەڵە:
+[CONTEXT] Currency label on printed voucher.
+
+[EN] Invoice Payment Status
+[KU] دۆخی پسوولە
+[CONTEXT] Payment status header.
+
+[EN] Prior Ledger Debt:
+[KU] قەرزی پێشوو:
+[CONTEXT] Outstanding prior balance label on printed invoice.
+
+[EN] Gross Subtotal:
+[KU] کۆی پێش داشکاندن:
+[CONTEXT] Pre-discount subtotal line.
+
+[EN] Discount Applied:
+[KU] داشکاندن:
+[CONTEXT] Applied discount line.
+
+[EN] Net Invoice Total:
+[KU] کۆی گشتی پاش داشکاندن:
+[CONTEXT] Final net total line on printed invoice.
+
+
+--- 2.3 EXECUTIVE PROFIT & FINANCIAL SOLVENCY SUITE ---
+(Component: ExecutiveProfitSuite.tsx)
+
+[EN] Executive Confidential Gated
+[KU] تایبەت بە بەڕێوەبەر
+[CONTEXT] Security gate badge on profit suite.
+
+[EN] Executive Profit Suite
+[KU] قازانج و دارایی بەڕێوەبەر
+[CONTEXT] Suite title.
+
+[EN] Confidential executive suite containing net profit analytics, landed material costs, and cash balances for business owners.
+[KU] ئەم بەشە زانیارییە نهێنی و داراییەکانی قازانجی پوخت، تێچووی کڕینی تەختە، و باڵانسی سەرەکی لەخۆدەگرێت و تەنها بۆ خاوەن کار و بەڕێوەبەرە.
+[CONTEXT] Security description of executive profit suite.
+
+[EN] Return to Main Menu
+[KU] گەڕانەوە بۆ مێنیوی سەرەکی
+[CONTEXT] Back button to exit executive suite.
+
+[EN] Shaswar Ahmad Shaswar Co. • Realized Profit, Cash Intake & Balances
+[KU] کۆمپانیای شاسوار ئەحمەد شاسوار • شیکاری قازانجی ڕاستەقینە، باڵانسی کاش
+[CONTEXT] Header subtitle.
+
+[EN] All Time
+[KU] تەواوی کات
+[CONTEXT] Timeframe filter option.
+
+[EN] This Month
+[KU] ئەم مانگە
+[CONTEXT] Timeframe filter option.
+
+[EN] Today
+[KU] ئەمڕۆ
+[CONTEXT] Timeframe filter option.
+
+[EN] Realized Gross Profit
+[KU] قازانجی پوخت (Gross Profit)
+[CONTEXT] Metric card 1 title.
+
+[EN] Collected Cash Intake
+[KU] هاتووی کاش (Cash Intake)
+[CONTEXT] Metric card 2 title.
+
+[EN] Supplier Payables
+[KU] قەرزی دابینکەران (Accounts Payable)
+[CONTEXT] Metric card 3 title.
+
+[EN] Executive Operating Balance
+[KU] باڵانسی سەرمایە (Solvency)
+[CONTEXT] Metric card 4 title (Net operating cash surplus after supplier payables).
+
+[EN] Strong
+[KU] سەقامگیر (Strong)
+[CONTEXT] Company solvency indicator when surplus is positive.
+
+[EN] Caution
+[KU] ئاگاداربە (Caution)
+[CONTEXT] Company solvency warning indicator when surplus is negative.
+
+[EN] Landed Material Cost vs. POS Revenue
+[KU] قازانجی فرۆشتن بەپێی مەواد و تابلۆکان
+[CONTEXT] Profit table header per panel material category.
+
+[EN] Realized gross profit and markup margin per panel material category
+[KU] بەراوردکردنی تێچووی کڕین بەرامبەر نرخی فرۆشتنی ئێستا و قازانجی ڕاستەقینە
+[CONTEXT] Subtitle explaining landed cost comparison.
+
+[EN] Active Consignments & Payables
+[KU] کاروانەکان و قەرزی ماوەی دابینکەر
+[CONTEXT] Container shipment payables table header.
+
+[EN] Company liability and remaining debt by container shipment
+[KU] تۆماری قەرزی کۆمپانیا بۆ کارگە بەپێی کاروان و کۆنتێنەر
+[CONTEXT] Subtitle for container liabilities table.
+
+
+--- 2.4 WHATSAPP & EMAIL CUSTOMER RECEIPT SHARING PAYLOADS ---
+(Components: OrderDetailsModal.tsx & SalesSection.tsx)
+
+[EN] DOOR FABRICATION SLIP - SHASWAR CO.
+[KU] پسوولەی دروستکردنی دەرگا - کۆمپانیای شاسوار
+[CONTEXT] Top header in WhatsApp/Email message when sharing a door order.
+
+[EN] Client:
+[KU] کڕیار:
+[CONTEXT] WhatsApp message line.
+
+[EN] Assigned Panel:
+[KU] تەختە:
+[CONTEXT] WhatsApp message line.
+
+[EN] Doors to Make:
+[KU] ژمارەی دەرگا:
+[CONTEXT] WhatsApp message line.
+
+[EN] Door Size (H×W):
+[KU] قەبارەی دەرگا:
+[CONTEXT] WhatsApp message line.
+
+[EN] Frame Depth:
+[KU] قووڵی چوارچێوە:
+[CONTEXT] WhatsApp message line.
+
+[EN] Handing:
+[KU] دەستەوانە:
+[CONTEXT] WhatsApp message line.
+
+[EN] Door Type:
+[KU] جۆری دەرگا:
+[CONTEXT] WhatsApp message line.
+
+[EN] Casing Included:
+[KU] تاج و کەتیبە:
+[CONTEXT] WhatsApp message line.
+
+[EN] Hardware Included:
+[KU] قوفڵ و دەسک:
+[CONTEXT] WhatsApp message line.
+
+[EN] CNC Model:
+[KU] مۆدێل / نەخش:
+[CONTEXT] WhatsApp message line.
+
+[EN] FACTORY CUTTING DISPATCH SLIP
+[KU] پسوولەی بڕینی تەختە - کارگەی شاسوار
+[CONTEXT] Top header in WhatsApp message when sharing a standard cutting order.
+
+[EN] Panels to Cut:
+[KU] ژمارەی تەختە:
+[CONTEXT] WhatsApp message line.
+
+[EN] Dimensions (L×W×T):
+[KU] قەبارەی تەختە:
+[CONTEXT] WhatsApp message line.
+
+[EN] SALES RECEIPT - SHASWAR CO.
+[KU] پسوولەی فەرمی فرۆشتن - کۆمپانیای شاسوار
+[CONTEXT] Top header in WhatsApp message when sharing a sales invoice receipt.
+
+[EN] Invoice #:
+[KU] ژمارەی وەسڵ:
+[CONTEXT] WhatsApp message line.
+
+[EN] Date:
+[KU] بەروار:
+[CONTEXT] WhatsApp message line.
+
+[EN] Payment Method:
+[KU] شێوازی پارەدان:
+[CONTEXT] WhatsApp message line.
+
+[EN] Item
+[KU] کاڵا
+[CONTEXT] WhatsApp receipt table column.
+
+[EN] Qty
+[KU] دانە
+[CONTEXT] WhatsApp receipt table column.
+
+[EN] Price
+[KU] نرخ
+[CONTEXT] WhatsApp receipt table column.
+
+[EN] Total
+[KU] کۆ
+[CONTEXT] WhatsApp receipt table column.
+
+[EN] Total Net:
+[KU] کۆی گشتی:
+[CONTEXT] WhatsApp receipt summary line.
+
+[EN] Amount Paid:
+[KU] پارەی دراو:
+[CONTEXT] WhatsApp receipt summary line.
+
+[EN] Remaining Debt:
+[KU] قەرزی ماوە:
+[CONTEXT] WhatsApp receipt summary line.
+
+
+--- 2.5 LEGAL NOTICE, COPYRIGHT & DEVELOPER COMMISSIONING ---
+(Component: CopyrightModal.tsx)
+
+[EN Title]
+Legal Notice & Copyright
+[KU Title]
+مافی خاوەندارێتی و زانیاری گەشەپێدەر
+
+[EN Subtitle]
+Official software copyright documentation & direct inquiry with Bako Bayan
+[KU Subtitle]
+بەڵگەنامەی فەرمی پاراستنی مافی نەرمەکاڵا و پەیوەندیکردن بە باکۆ بەیان
+
+[EN Intro]
+This system was custom-engineered specifically for Shaswar Ahmad Shaswar Co. by Bako Bayan Madhhar.
+[KU Intro]
+ئەم سیستەمە بە تایبەتی بۆ کۆمپانیای شاسوار ئەحمەد شاسوار دروستکراوە لەلایەن باکۆ بەیان مەزهەرەوە.
+
+[EN Legal Term 1 - Ownership]
+Exclusive Authorship & Ownership: All source code, database architecture, algorithms, and UI design are the exclusive legal property of Bako Bayan Madhhar, protected under the international Berne Convention.
+[KU Legal Term 1 - Ownership]
+مافی خاوەندارێتی: تەواوی کۆدەکانی ئەم سیستەمە، پێکهاتەی داتابەیسەکەی، شێوازی کارکردن و دیزاینەکەی موڵکی تایبەتی و یاسایی گەشەپێدەر (باکۆ بەیان مەزهەر)ـن، و بەپێی پەیماننامەی نێودەوڵەتی بێرن مافەکانی پارێزراون.
+
+[EN Legal Term 2 - Prohibition]
+Prohibition of Unauthorized Use: No individual or entity may copy, resell, modify, or incorporate this system or any portion thereof into other projects without written consent from Bako Bayan.
+[KU Legal Term 2 - Prohibition]
+قەدەغەکردنی بەکارهێنانی بێ مۆڵەت: هیچ کەس و لایەنێک بۆی نییە بەبێ ڕەزامەندی نووسراوی باکۆ بەیان، ئەم سیستەمە یان هەر بەشێکی کۆپی بکات، بفرۆشێتەوە، دەستکاری کۆدەکانی بکات یان لە پڕۆژەیەکی تردا بەکاری بهێنێت.
+
+[EN Legal Term 3 - License]
+Operational License: This instance is licensed strictly for enterprise workshop and warehouse operations for Shaswar Co., with all distribution rights reserved.
+[KU Legal Term 3 - License]
+مۆڵەتی بەکارهێنان: ئەم وەشانەی سیستەمەکە بەپێی ڕێکەوتنێکی تایبەت تەنها مۆڵەتی کارپێکردنی پێدراوە بۆ بەڕێوەبردنی کارگە و کۆگاکانی کۆمپانیای شاسوار، و مافی فرۆشتنەوەی نییە.
+
+[EN Ad Header]
+Need a Custom Software System for Your Business?
+[KU Ad Header]
+پێویستت بە سیستەمێکی تایبەتە بۆ کار و بازرگانییەکەت؟
+
+[EN Ad Description]
+Bako Bayan brings extensive expertise in engineering mission-critical business management software of the highest quality, including:
+[KU Ad Description]
+باکۆ بەیان خاوەنی ئەزموونێکی باشە لە دروستکردن و گەشەپێدانی نەرمەکاڵا و سیستەمی پێشکەوتوو بۆ بەڕێوەبردنی کار و بازرگانی بە بەرزترین کوالێتی، لەوانە:
+
+[EN Service Bullets]
+- Warehouse and factory management systems.
+- Point of Sale (POS), invoicing, and debt-tracking platforms.
+- High-speed, offline-first local database architectures.
+- Custom tailored software designed to exact client specifications.
+[KU Service Bullets]
+- سیستەمی کۆگا و بەڕێوەبردنی کارگە.
+- بەرنامەی فرۆشتن، پسوولە و بەدواداچوونی قەرز (POS).
+- سیستەمی داتابەیسی خێرا و ئۆفلاین بۆ کاتی نەبوونی ئینتەرنێت.
+- نەرمەکاڵای تایبەت بەپێی ویست و داواکاریی کڕیار.
+
+[EN Action Buttons]
+- Phone Call
+- WhatsApp Message
+- Copy Number / Number Copied!
+[KU Action Buttons]
+- پەیوەندی تەلەفۆنی
+- نامەی واتسئەپ
+- کۆپیکردنی ژمارە / ژمارە کۆپی کرا!
+
+================================================================================
+END OF LOCALIZATION DICTIONARY
+================================================================================

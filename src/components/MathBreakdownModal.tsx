@@ -243,7 +243,7 @@ export default function MathBreakdownModal({
               {/* 3. Net Payable Total */}
               <div className="flex items-center justify-between py-1.5 font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2.5 rounded-xl">
                 <div className="flex items-center gap-1.5">
-                  <span>3. {lang === 'en' ? 'Net Payable' : 'کۆی پێویست بۆ دان'}:</span>
+                  <span>3. {lang === 'en' ? 'Net Payable' : 'کۆی سافی (پاش داشکاندن)'}:</span>
                   <span className="text-[10px] text-slate-400 font-normal">(= 1 - 2)</span>
                 </div>
                 <span className="font-black font-mono text-blue-600 dark:text-blue-400">

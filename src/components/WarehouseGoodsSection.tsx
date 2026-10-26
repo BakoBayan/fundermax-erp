@@ -148,7 +148,7 @@ const FormError: React.FC<{ message: string }> = ({ message }) =>
   ) : null;
 
 export const WarehouseGoodsSection: React.FC = () => {
-  const { language, currentUser, isViewer, canModify, isAdmin, logActivity, userPermissions, requestConfirm, printWarehouseManifest } = useInventory();
+  const { language, currentUser, isViewer, canModify, isAdmin, logActivity, userPermissions, requestConfirm, printWarehouseManifest, setCurrentModule } = useInventory();
   const wh = useWarehouseOps();
 
   const isKu = language === 'ku';
@@ -337,6 +337,14 @@ export const WarehouseGoodsSection: React.FC = () => {
         </div>
         {canManageShipments && (
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentModule('shipping')}
+              className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 text-sm font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
+            >
+              <Truck className="w-4 h-4 text-amber-500" />
+              <span>{isKu ? 'هێڵی گواستنەوە و بارەکان' : 'Shipping Pipeline'}</span>
+            </button>
             <button type="button" className={primaryBtn} onClick={() => setModal({ type: 'newShipment' })}>
               <Plus className="w-4 h-4" />
               {isKu ? 'بارێکی نوێ' : 'New Incoming Shipment'}
@@ -348,10 +356,10 @@ export const WarehouseGoodsSection: React.FC = () => {
       {/* KPI STRIP */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Active Shipments', value: wh.activeShipments.length, icon: <Truck className="w-4 h-4" />, tone: 'text-slate-900 dark:text-white' },
-          { label: 'In Customs', value: inCustoms, icon: <ShieldAlert className="w-4 h-4" />, tone: 'text-amber-600 dark:text-amber-400' },
-          { label: 'Awaiting Put-Away', value: fmtQty(awaitingPutAway), icon: <PackageCheck className="w-4 h-4" />, tone: 'text-sky-600 dark:text-sky-400' },
-          { label: 'Units Racked / Workshop', value: `${fmtQty(totalRackUnits)} / ${fmtQty(workshopUnits)}`, icon: <Boxes className="w-4 h-4" />, tone: 'text-emerald-600 dark:text-emerald-400' },
+          { label: isKu ? 'بارە چالاکەکان' : 'Active Shipments', value: wh.activeShipments.length, icon: <Truck className="w-4 h-4" />, tone: 'text-slate-900 dark:text-white' },
+          { label: isKu ? 'لە گومرگە (تەخلیص)' : 'In Customs', value: inCustoms, icon: <ShieldAlert className="w-4 h-4" />, tone: 'text-amber-600 dark:text-amber-400' },
+          { label: isKu ? 'چاوەڕوانی ڕیزکردنە لە کۆگا' : 'Awaiting Putaway', value: fmtQty(awaitingPutAway), icon: <PackageCheck className="w-4 h-4" />, tone: 'text-sky-600 dark:text-sky-400' },
+          { label: isKu ? 'دانراو لە کۆگا / کارگە' : 'Units Racked / Workshop', value: `${fmtQty(totalRackUnits)} / ${fmtQty(workshopUnits)}`, icon: <Boxes className="w-4 h-4" />, tone: 'text-emerald-600 dark:text-emerald-400' },
         ].map((k) => (
           <div key={k.label} className="p-3.5 rounded-2xl bg-white/90 dark:bg-slate-850/90 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -401,61 +409,64 @@ export const WarehouseGoodsSection: React.FC = () => {
       {/* ============ SHIPMENTS TAB ============ */}
       {tab === 'shipments' && (
         <div className="space-y-4">
-          {/* FUNDERMAX / SUPPLIER DEBT SUMMARY CARD */}
-          <div className="rounded-2xl p-5 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 dark:border-amber-500/20 shadow-xs relative overflow-hidden">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                    <Coins className="w-5 h-5" />
-                  </span>
-                  <h2 className="text-base font-black text-slate-900 dark:text-white">
-                    {isKu ? 'قەرزی فەندەرمەکس و دابینکەران (Supplier Payables)' : 'FunderMax & Supplier Debt Summary'}
-                  </h2>
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                    Accounts Payable
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {isKu
-                    ? 'شیکاری قەرزی کۆمپانیا بۆ دابینکەرانی دەرەکی (FunderMax GmbH نەمسا و جیهان)'
-                    : 'Company outstanding liabilities for inbound panel consignments and international supplier balances.'}
-                </p>
-              </div>
-
-              {/* Debt figures */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/50">
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <Euro className="w-3.5 h-3.5 text-amber-600" />
-                    <span>{isKu ? 'قەرزی FunderMax (EUR)' : 'FunderMax Debt (EUR)'}</span>
+          {/* FUNDERMAX / SUPPLIER DEBT SUMMARY CARD - SUSPENDED FROM UI PER REQUIREMENTS */}
+          {/* Will be relocated to Sales division in upcoming release */}
+          {false && (
+            <div className="rounded-2xl p-5 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 dark:border-amber-500/20 shadow-xs relative overflow-hidden">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                      <Coins className="w-5 h-5" />
+                    </span>
+                    <h2 className="text-base font-black text-slate-900 dark:text-white">
+                      {isKu ? 'قەرزی کۆمپانیاکان (لەسەرمان)' : 'FunderMax & Supplier Debt Summary'}
+                    </h2>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                      Accounts Payable
+                    </span>
                   </div>
-                  <div className="text-lg font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5">
-                    €{funderMaxDebtEUR.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {isKu
+                      ? 'شیکاری قەرزی کۆمپانیا بۆ دابینکەرانی دەرەکی (FunderMax GmbH نەمسا و جیهان)'
+                      : 'Company outstanding liabilities for inbound panel consignments and international supplier balances.'}
+                  </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/50">
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{isKu ? 'کۆی قەرزی دابینکەر (USD)' : 'Total Supplier Debt (USD)'}</span>
+                {/* Debt figures */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/50">
+                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Euro className="w-3.5 h-3.5 text-amber-600" />
+                      <span>{isKu ? 'قەرزی FunderMax (EUR)' : 'FunderMax Debt (EUR)'}</span>
+                    </div>
+                    <div className="text-lg font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5">
+                      €{funderMaxDebtEUR.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    </div>
                   </div>
-                  <div className="text-lg font-black font-mono text-slate-900 dark:text-white mt-0.5">
-                    ${totalSupplierDebtUSD.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                  </div>
-                </div>
 
-                <div className="col-span-2 sm:col-span-1 p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col justify-center">
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    {isKu ? 'بارە قەرزدارەکان' : 'Unsettled Shipments'}
+                  <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/50">
+                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{isKu ? 'کۆی قەرزی دابینکەر (USD)' : 'Total Supplier Debt (USD)'}</span>
+                    </div>
+                    <div className="text-lg font-black font-mono text-slate-900 dark:text-white mt-0.5">
+                      ${totalSupplierDebtUSD.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    </div>
                   </div>
-                  <div className="text-lg font-black font-mono text-slate-700 dark:text-slate-300 mt-0.5">
-                    {unsettledShipmentsCount} {isKu ? 'کۆنتێنەر' : 'active'}
+
+                  <div className="col-span-2 sm:col-span-1 p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col justify-center">
+                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                      {isKu ? 'بارە قەرزدارەکان' : 'Unsettled Shipments'}
+                    </div>
+                    <div className="text-lg font-black font-mono text-slate-700 dark:text-slate-300 mt-0.5">
+                      {unsettledShipmentsCount} {isKu ? 'کۆنتێنەر' : 'active'}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={statusFilter}
@@ -622,15 +633,15 @@ export const WarehouseGoodsSection: React.FC = () => {
                 </div>
 
                 {/* Items */}
-                <div className="border-t border-slate-200 dark:border-slate-800 overflow-x-auto">
+                <div className="w-full max-w-full border-t border-slate-200 dark:border-slate-800 overflow-x-auto pb-4">
                   <table className="w-full text-sm min-w-[620px]">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        <th className="text-start font-bold px-4 py-2">Item</th>
-                        <th className="text-end font-bold px-3 py-2">Expected</th>
-                        <th className="text-end font-bold px-3 py-2">Received</th>
-                        <th className="text-end font-bold px-3 py-2">Racked</th>
-                        <th className="text-end font-bold px-3 py-2">Left</th>
+                        <th className="text-start font-bold px-4 py-2">{isKu ? 'کاڵا' : 'Item'}</th>
+                        <th className="text-end font-bold px-3 py-2">{isKu ? 'چاوەڕوانکراو' : 'Expected'}</th>
+                        <th className="text-end font-bold px-3 py-2">{isKu ? 'وەرگیراو' : 'Received'}</th>
+                        <th className="text-end font-bold px-3 py-2">{isKu ? 'جێگیرکراو' : 'Racked'}</th>
+                        <th className="text-end font-bold px-3 py-2">{isKu ? 'ماوە' : 'Left'}</th>
                         <th className="px-4 py-2" />
                       </tr>
                     </thead>
@@ -772,17 +783,17 @@ export const WarehouseGoodsSection: React.FC = () => {
               <Download className="w-3.5 h-3.5" /> CSV
             </button>
           </div>
-          <div className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+          <div className="w-full max-w-full rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4">
             <table className="w-full text-sm min-w-[760px]">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  <th className="text-start font-bold px-4 py-2.5">When</th>
-                  <th className="text-start font-bold px-3 py-2.5">Item</th>
-                  <th className="text-end font-bold px-3 py-2.5">Qty</th>
-                  <th className="text-start font-bold px-3 py-2.5">From</th>
-                  <th className="text-start font-bold px-3 py-2.5">To</th>
-                  <th className="text-start font-bold px-3 py-2.5">Reason</th>
-                  <th className="text-start font-bold px-3 py-2.5">By</th>
+                  <th className="text-start font-bold px-4 py-2.5">{isKu ? 'کات' : 'When'}</th>
+                  <th className="text-start font-bold px-3 py-2.5">{isKu ? 'کاڵا' : 'Item'}</th>
+                  <th className="text-end font-bold px-3 py-2.5">{isKu ? 'بڕ' : 'Qty'}</th>
+                  <th className="text-start font-bold px-3 py-2.5">{isKu ? 'لە' : 'From'}</th>
+                  <th className="text-start font-bold px-3 py-2.5">{isKu ? 'بۆ' : 'To'}</th>
+                  <th className="text-start font-bold px-3 py-2.5">{isKu ? 'هۆکار' : 'Reason'}</th>
+                  <th className="text-start font-bold px-3 py-2.5">{isKu ? 'بەدەستی' : 'By'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1087,13 +1098,15 @@ const NewShipmentModal: React.FC<{
     amountPaidToSupplier?: number;
   }) => { ok: true } | { ok: false; error: string };
 }> = ({ onClose, onSave }) => {
-  const [supplier, setSupplier] = useState('FunderMax GmbH');
-  const [contact, setContact] = useState('office@fundermax.biz');
-  const [origin, setOrigin] = useState('Austria (EU)');
+  const { language } = useInventory();
+  const isKu = language === 'ku';
+  const [supplier, setSupplier] = useState('');
+  const [contact, setContact] = useState('');
+  const [origin, setOrigin] = useState('');
   const [arrival, setArrival] = useState(new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<InboundStatus>('pending');
   const [notes, setNotes] = useState('');
-  const [currency, setCurrency] = useState<'EUR' | 'USD'>('EUR');
+  const [currency, setCurrency] = useState<'EUR' | 'USD'>('USD');
   const [invoiceAmount, setInvoiceAmount] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [items, setItems] = useState<DraftItem[]>([{ key: 1, description: '', unit: 'pcs', expectedQty: '', receivedQty: '' }]);
@@ -1159,13 +1172,13 @@ const NewShipmentModal: React.FC<{
         <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
           <div className="flex items-center gap-1.5 text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-wide">
             <Coins className="w-3.5 h-3.5" />
-            <span>Supplier Invoicing & Payables (قەرزی دابینکەر)</span>
+            <span>{isKu ? 'قەرزی دابینکەر (Supplier Invoicing & Payables)' : 'Supplier Invoicing & Payables'}</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className={labelCls} htmlFor="ns-curr">Currency</label>
               <select id="ns-curr" className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value as 'EUR' | 'USD')}>
-                <option value="EUR">EUR (€) - FunderMax Standard</option>
+                <option value="EUR">EUR (€)</option>
                 <option value="USD">USD ($) - General Inbound</option>
               </select>
             </div>

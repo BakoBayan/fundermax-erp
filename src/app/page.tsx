@@ -1,7 +1,7 @@
 'use client';
 
 import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { InventoryProvider, useInventory } from '@/context/InventoryContext';
 import { Header } from '@/components/Header';
@@ -11,6 +11,7 @@ import { MobileView } from '@/components/MobileView';
 import { OrdersSection } from '@/components/OrdersSection';
 import { SalesSection } from '@/components/SalesSection';
 import { WarehouseGoodsSection } from '@/components/WarehouseGoodsSection';
+import { ShippingPipeline } from '@/components/ShippingPipeline';
 import { AuditBackupsSection } from '@/components/AuditBackupsSection';
 import { MaterialModal, OrderModal } from '@/components/Modals';
 import { ImageViewerModal } from '@/components/ImageViewerModal';
@@ -481,7 +482,9 @@ function WarehouseApp() {
       const heightCm = (spec.doorHeight / 10).toFixed(0);
       const widthCm = (spec.doorWidth / 10).toFixed(0);
       const frameCm = (spec.frameDepth / 10).toFixed(0);
-      const handingKu = spec.openingDirection === 'left' ? 'دەستە چەپ (Left)' : 'دەستە ڕاست (Right)';
+      const handingKu = spec.openingDirection === 'left'
+        ? (isKu ? 'لای چەپ' : 'Left Hand')
+        : (isKu ? 'لای ڕاست' : 'Right Hand');
 
       return (
         <div
@@ -496,13 +499,13 @@ function WarehouseApp() {
           <div className={`border-b-4 border-slate-900 ${isSingle ? 'pb-5 mb-5' : 'pb-2.5 mb-3'} flex items-start justify-between gap-4`}>
             <div>
               <div className="inline-block px-3 py-1 bg-slate-900 text-white text-xs font-mono font-black uppercase tracking-wider mb-1.5 rounded-sm">
-                پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+                {isKu ? 'پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)' : 'Door Production Slip - Shaswar Ahmad Shaswar Co. (Sulaymaniyah)'}
               </div>
               <h1 className={`${isSingle ? 'text-2xl sm:text-3xl' : 'text-base'} font-black tracking-tight text-slate-900 uppercase`}>
-                Bako&apos;s Master System • سلێمانی
+                Bako&apos;s Master System • {isKu ? 'سلێمانی' : 'Sulaymaniyah'}
               </h1>
               <div className={`${isSingle ? 'text-xs mt-1' : 'text-[11px] mt-0.5'} font-bold text-slate-600 uppercase tracking-wider`}>
-                کارگەی دروستکردنی دەرگا • Custom Door Workshop Division
+                {isKu ? 'کارگەی دروستکردنی دەرگا • Custom Door Workshop Division' : 'Custom Door Workshop Division'}
               </div>
             </div>
             <div className="text-end shrink-0">
@@ -518,16 +521,16 @@ function WarehouseApp() {
           {/* Customer & Quantity Bar */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="p-4 bg-slate-50 border-2 border-slate-900 rounded-xl space-y-1">
-              <div className="text-[10px] font-black uppercase text-slate-500">ناوی کڕیار / خاوەن پڕۆژە</div>
+              <div className="text-[10px] font-black uppercase text-slate-500">{isKu ? 'ناوی کڕیار / خاوەن پڕۆژە' : 'Client / Project'}</div>
               <div className="text-xl font-black text-slate-900">{ord.client}</div>
-              <div className="text-xs text-slate-600">مۆدێل: <strong>{spec.doorModel || mat.name}</strong></div>
+              <div className="text-xs text-slate-600">{isKu ? 'مۆدێل: ' : 'Model: '}<strong>{spec.doorModel || mat.name}</strong></div>
             </div>
 
             <div className="p-4 bg-slate-50 border-2 border-slate-900 rounded-xl space-y-1 text-right">
-              <div className="text-[10px] font-black uppercase text-slate-500">ژمارەی دەرگا</div>
-              <div className="text-3xl font-black text-emerald-800 font-mono">{ord.quantity} دانە</div>
+              <div className="text-[10px] font-black uppercase text-slate-500">{isKu ? 'ژمارەی دەرگا' : 'Door Quantity'}</div>
+              <div className="text-3xl font-black text-emerald-800 font-mono">{ord.quantity} {isKu ? 'دانە' : 'pcs'}</div>
               <div className="text-xs font-bold uppercase text-slate-600">
-                {ord.status === 'finalized' ? 'تەواوکراو' : 'لە کاردایە (حجز)'}
+                {ord.status === 'finalized' ? (isKu ? 'تەواوکراو' : 'FINALIZED') : (isKu ? 'حجزکراو (Reserved)' : 'IN PROGRESS')}
               </div>
             </div>
           </div>
@@ -535,44 +538,44 @@ function WarehouseApp() {
           {/* Floor Carpenters Essential Badges */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <div className="p-3 bg-slate-100 border-2 border-slate-900 rounded-xl text-center">
-              <div className="text-[10px] font-black uppercase text-slate-600">قەبارەی دەرگا (Door Size)</div>
+              <div className="text-[10px] font-black uppercase text-slate-600">{isKu ? 'قەبارەی دەرگا (Door Size)' : 'Door Size'}</div>
               <div className="text-2xl font-black font-mono text-slate-900 my-1">{heightCm} × {widthCm} cm</div>
               <div className="text-[10px] text-slate-500 font-mono">({spec.doorHeight} × {spec.doorWidth} mm)</div>
             </div>
 
             <div className="p-3 bg-slate-100 border-2 border-slate-900 rounded-xl text-center">
-              <div className="text-[10px] font-black uppercase text-slate-600">چوارچێوە (Frame)</div>
+              <div className="text-[10px] font-black uppercase text-slate-600">{isKu ? 'چوارچێوە (Frame)' : 'Frame Depth'}</div>
               <div className="text-2xl font-black font-mono text-slate-900 my-1">{frameCm} cm</div>
-              <div className="text-[10px] text-slate-500 font-mono">({spec.frameDepth} mm قووڵی)</div>
+              <div className="text-[10px] text-slate-500 font-mono">({spec.frameDepth} mm {isKu ? 'قووڵی' : 'Depth'})</div>
             </div>
 
             <div className="p-3 bg-slate-900 text-white border-2 border-slate-900 rounded-xl text-center">
-              <div className="text-[10px] font-black uppercase text-slate-300">ئاڕاستەی قوفڵ (Handing)</div>
+              <div className="text-[10px] font-black uppercase text-slate-300">{isKu ? 'لای کردنەوە (دەستە)' : 'Opening Handing'}</div>
               <div className="text-lg font-black my-1 text-white">{handingKu}</div>
-              <div className="text-[10px] text-slate-400">بەپێی وەستانی دەرەوە</div>
+              <div className="text-[10px] text-slate-400">{isKu ? 'بەپێی وەستانی دەرەوە' : 'From Outside View'}</div>
             </div>
 
             <div className="p-3 bg-slate-100 border-2 border-slate-900 rounded-xl text-center">
-              <div className="text-[10px] font-black uppercase text-slate-600">جۆری دەرگا (Door Type)</div>
+              <div className="text-[10px] font-black uppercase text-slate-600">{isKu ? 'جۆری دەرگا (Door Type)' : 'Door Type'}</div>
               <div className="text-sm font-black text-slate-900 my-1">
-                {spec.doorType === 'waterproof_wc' ? 'گەرماو / دژە ئاو' : spec.doorType === 'entrance' ? 'دەرگای سەرەکی' : 'ژوور'}
+                {spec.doorType === 'waterproof_wc' ? (isKu ? 'پێکهاتەی دژە ئاو (Waterproof)' : 'Waterproof WC') : spec.doorType === 'entrance' ? (isKu ? 'دەرگای سەرەکی' : 'Entrance Door') : (isKu ? 'ژوور' : 'Room')}
               </div>
-              <div className="text-[10px] text-slate-500">تاج: {spec.casingIncluded ? 'هەیە' : 'نییە'} • دەسک: {spec.hardwareIncluded ? 'هەیە' : 'نییە'}</div>
+              <div className="text-[10px] text-slate-500">{isKu ? 'تاج: ' : 'Casing: '}{spec.casingIncluded ? (isKu ? 'هەیە' : 'Yes') : (isKu ? 'نییە' : 'No')} • {isKu ? 'دەسک: ' : 'Hardware: '}{spec.hardwareIncluded ? (isKu ? 'هەیە' : 'Yes') : (isKu ? 'نییە' : 'No')}</div>
             </div>
           </div>
 
           {/* Material / Skin */}
           <div className="p-3 bg-slate-50 border-2 border-slate-900 rounded-xl mb-4 text-xs font-mono">
-            <span className="font-bold text-slate-500 me-2">جۆری تەختە (Material / Skin):</span>
+            <span className="font-bold text-slate-500 me-2">{isKu ? 'جۆری تەختە (Material / Skin):' : 'Material / Skin:'}</span>
             <span className="font-black bg-white px-2 py-0.5 rounded border border-slate-300 me-2">#{mat.code}</span>
             <span className="font-black text-slate-900 me-2">{mat.name}</span>
-            <span className="text-slate-600 font-semibold">(FunderMax • {mat.type} • {mat.dimensions.thickness}mm)</span>
+            <span className="text-slate-600 font-semibold">({mat.type} • {mat.dimensions.thickness}mm)</span>
           </div>
 
           {/* Notes */}
           {ord.notes && (
             <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-xl mb-4 text-xs">
-              <div className="text-[10px] font-black uppercase text-slate-500 mb-1">ڕێنمایی و تێبینی دارتاشی:</div>
+              <div className="text-[10px] font-black uppercase text-slate-500 mb-1">{isKu ? 'ڕێنمایی و تێبینی دارتاشی:' : 'Workshop Notes:'}</div>
               <div className="text-slate-800 whitespace-pre-wrap font-mono">{ord.notes}</div>
             </div>
           )}
@@ -580,14 +583,14 @@ function WarehouseApp() {
           {/* CNC / Sketch Preview */}
           {ord.imageUrl && (
             <div className="p-3 border-2 border-slate-900 rounded-xl mb-4 text-center">
-              <div className="text-[10px] font-black uppercase text-slate-600 mb-2">وێنەی نەخش و دیزاینی CNC دەرگا</div>
+              <div className="text-[10px] font-black uppercase text-slate-600 mb-2">{isKu ? 'وێنەی نەخش و دیزاینی CNC دەرگا' : 'Door CNC Pattern & Design'}</div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={ord.imageUrl} alt="CNC Pattern" className="max-h-56 mx-auto object-contain border border-slate-300" />
             </div>
           )}
 
           <div dir="ltr" className={`${isSingle ? 'mt-6 pt-4 text-xs' : 'mt-4 pt-2.5 text-[11px]'} border-t border-slate-300 flex items-center justify-between text-slate-500 font-medium select-none`}>
-            <div>کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) — Version {APP_VERSION_NUMBER}</div>
+            <div>{isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)' : 'Shaswar Ahmad Shaswar Co. (Sulaymaniyah)'} — Version {APP_VERSION_NUMBER}</div>
             <div className="font-mono font-bold">Contact: 07705488654</div>
           </div>
         </div>
@@ -843,7 +846,7 @@ function WarehouseApp() {
       )}
 
       {/* Dynamic Main Workspace Container */}
-      <main className="flex-1 flex flex-col w-full max-w-full min-h-0 pb-4 md:pb-16 no-print print:hidden">
+      <main className="flex-1 flex flex-col w-full max-w-full min-h-0 overflow-x-hidden pb-4 md:pb-16 no-print print:hidden">
         {currentModule === 'hub' && (
           <ModuleHub
             onOpenBatchPrint={() => setIsBatchPrintModalOpen(true)}
@@ -853,15 +856,30 @@ function WarehouseApp() {
         {currentModule === 'panels' && (
           userPermissions.canViewPanels ? (
             effectiveMode === 'pc' ? (
-              <ExcelGrid
-                onOpenOrderModal={handleOpenOrderModal}
-                onOpenMaterialModal={handleOpenMaterialModal}
-                onSelectOrderForDetails={setSelectedOrderForDetails}
-                onPrintIndividualItem={handlePrintIndividual}
-                selectedPrintItemIds={new Set(selectedPrintQueue.map((q) => q.id))}
-                onTogglePrintQueueItem={handleTogglePrintQueueItem}
-                onNavigateToOrders={() => setCurrentModule('orders')}
-              />
+              <>
+                <div className="hidden md:block">
+                  <ExcelGrid
+                    onOpenOrderModal={handleOpenOrderModal}
+                    onOpenMaterialModal={handleOpenMaterialModal}
+                    onSelectOrderForDetails={setSelectedOrderForDetails}
+                    onPrintIndividualItem={handlePrintIndividual}
+                    selectedPrintItemIds={new Set(selectedPrintQueue.map((q) => q.id))}
+                    onTogglePrintQueueItem={handleTogglePrintQueueItem}
+                    onNavigateToOrders={() => setCurrentModule('orders')}
+                  />
+                </div>
+                <div className="block md:hidden">
+                  <MobileView
+                    onOpenOrderModal={handleOpenOrderModal}
+                    onOpenMaterialModal={handleOpenMaterialModal}
+                    onSelectOrderForDetails={setSelectedOrderForDetails}
+                    onPrintIndividualItem={handlePrintIndividual}
+                    selectedPrintItemIds={new Set(selectedPrintQueue.map((q) => q.id))}
+                    onTogglePrintQueueItem={handleTogglePrintQueueItem}
+                    onNavigateToOrders={() => setCurrentModule('orders')}
+                  />
+                </div>
+              </>
             ) : (
               <MobileView
                 onOpenOrderModal={handleOpenOrderModal}
@@ -913,12 +931,24 @@ function WarehouseApp() {
           )
         )}
 
-        {(currentModule === 'goods' || currentModule === 'shipping') && (
+        {currentModule === 'goods' && (
           userPermissions.canViewWarehouse ? (
             <WarehouseGoodsSection />
           ) : (
             <AccessDeniedView
               moduleName={language === 'ku' ? 'کەلوپەل و لۆجستی کۆگا' : 'Warehouse Goods & Logistics'}
+              onReturn={() => setCurrentModule('hub')}
+              language={language}
+            />
+          )
+        )}
+
+        {currentModule === 'shipping' && (
+          userPermissions.canViewWarehouse ? (
+            <ShippingPipeline />
+          ) : (
+            <AccessDeniedView
+              moduleName={language === 'ku' ? 'هێڵی گواستنەوە و بارەکان' : 'Shipping Pipeline'}
               onReturn={() => setCurrentModule('hub')}
               language={language}
             />
@@ -1085,8 +1115,21 @@ export default function Page() {
   }
 
   return (
-    <InventoryProvider>
-      <WarehouseApp />
-    </InventoryProvider>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex items-center justify-center select-none">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-9 h-9 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+            <span className="font-mono font-bold text-xs text-slate-500 tracking-wide">
+              Loading Modular Operations Platform...
+            </span>
+          </div>
+        </div>
+      }
+    >
+      <InventoryProvider>
+        <WarehouseApp />
+      </InventoryProvider>
+    </Suspense>
   );
 }

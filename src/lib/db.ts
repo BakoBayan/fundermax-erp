@@ -641,6 +641,7 @@ export function getInventoryFromDB(): {
     if (rawRole === "admin") role = "Admin";
     else if (rawRole === "manager") role = "Manager";
     else if (rawRole === "viewer") role = "Viewer";
+    else if (rawRole === "owner") role = "Owner";
 
     let permissions: UserModulePermissions | undefined = undefined;
     if (u.permissions_json) {

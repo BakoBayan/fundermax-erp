@@ -66,6 +66,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
     printCuttingSlip,
   } = useInventory();
 
+  const isKu = language === 'ku';
+
   const [jobTypeFilter, setJobTypeFilter] = useState<"all" | "generic" | "door">("all");
   const [orderSearch, setOrderSearch] = useState("");
   const [panelTypeFilter, setPanelTypeFilter] = useState("all");
@@ -262,7 +264,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              هەموو ({allOrdersList.length})
+              {isKu ? 'هەموو' : 'All'} ({allOrdersList.length})
             </button>
             <button
               type="button"
@@ -273,7 +275,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              بڕینی ئاسایی
+              {isKu ? 'بڕینی ئاسایی' : 'Standard Cuts'}
             </button>
             <button
               type="button"
@@ -285,7 +287,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
               }`}
             >
               <DoorClosed className="w-3.5 h-3.5" />
-              <span>دروستکردنی دەرگا</span>
+              <span>{isKu ? 'دروستکردنی دەرگا' : 'Door Fabrication'}</span>
             </button>
           </div>
 
@@ -460,7 +462,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
         </div>
       ) : effectiveMode === "pc" ? (
         /* PC Table View */
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 w-full max-w-full overflow-x-auto pb-4">
           <table className="w-full border-collapse text-center select-text">
             <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700 select-none shadow-2xs">
               <tr className="divide-x divide-slate-200 dark:divide-slate-700">
@@ -516,8 +518,9 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] border border-emerald-300 dark:border-emerald-800 whitespace-nowrap">
                             <DoorClosed className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                             <span>
-                              دەرگا {order.doorSpec ? `${(order.doorSpec.doorHeight / 10).toFixed(0)}×${(order.doorSpec.doorWidth / 10).toFixed(0)}` : ""}
-                              {order.doorSpec ? ` (${order.doorSpec.openingDirection === "left" ? "چەپ" : "ڕاست"})` : ""}
+                              {isKu ? 'دەرگا ' : 'Door '}
+                              {order.doorSpec ? `${(order.doorSpec.doorHeight / 10).toFixed(0)}×${(order.doorSpec.doorWidth / 10).toFixed(0)}` : ""}
+                              {order.doorSpec ? ` (${order.doorSpec.openingDirection === "left" ? (isKu ? "چەپ" : "L") : (isKu ? "ڕاست" : "R")})` : ""}
                             </span>
                           </span>
                         )}
@@ -758,8 +761,9 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] border border-emerald-300 dark:border-emerald-800">
                             <DoorClosed className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
                             <span>
-                              دەرگا {order.doorSpec ? `${(order.doorSpec.doorHeight / 10).toFixed(0)}×${(order.doorSpec.doorWidth / 10).toFixed(0)}` : ""}
-                              {order.doorSpec ? ` (${order.doorSpec.openingDirection === "left" ? "چەپ" : "ڕاست"})` : ""}
+                              {isKu ? 'دەرگا ' : 'Door '}
+                              {order.doorSpec ? `${(order.doorSpec.doorHeight / 10).toFixed(0)}×${(order.doorSpec.doorWidth / 10).toFixed(0)}` : ""}
+                              {order.doorSpec ? ` (${order.doorSpec.openingDirection === "left" ? (isKu ? "چەپ" : "L") : (isKu ? "ڕاست" : "R")})` : ""}
                             </span>
                           </span>
                         )}

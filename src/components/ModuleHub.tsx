@@ -326,9 +326,15 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </div>
 
               {/* Role Badge */}
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold font-mono uppercase bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
-                {currentUser?.role || 'Admin'}
-              </span>
+              {currentUser?.role?.toLowerCase() === 'owner' ? (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700 shrink-0">
+                  {isKu ? 'خاوەن کار (Owner)' : 'Owner'}
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold font-mono uppercase bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
+                  {currentUser?.role || 'Admin'}
+                </span>
+              )}
             </div>
 
             {/* Official Client Attribution Pill (Shaswar Ahmad Shaswar Co.) */}
@@ -1401,9 +1407,15 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <span>{isKu ? 'ئەژمێری ئێستا:' : 'Current Account:'}</span>
                 <span className="font-bold text-slate-900 dark:text-white font-mono flex items-center gap-2">
                   <span>{currentUser.displayName || currentUser.username}</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-750 text-slate-700 dark:text-slate-300 font-bold">
-                    {currentUser.role}
-                  </span>
+                  {currentUser.role?.toLowerCase() === 'owner' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700 font-bold">
+                      {isKu ? 'خاوەن کار (Owner)' : 'Owner'}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-750 text-slate-700 dark:text-slate-300 font-bold">
+                      {currentUser.role}
+                    </span>
+                  )}
                 </span>
               </div>
             )}

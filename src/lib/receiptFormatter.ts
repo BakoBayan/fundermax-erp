@@ -17,9 +17,7 @@ export function formatInvoiceReceipt(
 ): ReceiptTextResult {
   const txCur = tx.currency || tx.chargedCurrency || 'USD';
   const invoiceNum = tx.code || (tx.id ? `INV-${tx.id.slice(-6)}` : 'INV-001');
-  const dateFormatted = tx.timestamp ? new Date(tx.timestamp).toLocaleDateString() : new Date().toLocaleDateString();
-  const clientName = (tx as any).client || tx.seller || (lang === 'ku' ? 'کڕیاری گشتی' : 'Valued Customer');
-  const invoiceTotal = tx.totalAfterDiscount !== undefined ? tx.totalAfterDiscount : tx.sellingAmount;
+  const clientName = (tx as any).client || tx.seller || (lang === 'ku' ? 'کڕیاری گشتی (General Customer)' : 'General Customer (کڕیاری گشتی)');
   const totalDebt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
   const paidNow = tx.amountPaidNow || 0;
 
@@ -28,28 +26,33 @@ export function formatInvoiceReceipt(
       ? tx.items.map((it, idx) => `  ${idx + 1}. ${it.product || it.type || 'ماددە'} (${it.quantity} دانە @ ${formatMoney(it.price, txCur)}) = ${formatMoney(it.total, txCur)}`).join('\n')
       : `  1. ${tx.material || tx.panelType || 'ماددە'} (${tx.quantity} دانە @ ${formatMoney(tx.sellingAmount, txCur)})`;
 
-    const subject = `وەسڵی فرۆشتن: #${invoiceNum} - کۆمپانیای شاسوار ئەحمەد شاسوار`;
+    const subject = `پسوولەی فرۆشتن: #${invoiceNum} - کۆمپانیای شاسوار ئەحمەد شاسوار`;
     const refLines = [
       tx.legacyInvoiceRef ? `ژمارەی تۆماری کۆن: ${tx.legacyInvoiceRef}` : '',
       tx.fundermaxBatchRef ? `وەجبەی فەندەرمەکس: ${tx.fundermaxBatchRef}` : '',
     ].filter(Boolean).join('\n');
 
+    const hasDiscount = tx.discountDollars !== undefined && tx.discountDollars > 0;
+    const totalsText = hasDiscount
+      ? `کۆی گشتی (پێش داشکاندن): ${formatMoney(tx.sellingAmount, txCur)}\nداشکاندن: -${formatMoney(tx.discountDollars || 0, txCur)}\nکۆی سافی (پاش داشکاندن): ${formatMoney(invoiceTotal, txCur)}`
+      : `کۆی سافی (پاش داشکاندن): ${formatMoney(invoiceTotal, txCur)}`;
+
     const body =
 `کۆمپانیای شاسوار ئەحمەد شاسوار
-وەسڵی فرۆشتن
+پسوولەی فرۆشتنی نوێ
 -----------------------------
-ژمارەی وەسڵ: #${invoiceNum}
+ژمارەی پسوولە: #${invoiceNum}
 بەروار: ${dateFormatted}
 کڕیار: ${clientName}${tx.clientPhone ? ` (${tx.clientPhone})` : ''}
 ${refLines ? `${refLines}\n` : ''}-----------------------------
 کاڵاکان:
 ${itemsList}
 -----------------------------
-کۆی گشتی: ${formatMoney(invoiceTotal, txCur)}
-پارەی دراو: ${formatMoney(paidNow, txCur)}
+${totalsText}
+کاشی وەرگیراو: ${formatMoney(paidNow, txCur)}
 قەرزی ماوە: ${formatMoney(totalDebt, txCur)}
 -----------------------------
-سوپاس بۆ مامەڵەکردنتان - سیستەمی وەستای باکۆ`;
+سوپاس بۆ مامەڵەکردنتان - سیستەمی سەرەکی باکۆ`;
 
     return {
       subject,

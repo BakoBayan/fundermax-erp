@@ -318,7 +318,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
       </div>
 
       {/* Spreadsheet Grid: Centered, Non-Capitalized, Modern Polished SaaS Theme */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 w-full max-w-full overflow-x-auto pb-4">
         <table className="w-full border-collapse text-center select-text">
           {/* Header: Centered & Not Fully Capitalized */}
           <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700 select-none shadow-2xs">

@@ -111,7 +111,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose, onO
                     {currentUser?.role === "Viewer"
                       ? (language === "ku" ? "تەنها بینەر (سەیرکردن)" : "Viewer (Read-Only)")
                       : currentUser?.role === "Owner"
-                      ? (language === "ku" ? "👑 خاوەن کار (Executive Owner)" : "👑 Executive Owner")
+                      ? (language === "ku" ? "👑 خاوەن کار (Owner)" : "👑 Owner")
                       : (currentUser?.role || "Visitor")}
                   </span>
                 </div>

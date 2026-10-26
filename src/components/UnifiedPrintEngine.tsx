@@ -30,10 +30,12 @@ export const DoorProductionCuttingSlip: React.FC<{
   const widthCm = (spec.doorWidth / 10).toFixed(0);
   const frameCm = (spec.frameDepth / 10).toFixed(0);
 
-  const handingTextKu = spec.openingDirection === 'left' ? 'دەستە چەپ (Left Hand)' : 'دەستە ڕاست (Right Hand)';
+  const handingTextKu = spec.openingDirection === 'left'
+    ? (isKu ? 'لای چەپ' : 'Left Hand')
+    : (isKu ? 'لای ڕاست' : 'Right Hand');
 
   const doorTypeLabel = spec.doorType === 'waterproof_wc'
-    ? (isKu ? 'گەرماو / دژە ئاو (Waterproof WC)' : 'Waterproof WC / Bathroom')
+    ? (isKu ? 'پێکهاتەی دژە ئاو (Waterproof)' : 'Waterproof WC / Bathroom')
     : spec.doorType === 'entrance'
     ? (isKu ? 'دەرگای سەرەکی (Main Entrance)' : 'Main Entrance Door')
     : (isKu ? 'ژوور (Interior Room)' : 'Standard Interior Room');
@@ -52,7 +54,7 @@ export const DoorProductionCuttingSlip: React.FC<{
       <div className="border-b-4 border-black pb-4 mb-5 flex items-start justify-between">
         <div>
           <div className="inline-block px-3 py-1 bg-black text-white text-[11px] font-mono font-black uppercase tracking-widest mb-1.5 rounded-xs">
-            پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+            {isKu ? 'پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)' : 'Door Production Slip - Shaswar Ahmad Shaswar Co. (Sulaymaniyah)'}
           </div>
           <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-black">
             Bako&apos;s Master System • Sulaymaniyah
@@ -68,7 +70,7 @@ export const DoorProductionCuttingSlip: React.FC<{
           </div>
           <div className="text-xs text-gray-700 mt-1 font-bold">{orderDate}</div>
           <div className="text-[10px] font-black uppercase text-gray-900 mt-0.5">
-            کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)
+            {isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی)' : 'Shaswar Ahmad Shaswar Co. (Sulaymaniyah)'}
           </div>
         </div>
       </div>
@@ -81,7 +83,7 @@ export const DoorProductionCuttingSlip: React.FC<{
           </span>
           <div className="text-xl font-black text-black mt-0.5">{order.client}</div>
           <div className="text-xs text-gray-700 mt-1">
-            مۆدێل و دیزاین: <strong className="text-black font-bold">{spec.doorModel || material.name}</strong>
+            {isKu ? 'مۆدێل و دیزاین: ' : 'Model & Design: '}<strong className="text-black font-bold">{spec.doorModel || material.name}</strong>
           </div>
         </div>
 
@@ -90,10 +92,10 @@ export const DoorProductionCuttingSlip: React.FC<{
             {isKu ? 'ژمارەی دەرگای داواکراو' : 'Total Doors To Manufacture'}
           </span>
           <div className="text-3xl font-black font-mono text-black mt-0.5">
-            {order.quantity} <span className="text-sm font-normal">دانە (pcs)</span>
+            {order.quantity} <span className="text-sm font-normal">{isKu ? 'دانە (pcs)' : 'pcs'}</span>
           </div>
           <div className="text-[11px] font-bold uppercase text-gray-800 mt-1">
-            دۆخ: {order.status === 'finalized' ? 'تەواوکراوە (FINALIZED)' : 'لە کاردایە (IN WORKSHOP)'}
+            {isKu ? 'دۆخ: ' : 'Status: '}{order.status === 'finalized' ? (isKu ? 'تەواوکراوە (FINALIZED)' : 'FINALIZED') : (isKu ? 'لە کاردایە (IN WORKSHOP)' : 'IN WORKSHOP')}
           </div>
         </div>
       </div>
@@ -101,7 +103,7 @@ export const DoorProductionCuttingSlip: React.FC<{
       {/* 2. Large High-Visibility Badges for Floor Carpenters */}
       <div className="mb-6">
         <div className="text-[11px] font-black uppercase tracking-wider mb-2 flex justify-between items-center border-b border-black pb-1">
-          <span>ڕێنمایی و ئەندازەی دارتاشی کارگە (FLOOR CARPENTER ESSENTIAL BADGES)</span>
+          <span>{isKu ? 'ڕێنمایی و ئەندازەی دارتاشی کارگە (FLOOR CARPENTER ESSENTIAL BADGES)' : 'Floor Carpenter Essential Badges'}</span>
           <span className="text-[10px] font-mono font-bold text-gray-600">SULAYMANIYAH-DOOR-SPEC</span>
         </div>
 
@@ -109,7 +111,7 @@ export const DoorProductionCuttingSlip: React.FC<{
           {/* Badge 1: قەبارەی دەرگا (Door Size) */}
           <div className="border-2 border-black p-3 bg-gray-100/70 text-center flex flex-col justify-between">
             <span className="text-[10px] font-black uppercase text-gray-600 block">
-              قەبارەی دەرگا (Door Size)
+              {isKu ? 'قەبارەی دەرگا (Door Size)' : 'Door Size'}
             </span>
             <div className="my-1.5">
               <div className="text-2xl font-black font-mono tracking-tight text-black">
@@ -119,29 +121,29 @@ export const DoorProductionCuttingSlip: React.FC<{
                 ({spec.doorHeight} × {spec.doorWidth} mm)
               </div>
             </div>
-            <span className="text-[9px] font-bold text-gray-500">بەرزی × پانی پاکی دەرگا</span>
+            <span className="text-[9px] font-bold text-gray-500">{isKu ? 'بەرزی × پانی پاکی دەرگا' : 'Door Height × Width'}</span>
           </div>
 
           {/* Badge 2: چوارچێوە / قووڵی دیوار (Frame Depth) */}
           <div className="border-2 border-black p-3 bg-gray-100/70 text-center flex flex-col justify-between">
             <span className="text-[10px] font-black uppercase text-gray-600 block">
-              چوارچێوە (Frame Depth)
+              {isKu ? 'چوارچێوە (Frame Depth)' : 'Frame Depth'}
             </span>
             <div className="my-1.5">
               <div className="text-2xl font-black font-mono tracking-tight text-black">
                 {frameCm} <span className="text-xs font-bold">cm</span>
               </div>
               <div className="text-[10px] font-mono text-gray-600 font-bold">
-                ({spec.frameDepth} mm قووڵی)
+                ({spec.frameDepth} mm {isKu ? 'قووڵی' : 'Depth'})
               </div>
             </div>
-            <span className="text-[9px] font-bold text-gray-500">قووڵی چوارچێوە و دیوار</span>
+            <span className="text-[9px] font-bold text-gray-500">{isKu ? 'قووڵی چوارچێوە و دیوار' : 'Frame & Wall Depth'}</span>
           </div>
 
           {/* Badge 3: ئاڕاستەی قوفڵ (Hinge/Lock Handing) */}
           <div className="border-2 border-black p-3 bg-black text-white text-center flex flex-col justify-between">
             <span className="text-[10px] font-black uppercase text-gray-300 block">
-              ئاڕاستەی قوفڵ (Handing)
+              {isKu ? 'لای کردنەوە (دەستە)' : 'Opening Handing'}
             </span>
             <div className="my-1.5">
               <div className="text-lg font-black tracking-tight text-white uppercase">
@@ -151,13 +153,13 @@ export const DoorProductionCuttingSlip: React.FC<{
                 {spec.openingDirection === 'left' ? 'LEFT HAND' : 'RIGHT HAND'}
               </div>
             </div>
-            <span className="text-[9px] font-bold text-gray-400">دەستەوانەی کردنەوە</span>
+            <span className="text-[9px] font-bold text-gray-400">{isKu ? 'لای کردنەوە (دەستە)' : 'Door Swing Direction'}</span>
           </div>
 
           {/* Badge 4: جۆری دەرگا (Door Type) */}
           <div className="border-2 border-black p-3 bg-gray-100/70 text-center flex flex-col justify-between">
             <span className="text-[10px] font-black uppercase text-gray-600 block">
-              جۆری دەرگا (Door Type)
+              {isKu ? 'جۆری دەرگا (Door Type)' : 'Door Type'}
             </span>
             <div className="my-1.5">
               <div className="text-sm font-black text-black">
@@ -165,7 +167,7 @@ export const DoorProductionCuttingSlip: React.FC<{
               </div>
             </div>
             <span className="text-[9px] font-bold text-gray-500">
-              {spec.doorType === 'waterproof_wc' ? 'پێکهاتەی دژە شێ' : 'تەختەی ستاندارد'}
+              {spec.doorType === 'waterproof_wc' ? (isKu ? 'پێکهاتەی دژە ئاو (Waterproof)' : 'Waterproof Core') : (isKu ? 'تەختەی ستاندارد' : 'Standard Core')}
             </span>
           </div>
         </div>
@@ -174,32 +176,32 @@ export const DoorProductionCuttingSlip: React.FC<{
       {/* Material & Skin Specification Table */}
       <div className="mb-6">
         <div className="text-[11px] font-black uppercase tracking-wider mb-1.5">
-          جۆری تەختە و ڕووکەشی FunderMax (MATERIAL &amp; HARDWARE SPECS)
+          {isKu ? 'جۆری تەختە و تایبەتمەندییەکان (MATERIAL & HARDWARE SPECS)' : 'Material & Hardware Specs'}
         </div>
         <table className="w-full border-collapse border-2 border-black text-xs">
           <thead>
             <tr className="bg-gray-100 border-b-2 border-black text-black font-black uppercase text-[10px]">
-              <th className="p-2 border-r border-black text-left">جۆری تەختە (Material/Skin)</th>
-              <th className="p-2 border-r border-black text-center">کۆدی پەنەل</th>
-              <th className="p-2 border-r border-black text-center">تاج و کەتیبە (Casing)</th>
-              <th className="p-2 border-r border-black text-center">قوفڵ و دەسک (Hardware)</th>
-              <th className="p-2 text-center">ئەستووری (Thickness)</th>
+              <th className="p-2 border-r border-black text-left">{isKu ? 'جۆری تەختە (Material/Skin)' : 'Material / Skin'}</th>
+              <th className="p-2 border-r border-black text-center">{isKu ? 'کۆدی پەنەل' : 'Panel Code'}</th>
+              <th className="p-2 border-r border-black text-center">{isKu ? 'تاج و کەتیبە (Casing)' : 'Casing'}</th>
+              <th className="p-2 border-r border-black text-center">{isKu ? 'بەستنی قوفڵ و ئێکسسوارات لە کارگە' : 'Hardware'}</th>
+              <th className="p-2 text-center">{isKu ? 'ئەستووری (Thickness)' : 'Thickness'}</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-black font-medium">
               <td className="p-2.5 border-r border-black font-bold text-black">
                 {material.name}
-                <div className="text-[10px] text-gray-600 font-mono">FunderMax Core / Code: {material.code} • {material.type}</div>
+                <div className="text-[10px] text-gray-600 font-mono">{isKu ? 'تایبەتمەندی تەختە / کۆد:' : 'Panel Specs / Code:'} {material.code} • {material.type}</div>
               </td>
               <td className="p-2.5 border-r border-black text-center font-mono font-black text-black">
                 #{material.code}
               </td>
               <td className="p-2.5 border-r border-black text-center font-bold">
-                {spec.casingIncluded ? '✅ هەیە (Included)' : '❌ نییە (None)'}
+                {spec.casingIncluded ? (isKu ? '✅ هەیە (Included)' : '✅ Included') : (isKu ? '❌ نییە (None)' : '❌ None')}
               </td>
               <td className="p-2.5 border-r border-black text-center font-bold">
-                {spec.hardwareIncluded ? '✅ هەیە (Included)' : '❌ نییە (None)'}
+                {spec.hardwareIncluded ? (isKu ? '✅ هەیە (Included)' : '✅ Included') : (isKu ? '❌ نییە (None)' : '❌ None')}
               </td>
               <td className="p-2.5 text-center font-mono font-black text-black">
                 {material.dimensions.thickness} mm
@@ -213,7 +215,7 @@ export const DoorProductionCuttingSlip: React.FC<{
       {order.notes && (
         <div className="mb-5 p-3.5 border-2 border-black bg-gray-50/50" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <div className="text-[10px] font-black uppercase tracking-wider text-gray-800 mb-1">
-            ڕێنمایی و تێبینییەکانی وەستاکار بۆ دارتاش و CNC:
+            {isKu ? 'ڕێنمایی و تێبینییەکانی وەستاکار بۆ دارتاش و CNC:' : 'Workshop Notes for Carpenters & CNC:'}
           </div>
           <p className="text-xs text-gray-900 font-mono leading-relaxed whitespace-pre-wrap">{order.notes}</p>
         </div>
@@ -223,7 +225,7 @@ export const DoorProductionCuttingSlip: React.FC<{
       {order.imageUrl && (
         <div className="mb-6 p-4 border-2 border-black text-center" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <div className="text-[11px] font-black uppercase tracking-wider text-black mb-2 flex items-center justify-between">
-            <span>وێنەی دیزاین و نەخشی CNC دەرگا (GROOVE / PATTERN PREVIEW)</span>
+            <span>{isKu ? 'وێنەی دیزاین و نەخشی CNC دەرگا (GROOVE / PATTERN PREVIEW)' : 'Door CNC Pattern & Groove Design'}</span>
             <span className="text-[10px] font-mono text-gray-600">CARPENTERS: VERIFY PATTERN &amp; GROOVE DEPTH</span>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -238,13 +240,13 @@ export const DoorProductionCuttingSlip: React.FC<{
       {/* Floor Carpenters & Workshop Sign-Off Box */}
       <div className="mt-8 pt-4 border-t-2 border-black" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <div className="text-[10px] font-black uppercase tracking-widest text-gray-600 mb-3 text-center">
-          واژۆی دارتاش، کارپێکەری CNC و پشکنەری کارگە (SULAYMANIYAH WORKSHOP SIGN-OFF)
+          {isKu ? 'واژۆی دارتاش، کارپێکەری CNC و پشکنەری کارگە (SULAYMANIYAH WORKSHOP SIGN-OFF)' : 'Carpenters, CNC Operator & QA Sign-Off'}
         </div>
 
         <div className="grid grid-cols-3 gap-6 text-center text-xs">
           <div className="border border-black p-3 min-h-[90px] flex flex-col justify-between">
             <span className="font-bold text-[10px] uppercase text-gray-800">
-              دارتاشی چوارچێوە و دەرگا
+              {isKu ? 'دارتاشی چوارچێوە و دەرگا' : 'Frame & Door Carpenter'}
             </span>
             <div className="border-b border-dotted border-black my-4" />
             <span className="text-[9px] text-gray-500 font-mono">Sign &amp; Date</span>
@@ -252,7 +254,7 @@ export const DoorProductionCuttingSlip: React.FC<{
 
           <div className="border border-black p-3 min-h-[90px] flex flex-col justify-between">
             <span className="font-bold text-[10px] uppercase text-gray-800">
-              کارپێکەری مەکینەی CNC
+              {isKu ? 'کارپێکەری مەکینەی CNC' : 'CNC Machine Operator'}
             </span>
             <div className="border-b border-dotted border-black my-4" />
             <span className="text-[9px] text-gray-500 font-mono">Sign &amp; Date</span>
@@ -260,7 +262,7 @@ export const DoorProductionCuttingSlip: React.FC<{
 
           <div className="border border-black p-3 min-h-[90px] flex flex-col justify-between">
             <span className="font-bold text-[10px] uppercase text-gray-800">
-              پشکنەری کوالێتی و ڕادەستکردن
+              {isKu ? 'پشکنەری کوالێتی و ڕادەستکردن' : 'Quality Assurance & Delivery'}
             </span>
             <div className="border-b border-dotted border-black my-4" />
             <span className="text-[9px] text-gray-500 font-mono">Sign &amp; Date</span>
@@ -268,7 +270,7 @@ export const DoorProductionCuttingSlip: React.FC<{
         </div>
 
         <div className="mt-4 pt-3 border-t border-gray-300 flex items-center justify-between text-[10px] font-mono text-gray-600 select-none">
-          <div>کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) • هێڵی دروستکردنی دەرگا</div>
+          <div>{isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) • هێڵی دروستکردنی دەرگا' : 'Shaswar Ahmad Shaswar Co. (Sulaymaniyah) • Door Line'}</div>
           <div>Bako&apos;s Master System • v{APP_VERSION_NUMBER}</div>
         </div>
       </div>
@@ -642,7 +644,7 @@ export const PosInvoiceSlip: React.FC<{
             Official Contact: 07705488654
           </p>
           <div className="text-[10px] font-black uppercase tracking-widest mt-1.5 border-t border-black pt-1">
-            SALES RECEIPT / پسوولەی فرۆشتن
+            {isKu ? 'SALES RECEIPT / پسوولەی فرۆشتن' : 'OFFICIAL SALES RECEIPT'}
           </div>
         </div>
 
@@ -729,7 +731,7 @@ export const PosInvoiceSlip: React.FC<{
           <p>Bako&apos;s Master System • v{APP_CONFIG.version}</p>
           <div className="pt-2 text-center text-[9px] text-gray-700 font-mono">
             - - - - - - - - - - - - - - - - - - - - - - - -
-            <span className="block mt-0.5 font-bold">[ CUT HERE / لێرە بیبڕە ]</span>
+            <span className="block mt-0.5 font-bold">{isKu ? '[ CUT HERE / لێرە بیبڕە ]' : '[ CUT HERE ]'}</span>
           </div>
         </div>
       </div>
@@ -835,7 +837,7 @@ export const PosInvoiceSlip: React.FC<{
       <div className="flex justify-end mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <div className="w-72 border border-black p-3.5 space-y-1.5 font-mono text-xs bg-gray-50/60">
           <div className="flex justify-between">
-            <span className="font-bold text-gray-700">{isKu ? 'کۆی پێش داشکاندن:' : 'Gross Subtotal:'}</span>
+            <span className="font-bold text-gray-700">{isKu ? 'کۆی گشتی (پێش داشکاندن):' : 'Gross Subtotal:'}</span>
             <span className="font-bold">{formatMoney(tx.sellingAmount, tx.currency)}</span>
           </div>
           {tx.discountDollars !== undefined && tx.discountDollars > 0 && (
@@ -845,11 +847,11 @@ export const PosInvoiceSlip: React.FC<{
             </div>
           )}
           <div className="flex justify-between border-t border-black pt-1 font-black text-sm text-black">
-            <span>{isKu ? 'کۆی گشتی پاش داشکاندن:' : 'Net Invoice Total:'}</span>
+            <span>{isKu ? 'کۆی سافی (پاش داشکاندن):' : 'Net Invoice Total:'}</span>
             <span>{formatMoney(tx.totalAfterDiscount, tx.currency)}</span>
           </div>
           <div className="flex justify-between pt-1 border-t border-gray-300">
-            <span className="text-gray-700">{isKu ? 'پارەی دراو:' : 'Amount Paid Now:'}</span>
+            <span className="text-gray-700">{isKu ? 'کاشی وەرگیراو:' : 'Amount Paid Now:'}</span>
             <span className="font-black text-black">{formatMoney(tx.amountPaidNow || 0, tx.currency)}</span>
           </div>
           <div className="flex justify-between pt-1 border-t border-black text-black font-black">

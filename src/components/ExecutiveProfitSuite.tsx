@@ -23,6 +23,7 @@ import {
   Briefcase
 } from 'lucide-react';
 import { CurrencyCode } from '../types/inventory';
+import { SvgAreaTrendChart } from './VisualChartsModal';
 
 export const ExecutiveProfitSuite: React.FC = () => {
   const {
@@ -34,6 +35,7 @@ export const ExecutiveProfitSuite: React.FC = () => {
     language,
     currentUser,
     setCurrentModule,
+    openVisualCharts,
   } = useInventory();
 
   const wh = useWarehouseOps();
@@ -226,6 +228,28 @@ export const ExecutiveProfitSuite: React.FC = () => {
   const totalLiabilityUSD = supplierPayables.debtUSD + convertedEurLiabilityInUsd;
   const netOperatingSurplusUSD = financials.cashPaidUSD - totalLiabilityUSD;
 
+  // Daily / Transaction Realized Profit Trajectory Trend Points
+  const dailyProfitTrend = useMemo(() => {
+    const map = new Map<string, { label: string; profit: number }>();
+    const sorted = [...filteredTransactions].sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+
+    sorted.slice(-14).forEach((tx, idx) => {
+      const dateLabel = (tx.timestamp || '').slice(5, 10) || `#${idx + 1}`;
+      const rev = Number(tx.totalAfterDiscount || tx.sellingAmount) || 0;
+      const cost = Number(tx.costPrice) || 0;
+      const profit = Math.max(0, rev - cost);
+
+      const prev = map.get(dateLabel) || { label: dateLabel, profit: 0 };
+      prev.profit += profit;
+      map.set(dateLabel, prev);
+    });
+
+    return Array.from(map.values()).map((item) => ({
+      label: item.label,
+      value: Math.round(item.profit),
+    }));
+  }, [filteredTransactions]);
+
   return (
     <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 select-none animate-in fade-in duration-200">
       {/* ========================================================================= */}
@@ -297,7 +321,7 @@ export const ExecutiveProfitSuite: React.FC = () => {
       {/* ========================================================================= */}
       {/* 4 PRIMARY EXECUTIVE KPI CARDS                                             */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Realized Gross Profit */}
         <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -325,7 +349,7 @@ export const ExecutiveProfitSuite: React.FC = () => {
         {/* KPI 2: Net Cash Intake */}
         <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'هاتووی کاش (Cash Intake)' : 'Collected Cash Intake'}</span>
+            <span>{isKu ? 'کاشی وەرگیراو' : 'Collected Cash Intake'}</span>
             <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
               <Wallet className="w-4 h-4" />
             </div>
@@ -346,10 +370,10 @@ export const ExecutiveProfitSuite: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI 3: FunderMax Supplier Liability */}
+        {/* KPI 3: Supplier Liability */}
         <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'قەرزی فاندەرمەکس (Accounts Payable)' : 'FunderMax Supplier Payables'}</span>
+            <span>{isKu ? 'قەرزی کۆمپانیاکان (لەسەرمان)' : 'FunderMax Supplier Payables'}</span>
             <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
               <Truck className="w-4 h-4" />
             </div>
@@ -373,7 +397,7 @@ export const ExecutiveProfitSuite: React.FC = () => {
         {/* KPI 4: Executive Solvency Health */}
         <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'باڵانسی سەرمایە (Solvency)' : 'Executive Operating Balance'}</span>
+            <span>{isKu ? 'باری دارایی کۆمپانیا' : 'Executive Operating Balance'}</span>
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <Coins className="w-4 h-4" />
             </div>
@@ -387,11 +411,51 @@ export const ExecutiveProfitSuite: React.FC = () => {
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
             <span>Company Solvency:</span>
             <span className="font-black text-emerald-600">
-              {netOperatingSurplusUSD >= 0 ? 'Strong (سەقامگیر)' : 'Caution'}
+              {netOperatingSurplusUSD >= 0 ? (isKu ? 'زۆر باشە' : 'Strong') : (isKu ? 'مەترسیدارە' : 'Caution')}
             </span>
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* EXECUTIVE VISUAL PROFIT TRAJECTORY CHART (Mobile Responsive)              */}
+      {/* ========================================================================= */}
+      {dailyProfitTrend.length > 0 && (
+        <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3 overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-500" />
+                <span>{isKu ? 'چارتی گەشەی قازانجی ڕاستەقینە' : 'Realized Profit Trajectory ($)'}</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {isKu ? 'شیکاری بینراوی داهات و قازانجی پوخت بەپێی زنجیرەی پسوولەکان' : 'Visual profit trend trajectory over recent operating transactions'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openVisualCharts('sales')}
+              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+            >
+              <span>{isKu ? 'بینینی تەواوی چارتەکان' : 'Open Full Analytics Suite'}</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
+            <div className="min-w-[500px] sm:min-w-full">
+              <SvgAreaTrendChart
+                data={dailyProfitTrend}
+                lineColor="#10b981"
+                fillGradientId="execProfitGrad"
+                height={220}
+                valuePrefix="$"
+                isKu={isKu}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* SECTION 1: LANDED MATERIAL COST VS POS REVENUE BREAKDOWN                 */}
@@ -411,7 +475,50 @@ export const ExecutiveProfitSuite: React.FC = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile View: Distinct Padded Cards (hides secondary technical columns) */}
+        <div className="block md:hidden space-y-3">
+          {materialBreakdown.length === 0 ? (
+            <div className="p-6 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs">
+              {isKu ? 'هیچ فرۆشتنێک تۆمار نەکراوە لەم ماوەیەدا.' : 'No sales records logged in the selected timeframe.'}
+            </div>
+          ) : (
+            materialBreakdown.map((m, idx) => {
+              const margin = m.revenueUSD > 0 ? (m.profitUSD / m.revenueUSD) * 100 : 0;
+              return (
+                <div
+                  key={idx}
+                  className="flex flex-col gap-2 p-4 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 shadow-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-sm text-slate-900 dark:text-white block">
+                        {m.name}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {m.type}
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shrink-0">
+                      {Math.round(margin * 10) / 10}%
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {isKu ? 'قازانجی پوخت:' : 'Net Profit:'}
+                    </span>
+                    <span className="font-black font-mono text-emerald-600 dark:text-emerald-400 text-sm">
+                      +${Math.round(m.profitUSD).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop View: Full Spreadsheet Table */}
+        <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4">
           <table className="w-full text-xs text-left">
             <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
               <tr>
@@ -484,7 +591,61 @@ export const ExecutiveProfitSuite: React.FC = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile View: Distinct Padded Cards (hides secondary technical columns) */}
+        <div className="block md:hidden space-y-3">
+          {wh.activeShipments.length === 0 ? (
+            <div className="p-6 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs">
+              {isKu ? 'هیچ کاروانێکی دابینکەر چالاک نییە.' : 'No active supplier consignments in warehouse ops.'}
+            </div>
+          ) : (
+            wh.activeShipments.map((s) => {
+              const curr = s.invoiceCurrency || (s.supplier.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+              const invoiced = Number(s.totalInvoiceAmount) || 0;
+              const paid = Number(s.amountPaidToSupplier) || 0;
+              const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+              const isPaid = debt <= 0;
+
+              return (
+                <div
+                  key={s.id}
+                  className="flex flex-col gap-2 p-4 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 shadow-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400 block">
+                        {s.batchCode}
+                      </span>
+                      <span className="font-bold text-sm text-slate-900 dark:text-white block mt-0.5">
+                        {s.supplier}
+                      </span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                      isPaid
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : paid > 0
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                    }`}>
+                      {isPaid ? (isKu ? 'دراوە' : 'PAID') : paid > 0 ? (isKu ? 'بەشێک' : 'PARTIAL') : (isKu ? 'نەدراوە' : 'UNPAID')}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {isKu ? 'قەرزی ماوە:' : 'Remaining Debt:'}
+                    </span>
+                    <span className="font-black font-mono text-rose-600 dark:text-rose-400 text-sm">
+                      {curr === 'EUR' ? '€' : '$'}{debt.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop View: Full Spreadsheet Table */}
+        <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4">
           <table className="w-full text-xs text-left">
             <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
               <tr>

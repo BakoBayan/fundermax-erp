@@ -41,7 +41,7 @@ export type Language = "en" | "ku";
 export type DeviceView = "auto" | "pc" | "mobile";
 export type ThemeMode = "light" | "dark";
 
-export type UserRole = "Admin" | "Manager" | "Staff" | "Viewer" | "Owner";
+export type UserRole = "Admin" | "Manager" | "Staff" | "Viewer" | "Owner" | "admin" | "manager" | "staff" | "viewer" | "owner";
 
 export type RolePresetName =
   | "Executive Owner"
@@ -248,6 +248,10 @@ export interface DropdownPresets {
 }
 
 export const STANDARD_PAYMENT_METHODS = [
+  'Cash (نەقد)',
+  'Debt Sale (قەرز)',
+  'Store Credit (ڕەسیدی کڕیار)',
+  'Bank Transfer (حەواڵە / بانک)',
   'کاش (Cash)',
   'قەرز (Customer Debt)',
   'ڕەسیدی کڕیار / پێشەکی (Store Credit)',

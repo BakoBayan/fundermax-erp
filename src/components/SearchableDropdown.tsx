@@ -128,8 +128,8 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
         onClick={() => setIsOpen((prev) => !prev)}
         className={`w-full flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           compact
-            ? "min-h-[34px] px-2.5 py-1 text-xs rounded-xl"
-            : "min-h-[42px] px-3.5 py-2 text-sm rounded-xl"
+            ? "min-h-12 md:min-h-[34px] px-3 md:px-2.5 py-2 md:py-1 text-sm md:text-xs rounded-xl"
+            : "min-h-12 md:min-h-[42px] px-3.5 py-2 text-sm rounded-xl"
         }`}
       >
         <span className={`truncate text-start ${value ? "font-semibold" : "text-slate-400 font-normal"}`}>

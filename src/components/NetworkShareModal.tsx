@@ -19,7 +19,14 @@ export const NetworkShareModal: React.FC<NetworkShareModalProps> = ({ isOpen, on
     if (!isOpen) return;
 
     setLoading(true);
-    fetch("/api/network-info", { cache: "no-store" })
+    fetch("/api/network-info", {
+      cache: "no-store",
+      next: { revalidate: 0 } as any,
+      headers: {
+        "Pragma": "no-cache",
+        "Cache-Control": "no-store, max-age=0",
+      },
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data && data.networkUrl) {

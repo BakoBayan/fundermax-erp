@@ -21,6 +21,14 @@ import {
 } from '@/types/inventory';
 import type { MigrationAuditSummary, MigrationCommitResult } from '@/lib/importer';
 import {
+  ROLE_LEVELS,
+  isSuperAdmin,
+  canModifyUser,
+  canDeleteUser,
+  canViewCredentials,
+  canAssignRole,
+} from '@/utils/auth';
+import {
   UploadCloud,
   X,
   Usb,
@@ -54,6 +62,7 @@ import {
   Unlock,
   Plus,
   Eye,
+  EyeOff,
   Sliders,
   Sparkles,
   Zap,
@@ -87,7 +96,7 @@ interface AdminPanelModalProps {
   onToast?: (msg: string) => void;
 }
 
-// Sleek, reusable iOS/macOS-style toggle switch
+// Sleek, reusable iOS/macOS-style toggle switch (Fully controlled React input)
 const ToggleSwitch: React.FC<{
   checked: boolean;
   onChange: (val: boolean) => void;
@@ -97,55 +106,71 @@ const ToggleSwitch: React.FC<{
   badge?: string;
   highlight?: boolean;
   danger?: boolean;
-}> = ({ checked, onChange, disabled, label, description, badge, highlight, danger }) => (
-  <div
-    onClick={() => !disabled && onChange(!checked)}
-    className={`flex items-center justify-between p-3.5 rounded-xl border transition-all select-none ${
-      disabled
-        ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
-        : checked
-        ? danger
-          ? 'bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 hover:border-rose-500/60 cursor-pointer shadow-xs'
-          : highlight
-          ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/40 hover:border-amber-500/60 cursor-pointer shadow-xs'
-          : 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500/60 cursor-pointer shadow-xs'
-        : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer'
-    }`}
-  >
-    <div className="pr-3 flex-1 min-w-0">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{label}</span>
-        {badge && (
-          <span
-            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-              checked
-                ? danger
-                  ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200'
-                  : highlight
-                  ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'
-                  : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-            }`}
-          >
-            {badge}
-          </span>
-        )}
-      </div>
-      {description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{description}</p>}
-    </div>
-    <div
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out ${
-        checked ? (danger ? 'bg-rose-600' : highlight ? 'bg-amber-500' : 'bg-emerald-600') : 'bg-slate-300 dark:bg-slate-700'
+  id?: string;
+}> = ({ checked, onChange, disabled, label, description, badge, highlight, danger, id }) => {
+  const inputId = id || `toggle-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+  return (
+    <label
+      htmlFor={inputId}
+      className={`flex items-center justify-between p-3.5 rounded-xl border transition-all select-none cursor-pointer ${
+        disabled
+          ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
+          : checked
+          ? danger
+            ? 'bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 hover:border-rose-500/60 shadow-xs'
+            : highlight
+            ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/40 hover:border-amber-500/60 shadow-xs'
+            : 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500/60 shadow-xs'
+          : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
       }`}
     >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
+      <input
+        type="checkbox"
+        id={inputId}
+        checked={!!checked}
+        disabled={disabled}
+        onChange={(e) => {
+          if (!disabled) {
+            onChange(e.target.checked);
+          }
+        }}
+        className="sr-only"
       />
-    </div>
-  </div>
-);
+      <div className="pr-3 flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{label}</span>
+          {badge && (
+            <span
+              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                checked
+                  ? danger
+                    ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200'
+                    : highlight
+                    ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'
+                    : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{description}</p>}
+      </div>
+      <div
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out pointer-events-none ${
+          checked ? (danger ? 'bg-rose-600' : highlight ? 'bg-amber-500' : 'bg-emerald-600') : 'bg-slate-300 dark:bg-slate-700'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
+            checked ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </div>
+    </label>
+  );
+};
 
 
 interface PresetCardDef {
@@ -162,13 +187,30 @@ interface PresetCardDef {
 
 const ROLE_PRESET_CARDS: PresetCardDef[] = [
   {
+    id: 'Super Admin',
+    role: 'Admin',
+    titleEn: 'Super Admin',
+    titleKu: 'بەڕێوەبەری باڵا (Root Superuser)',
+    descEn: 'Absolute root control across all accounts, divisions, security & databases',
+    descKu: 'دەسەڵاتی باڵای سەرەکی و بێ سنوور لەسەرجەم بەشەکان، هەژمارەکان و داتابەیس',
+    badge: '⚡ Tier 1: Root',
+    color: 'emerald',
+    summary: [
+      { text: '✓ Absolute Root Superuser Override', allowed: true },
+      { text: '✓ Create, Edit, Deactivate & Delete All Accounts', allowed: true },
+      { text: '✓ Unconditional Access to All Divisions', allowed: true },
+      { text: '✓ Database Backups & System Maintenance', allowed: true },
+    ],
+  },
+
+  {
     id: 'Executive Owner',
     role: 'Owner',
     titleEn: 'Executive Owner',
-    titleKu: 'خاوەن کار (شاسوار ئەحمەد)',
+    titleKu: 'خاوەن کار (سەرمایە و دارایی)',
     descEn: 'Confidential profit margins, analytics, live sales & supplier payables with floor edit protection',
     descKu: 'قازانج، دارایی، فرۆشتن و قەرزی فەندەرمەکس بە پارێزگاری لە دەستکاری مەیدانی',
-    badge: '👑 Executive',
+    badge: '👑 Tier 2: Owner',
     color: 'amber',
     summary: [
       { text: '✓ Executive Profit Suite & Margins', allowed: true },
@@ -176,24 +218,7 @@ const ROLE_PRESET_CARDS: PresetCardDef[] = [
       { text: '✓ Live Sales, Wood Panels & Goods Visibility', allowed: true },
       { text: '✓ FunderMax Supplier Payables Ledger', allowed: true },
       { text: '✕ Floor Accidental Edit Protection (No CRUD)', allowed: false },
-      { text: '✕ Strict IT & Admin Settings Lockout', allowed: false },
-    ],
-  },
-
-  {
-    id: 'Super Admin',
-    role: 'Admin',
-    titleEn: 'Super Admin',
-    titleKu: 'بەڕێوەبەری باڵا',
-    descEn: 'Full executive control across all divisions & databases',
-    descKu: 'دەسەڵاتی بێ سنوور لەسەرجەم بەشەکان و داتابەیس',
-    badge: 'Executive',
-    color: 'emerald',
-    summary: [
-      { text: '✓ Full System Control & Settings', allowed: true },
-      { text: '✓ Financial & Workshop Analytics', allowed: true },
-      { text: '✓ Create, Edit, Delete & Restore All', allowed: true },
-      { text: '✓ Database Backups & Vault Maintenance', allowed: true },
+      { text: '✕ Cannot Modify or Delete Admin Accounts', allowed: false },
     ],
   },
   {
@@ -305,6 +330,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     impersonateUser,
     stopImpersonation,
     isImpersonating,
+    isAdmin,
   } = useInventory();
 
   const lang = propLang || language;
@@ -327,11 +353,31 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     return resolveUserPermissions(selectedUser || null);
   });
 
+  const loadedUsernameRef = useRef<string | null>(selectedUser?.username || null);
+
+  // Synchronize local permissions ONLY when switching to a different user account
   useEffect(() => {
-    if (selectedUser) {
+    if (selectedUser && selectedUser.username !== loadedUsernameRef.current) {
+      loadedUsernameRef.current = selectedUser.username;
       setActiveUserPerms(resolveUserPermissions(selectedUser));
+      const matchedPreset = ROLE_PRESET_CARDS.find((p) => p.role === selectedUser.role);
+      if (matchedPreset) {
+        setSelectedPresetId(matchedPreset.id);
+      }
     }
-  }, [selectedUser]);
+  }, [selectedUser?.username]);
+
+  // Synchronize initial user state when modal is explicitly opened
+  useEffect(() => {
+    if (isOpen && selectedUser) {
+      loadedUsernameRef.current = selectedUser.username;
+      setActiveUserPerms(resolveUserPermissions(selectedUser));
+      const matchedPreset = ROLE_PRESET_CARDS.find((p) => p.role === selectedUser.role);
+      if (matchedPreset) {
+        setSelectedPresetId(matchedPreset.id);
+      }
+    }
+  }, [isOpen]);
 
   // Account Management Modals / Inputs
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -343,6 +389,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [userToChangePassword, setUserToChangePassword] = useState<string | null>(null);
   const [newPasswordValue, setNewPasswordValue] = useState('');
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+
+  // Admin plaintext password viewing state
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+  const togglePasswordVisibility = (username: string) => {
+    setRevealedPasswords((prev) => ({ ...prev, [username]: !prev[username] }));
+  };
 
   // Database & Backup State
   const [walSnapshots, setWalSnapshots] = useState<
@@ -390,7 +442,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [networkUrl, setNetworkUrl] = useState<string>('http://localhost:3000');
 
   useEffect(() => {
-    fetch('/api/network', { cache: 'no-store' })
+    fetch('/api/network', {
+      cache: 'no-store',
+      next: { revalidate: 0 } as any,
+      headers: {
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    })
       .then(res => res.json())
       .then(data => {
         if (data.ip) setNetworkUrl(`http://${data.ip}:3000`);
@@ -406,7 +465,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Fetch Backups & Health
   const fetchBackupsInfo = async () => {
     try {
-      const res = await fetch('/api/backup', { cache: 'no-store' });
+      const res = await fetch('/api/backup', {
+        cache: 'no-store',
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
+      });
       const data = await res.json();
       if (data && data.success) {
         if (Array.isArray(data.snapshots)) setWalSnapshots(data.snapshots);
@@ -419,7 +485,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const fetchServerData = async () => {
     setLoadingServerInfo(true);
     try {
-      const res = await fetch('/api/server-info', { cache: 'no-store' });
+      const res = await fetch('/api/server-info', {
+        cache: 'no-store',
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
+      });
       const data = await res.json();
       setServerInfo(data);
     } catch {} finally {
@@ -442,7 +515,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const res = await fetch('/api/backup', {
         method: 'POST',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Content-Type': 'application/json',
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
         body: JSON.stringify({ action: 'optimize' }),
       });
       const data = await res.json();
@@ -472,7 +550,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const res = await fetch('/api/backup', {
         method: 'POST',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Content-Type': 'application/json',
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
         body: JSON.stringify({ action: 'create_snapshot' }),
       });
       const data = await res.json();
@@ -496,7 +579,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const res = await fetch('/api/backup', {
         method: 'POST',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Content-Type': 'application/json',
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
         body: JSON.stringify({ action: 'export_usb', targetDir }),
       });
       const data = await res.json();
@@ -539,7 +627,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const res = await fetch('/api/backup', {
         method: 'POST',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Content-Type': 'application/json',
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
         body: JSON.stringify({ action: 'restore', snapshot: snapshotName }),
       });
       const data = await res.json();
@@ -575,6 +668,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const res = await fetch('/api/migrate', {
         method: 'POST',
         cache: 'no-store',
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
         body: formData,
       });
       const data = await res.json();
@@ -603,6 +701,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const res = await fetch('/api/migrate', {
         method: 'POST',
         cache: 'no-store',
+        next: { revalidate: 0 } as any,
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-store, max-age=0',
+        },
         body: formData,
       });
       const data = await res.json();
@@ -934,7 +1037,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       <button
                         key={u.username}
                         type="button"
-                        onClick={() => setSelectedUsername(u.username)}
+                        onClick={() => {
+                          setSelectedUsername(u.username);
+                          loadedUsernameRef.current = u.username;
+                          setActiveUserPerms(resolveUserPermissions(u));
+                          const matched = ROLE_PRESET_CARDS.find((p) => p.role === u.role);
+                          if (matched) setSelectedPresetId(matched.id);
+                        }}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/30'
@@ -944,13 +1053,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <span className="w-2 h-2 rounded-full bg-emerald-400" />
                         <span>{u.displayName || u.username}</span>
                         <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded font-normal ${
-                            isSelected
-                              ? 'bg-emerald-700/60 text-white'
-                              : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                          className={`text-[10px] px-1.5 py-0.2 rounded ${
+                            u.role?.toLowerCase() === 'owner'
+                              ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-bold'
+                              : isSelected
+                              ? 'bg-emerald-700/60 text-white font-normal'
+                              : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-normal'
                           }`}
                         >
-                          {u.role}
+                          {u.role?.toLowerCase() === 'owner' ? (lang === 'ku' ? 'خاوەن کار (Owner)' : 'Owner') : u.role}
                         </span>
                       </button>
                     );
@@ -981,9 +1092,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             {selectedUser.displayName}
                           </h4>
                           <span className="text-xs font-mono text-slate-400">@{selectedUser.username}</span>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                            {selectedUser.role}
-                          </span>
+                          {selectedUser.role?.toLowerCase() === 'owner' ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700 inline-flex items-center gap-1 shadow-2xs">
+                              👑 {lang === 'ku' ? 'خاوەن کار (Owner)' : 'Owner'}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                              {selectedUser.role}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                           {lang === 'en'
@@ -993,8 +1110,30 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </div>
                     </div>
 
-                    {/* 1-Click Sandbox: Preview As This User */}
+                    {/* Admin Password Viewing & Action Buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
+                      {canViewCredentials(currentUser, selectedUser) && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                          <KeyRound className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="text-slate-500 font-medium">{lang === 'en' ? 'Password:' : 'وشەی نهێنی:'}</span>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white select-all">
+                            {revealedPasswords[selectedUser.username] ? (selectedUser.password || '—') : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => togglePasswordVisibility(selectedUser.username)}
+                            className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                            title={revealedPasswords[selectedUser.username] ? 'Hide password' : 'Show plaintext password'}
+                            aria-label="Toggle password visibility"
+                          >
+                            {revealedPasswords[selectedUser.username] ? (
+                              <EyeOff className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={handleStartLivePreview}
@@ -1005,17 +1144,44 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <span>{lang === 'en' ? 'Preview As This User' : 'تاقیکردنەوە بەناوی ئەم بەکارهێنەرە'}</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserToChangePassword(selectedUser.username);
-                          setNewPasswordValue('');
-                        }}
-                        className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>{lang === 'en' ? 'Password' : 'وشەی نهێنی'}</span>
-                      </button>
+                      {canModifyUser(currentUser, selectedUser) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserToChangePassword(selectedUser.username);
+                            setNewPasswordValue('');
+                          }}
+                          className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>{lang === 'en' ? 'Password' : 'وشەی نهێنی'}</span>
+                        </button>
+                      )}
+
+                      {canDeleteUser(currentUser, selectedUser) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(lang === 'en' ? `Are you sure you want to permanently delete @${selectedUser.username}?` : `دڵنیایت لە سڕینەوەی یەکجارەکی هەژماری @${selectedUser.username}؟`)) {
+                              const success = deleteUserAccount(selectedUser.username);
+                              if (success) {
+                                onToast(lang === 'en' ? `Account @${selectedUser.username} deleted!` : `هەژماری @${selectedUser.username} سڕایەوە!`);
+                                const remaining = users.filter((u) => u.username.toLowerCase() !== selectedUser.username.toLowerCase());
+                                if (remaining.length > 0) {
+                                  setSelectedUsername(remaining[0].username);
+                                }
+                              } else {
+                                onToast(lang === 'en' ? 'Failed to delete account' : 'سڕینەوەی هەژمار سەرکەوتوو نەبوو');
+                              }
+                            }
+                          }}
+                          className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                          title={lang === 'en' ? 'Delete Account' : 'سڕینەوەی هەژمار'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>{lang === 'en' ? 'Delete' : 'سڕینەوە'}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1334,7 +1500,20 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
+                        if (!canModifyUser(currentUser, selectedUser)) {
+                          onToast(lang === 'en' ? 'Unauthorized: You cannot modify this account.' : 'ڕێگەپێدراو نیت: ناتوانیت دەستکاری ئەم هەژمارە بکەیت.');
+                          return;
+                        }
+                        const matchedPreset = ROLE_PRESET_CARDS.find((p) => p.id === selectedPresetId);
+                        if (matchedPreset && matchedPreset.role && matchedPreset.role !== selectedUser.role) {
+                          if (!canAssignRole(currentUser, matchedPreset.role)) {
+                            onToast(lang === 'en' ? 'Unauthorized: You cannot assign this role level.' : 'ڕێگەپێدراو نیت: ناتوانیت ئەم پلەیە دابنێیت.');
+                            return;
+                          }
+                          updateUserAccount(selectedUser.username, { role: matchedPreset.role });
+                        }
                         updateUserPermissions(selectedUser.username, activeUserPerms);
+                        loadedUsernameRef.current = selectedUser.username;
                         onToast(
                           lang === 'en'
                             ? `Permissions updated successfully for @${selectedUser.username}!`
@@ -2104,7 +2283,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     {/* Assuming your QRCode component is here: <QRCode ... value="{networkUrl}"/> */}
                     
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                      ناونیشانی مۆبایل:
+                      {lang === 'en' ? 'Mobile URL:' : 'ناونیشانی مۆبایل:'}
                     </p>
                     <code className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-md select-all text-lg border border-slate-200 dark:border-slate-700 font-mono">
                       {networkUrl}
@@ -2283,10 +2462,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   onChange={(e) => setNewUserRole(e.target.value as UserRole)}
                   className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                 >
+                  {canAssignRole(currentUser, 'Admin') && (
+                    <option value="Admin">⚡ Admin (Tier 1: Root Superuser)</option>
+                  )}
+                  <option value="Owner">👑 Owner (Tier 2: سەرمایە و دارایی)</option>
+                  <option value="Manager">Manager (Tier 3: بەڕێوەبەری مەیدانی)</option>
                   <option value="Staff">Staff (POS / Sales)</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Viewer">Read-Only Viewer</option>
-                  <option value="Admin">Admin</option>
+                  <option value="Viewer">Viewer (Tier 4: Read-Only)</option>
                 </select>
               </div>
 
@@ -2319,6 +2501,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     onToast('Please fill out all fields');
                     return;
                   }
+                  if (!canAssignRole(currentUser, newUserRole)) {
+                    onToast(lang === 'en' ? 'Unauthorized: You cannot create an account with this role.' : 'ڕێگەپێدراو نیت بۆ دروستکردنی هەژمار بەم پلەیە.');
+                    return;
+                  }
                   const success = addUserAccount({
                     username: newUsername.trim(),
                     displayName: newDisplayName.trim(),
@@ -2333,7 +2519,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     setNewDisplayName('');
                     setNewUserPassword('');
                   } else {
-                    onToast('Username already exists');
+                    onToast('Username already exists or role creation unauthorized');
                   }
                 }}
                 className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
@@ -2350,8 +2536,33 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <h4 className="text-sm font-black text-slate-900 dark:text-white">
-              Reset Password for @{userToChangePassword}
+              {lang === 'en' ? `Reset Password for @${userToChangePassword}` : `گۆڕینی وشەی نهێنی بۆ @${userToChangePassword}`}
             </h4>
+
+            {isAdmin && (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
+                <span className="text-slate-500 font-medium">{lang === 'en' ? 'Current Password:' : 'وشەی نهێنی ئێستا:'}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-slate-900 dark:text-white select-all">
+                    {revealedPasswords[userToChangePassword]
+                      ? users.find((u) => u.username === userToChangePassword)?.password || '—'
+                      : '••••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => togglePasswordVisibility(userToChangePassword)}
+                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    title={revealedPasswords[userToChangePassword] ? 'Hide password' : 'Show plaintext password'}
+                  >
+                    {revealedPasswords[userToChangePassword] ? (
+                      <EyeOff className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
             <input
               type="password"
               value={newPasswordValue}
@@ -2647,7 +2858,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                     {/* Table: Materials */}
                     {migrationPreviewTab === 'materials' && (
-                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
+                      <div className="w-full max-w-full rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4 text-xs">
                         <table className="w-full text-left">
                           <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
                             <tr>
@@ -2687,7 +2898,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                     {/* Table: Shipments */}
                     {migrationPreviewTab === 'shipments' && (
-                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
+                      <div className="w-full max-w-full rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4 text-xs">
                         <table className="w-full text-left">
                           <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
                             <tr>
@@ -2727,7 +2938,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                     {/* Table: Invoices */}
                     {migrationPreviewTab === 'invoices' && (
-                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
+                      <div className="w-full max-w-full rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4 text-xs">
                         <table className="w-full text-left">
                           <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
                             <tr>

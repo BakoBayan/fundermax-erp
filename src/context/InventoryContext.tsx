@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   PanelMaterial,
   OrderAllocation,
@@ -27,6 +28,29 @@ import {
   InboundShipment,
   DoorOrderSpec
 } from "../types/inventory";
+import {
+  ROLE_LEVELS,
+  isSuperAdmin,
+  canModifyUser,
+  canDeleteUser,
+  canViewCredentials,
+  canAssignRole,
+  canAccessModule,
+  canManageUsers,
+  hasPermission,
+} from "../utils/auth";
+
+export {
+  ROLE_LEVELS,
+  isSuperAdmin,
+  canModifyUser,
+  canDeleteUser,
+  canViewCredentials,
+  canAssignRole,
+  canAccessModule,
+  canManageUsers,
+  hasPermission,
+};
 import { getTranslation, translations } from "../utils/i18n";
 import { ConfirmDialogOptions } from "../components/ConfirmModal";
 import {
@@ -208,6 +232,7 @@ interface InventoryContextType {
   userPermissions: UserModulePermissions;
   hasModulePermission: (module: PlatformModule) => boolean;
   isAdmin: boolean;
+  isOwner: boolean;
   isManager: boolean;
   isStaff: boolean;
   isViewer: boolean;
@@ -502,32 +527,61 @@ export const DEFAULT_STAFF_PERMISSIONS: UserModulePermissions = {
 export const DEFAULT_VIEWER_PERMISSIONS: UserModulePermissions = ROLE_PRESETS["Read-Only Operator"];
 
 export function resolveUserPermissions(user: Partial<UserAccount> | null): UserModulePermissions {
-  if (!user || !user.isAuthenticated) return DEFAULT_VIEWER_PERMISSIONS;
-  if (user.role === "Owner" || user.username?.toLowerCase() === "shaswar") {
+  if (!user) return DEFAULT_VIEWER_PERMISSIONS;
+  const roleLower = String(user.role || "").toLowerCase();
+
+  // Tier 1: Absolute Root Superuser Unconditional Override
+  if (roleLower === "admin" || user.username?.toLowerCase() === "bako") {
+    const custom = user.permissions || {};
     return {
-      ...DEFAULT_EXECUTIVE_OWNER_PERMISSIONS,
-      ...(user.permissions || {}),
-      canCreateSales: false,
-      canEditSales: false,
-      canDeleteSales: false,
-      canOverridePrice: false,
-      canCreatePanels: false,
-      canEditPanels: false,
-      canDeletePanels: false,
-      canManageShipments: false,
-      canManageStock: false,
-      canAccessAdmin: false,
-      canExportBackups: false,
+      ...custom,
+      panels: true,
+      orders: true,
+      sales: true,
+      goods: true,
+      shipping: true,
+      audit: true,
+      canDelete: true,
+      canExport: true,
+      canViewSales: true,
+      canCreateSales: true,
+      canEditSales: true,
+      canDeleteSales: true,
+      canOverridePrice: true,
+      canViewPanels: true,
+      canCreatePanels: true,
+      canEditPanels: true,
+      canDeletePanels: true,
+      canViewWarehouse: true,
+      canManageShipments: true,
+      canManageStock: true,
+      canAccessAdmin: true,
+      canExportBackups: true,
       canViewFinancialAnalytics: true,
       canViewWorkshopAnalytics: true,
       canViewRestrictedMetrics: true,
     };
   }
-  if (user.username?.toLowerCase() === "bako" || user.role === "Admin") {
+
+  if (!user.isAuthenticated) return DEFAULT_VIEWER_PERMISSIONS;
+
+  // Tier 2: Executive Owner (Business & Financial Lead)
+  if (roleLower === "owner" || user.username?.toLowerCase() === "shaswar") {
     return {
-      ...DEFAULT_ADMIN_PERMISSIONS,
+      ...DEFAULT_EXECUTIVE_OWNER_PERMISSIONS,
+      panels: true,
+      orders: true,
+      sales: true,
+      goods: true,
+      shipping: true,
+      canViewSales: true,
+      canViewPanels: true,
+      canViewWarehouse: true,
       canViewFinancialAnalytics: true,
       canViewWorkshopAnalytics: true,
+      canViewRestrictedMetrics: true,
+      canAccessAdmin: false,
+      canExportBackups: false,
       ...(user.permissions || {}),
     };
   }
@@ -539,31 +593,31 @@ export function resolveUserPermissions(user: Partial<UserAccount> | null): UserM
   return {
     ...base,
     ...raw,
-    sales: user.role === 'Viewer' ? false : (raw.sales !== undefined ? !!raw.sales : base.sales),
-    canViewSales: user.role === 'Viewer' ? false : (raw.canViewSales !== undefined ? !!raw.canViewSales : (raw.sales !== undefined ? !!raw.sales : base.canViewSales)),
-    canCreateSales: user.role === 'Viewer' ? false : (raw.canCreateSales !== undefined ? !!raw.canCreateSales : base.canCreateSales),
-    canEditSales: user.role === 'Viewer' ? false : (raw.canEditSales !== undefined ? !!raw.canEditSales : base.canEditSales),
-    canDeleteSales: user.role === 'Viewer' ? false : (raw.canDeleteSales !== undefined ? !!raw.canDeleteSales : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeleteSales)),
-    canOverridePrice: user.role === 'Viewer' ? false : (raw.canOverridePrice !== undefined ? !!raw.canOverridePrice : base.canOverridePrice),
+    sales: raw.sales !== undefined ? !!raw.sales : base.sales,
+    canViewSales: raw.canViewSales !== undefined ? !!raw.canViewSales : (raw.sales !== undefined ? !!raw.sales : base.canViewSales),
+    canCreateSales: raw.canCreateSales !== undefined ? !!raw.canCreateSales : base.canCreateSales,
+    canEditSales: raw.canEditSales !== undefined ? !!raw.canEditSales : base.canEditSales,
+    canDeleteSales: raw.canDeleteSales !== undefined ? !!raw.canDeleteSales : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeleteSales),
+    canOverridePrice: raw.canOverridePrice !== undefined ? !!raw.canOverridePrice : base.canOverridePrice,
 
     canViewPanels: raw.canViewPanels !== undefined ? !!raw.canViewPanels : (raw.panels !== undefined ? !!raw.panels : base.canViewPanels),
-    canCreatePanels: user.role === 'Viewer' ? false : (raw.canCreatePanels !== undefined ? !!raw.canCreatePanels : base.canCreatePanels),
-    canEditPanels: user.role === 'Viewer' ? false : (raw.canEditPanels !== undefined ? !!raw.canEditPanels : base.canEditPanels),
-    canDeletePanels: user.role === 'Viewer' ? false : (raw.canDeletePanels !== undefined ? !!raw.canDeletePanels : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeletePanels)),
+    canCreatePanels: raw.canCreatePanels !== undefined ? !!raw.canCreatePanels : base.canCreatePanels,
+    canEditPanels: raw.canEditPanels !== undefined ? !!raw.canEditPanels : base.canEditPanels,
+    canDeletePanels: raw.canDeletePanels !== undefined ? !!raw.canDeletePanels : (raw.canDelete !== undefined ? !!raw.canDelete : base.canDeletePanels),
 
     canViewWarehouse: raw.canViewWarehouse !== undefined ? !!raw.canViewWarehouse : (raw.goods !== undefined ? !!raw.goods : base.canViewWarehouse),
-    canManageShipments: user.role === 'Viewer' ? false : (raw.canManageShipments !== undefined ? !!raw.canManageShipments : (raw.shipping !== undefined ? !!raw.shipping : base.canManageShipments)),
-    canManageStock: user.role === 'Viewer' ? false : (raw.canManageStock !== undefined ? !!raw.canManageStock : base.canManageStock),
+    canManageShipments: raw.canManageShipments !== undefined ? !!raw.canManageShipments : (raw.shipping !== undefined ? !!raw.shipping : base.canManageShipments),
+    canManageStock: raw.canManageStock !== undefined ? !!raw.canManageStock : base.canManageStock,
 
-    canAccessAdmin: user.role === 'Viewer' ? false : (raw.canAccessAdmin !== undefined ? !!raw.canAccessAdmin : (raw.audit !== undefined ? !!raw.audit : base.canAccessAdmin)),
-    canExportBackups: user.role === 'Viewer' ? false : (raw.canExportBackups !== undefined ? !!raw.canExportBackups : (raw.canExport !== undefined ? !!raw.canExport : base.canExportBackups)),
-    canViewRestrictedMetrics: !!raw.canViewRestrictedMetrics,
+    canAccessAdmin: raw.canAccessAdmin !== undefined ? !!raw.canAccessAdmin : (raw.audit !== undefined ? !!raw.audit : base.canAccessAdmin),
+    canExportBackups: raw.canExportBackups !== undefined ? !!raw.canExportBackups : (raw.canExport !== undefined ? !!raw.canExport : base.canExportBackups),
+    canViewRestrictedMetrics: raw.canViewRestrictedMetrics !== undefined ? !!raw.canViewRestrictedMetrics : (base.canViewRestrictedMetrics ?? false),
     canViewFinancialAnalytics: raw.canViewFinancialAnalytics !== undefined
       ? !!raw.canViewFinancialAnalytics
-      : (user.role === 'Viewer' ? false : (base.canViewFinancialAnalytics ?? false)),
+      : (base.canViewFinancialAnalytics ?? false),
     canViewWorkshopAnalytics: raw.canViewWorkshopAnalytics !== undefined
       ? !!raw.canViewWorkshopAnalytics
-      : (user.role === 'Viewer' ? false : (base.canViewWorkshopAnalytics ?? false)),
+      : (base.canViewWorkshopAnalytics ?? false),
   };
 }
 
@@ -633,8 +687,29 @@ const INITIAL_POS_DRAFT: PosDraftState = {
 };
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Navigation State (Master Hub vs Individual Modules)
-  const [currentModule, setCurrentModule] = useState<PlatformModule>("hub");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Navigation State (Master Hub vs Individual Modules synchronized with URL query params)
+  const validModules: PlatformModule[] = ['hub', 'panels', 'orders', 'sales', 'goods', 'shipping', 'audit', 'profit'];
+  const moduleParam = searchParams.get('module') as PlatformModule | null;
+  const currentModule: PlatformModule = (moduleParam && validModules.includes(moduleParam)) ? moduleParam : 'hub';
+
+  // Function to handle switching modules with URL synchronization & browser history push for mobile back button
+  const setCurrentModule = useCallback((newModule: PlatformModule) => {
+    if (newModule === currentModule) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (newModule === 'hub') {
+      params.delete('module');
+    } else {
+      params.set('module', newModule);
+    }
+    const query = params.toString();
+    // push updates the browser history stack so the Android back button works naturally
+    router.push(query ? `${pathname}?${query}` : pathname);
+  }, [searchParams, router, pathname, currentModule]);
+
   const [activeSection, setActiveSection] = useState<"panels" | "orders">("panels");
 
   // Visual Charts Modal State
@@ -671,12 +746,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Admin & System Settings Modal State
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('admin') === 'true') {
+      setIsAdminModalOpen(true);
+    }
+  }, [searchParams]);
+
   const openAdminModal = useCallback(() => {
     setIsAdminModalOpen(true);
   }, []);
   const closeAdminModal = useCallback(() => {
     setIsAdminModalOpen(false);
-  }, []);
+    if (searchParams.get('admin') === 'true') {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('admin');
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname);
+    }
+  }, [searchParams, router, pathname]);
 
   // Unified Isolated Print Engine State
   const [activePrintJob, setActivePrintJob] = useState<PrintJob | null>(null);
@@ -769,13 +857,47 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   });
 
+  const INITIAL_DEMO_SHIPMENTS: Shipment[] = [
+    {
+      id: 'shp-2026-04',
+      trackingCode: 'BATCH-2026-04',
+      destination: 'سلێمانی - کارگەی ناوەندی (Sulaymaniyah - Main Factory)',
+      itemSummary: 'Matte Anthracite HPL Panels (18mm) & ABS Edge Bands',
+      quantity: 120,
+      status: 'in_transit',
+      createdAt: '2026-10-24T09:30:00.000Z',
+    },
+    {
+      id: 'shp-2026-03',
+      trackingCode: 'BATCH-2026-03',
+      destination: 'هەولێر - مەخزەنی بەحرکە (Erbil - Baharka Depot)',
+      itemSummary: 'Natural Oak Veneer Marine Plywood (2440x1220mm)',
+      quantity: 85,
+      status: 'pending',
+      createdAt: '2026-10-25T11:15:00.000Z',
+    },
+    {
+      id: 'shp-2026-02',
+      trackingCode: 'BATCH-2026-02',
+      destination: 'سلێمانی - کۆگای باشوور (Sulaymaniyah - South Depot)',
+      itemSummary: 'FunderMax High Pressure Laminates & Waterproof WC Cores',
+      quantity: 200,
+      status: 'delivered',
+      createdAt: '2026-10-20T14:00:00.000Z',
+    },
+  ];
+
   const [shipments, setShipments] = useState<Shipment[]>(() => {
-    if (typeof window === "undefined") return [];
+    if (typeof window === "undefined") return INITIAL_DEMO_SHIPMENTS;
     try {
       const s = localStorage.getItem(STORAGE_SHIPMENTS);
-      return s ? JSON.parse(s) : [];
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      return INITIAL_DEMO_SHIPMENTS;
     } catch {
-      return [];
+      return INITIAL_DEMO_SHIPMENTS;
     }
   });
 
@@ -1037,6 +1159,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return isAdmin || currentUser.role === "Manager" || currentUser.username.toLowerCase() === "awat";
   }, [currentUser, isAdmin]);
 
+  const isOwner = useMemo(() => {
+    if (!currentUser) return false;
+    const roleLower = String(currentUser.role || "").toLowerCase();
+    return roleLower === "owner" || currentUser.username.toLowerCase() === "shaswar";
+  }, [currentUser]);
+
   const isStaff = useMemo(() => currentUser?.role === "Staff", [currentUser]);
   const isViewer = useMemo(() => currentUser?.role === "Viewer", [currentUser]);
 
@@ -1045,17 +1173,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [currentUser]);
 
   const hasModulePermission = useCallback((mod: PlatformModule): boolean => {
-    if (mod === "hub") return true;
-    if (isAdmin) return true;
-    if (!currentUser) return false;
-    const perms = resolveUserPermissions(currentUser);
-    if (mod === "panels") return !!perms.canViewPanels;
-    if (mod === "orders") return !!perms.canViewPanels;
-    if (mod === "sales") return !!perms.canViewSales;
-    if (mod === "goods") return !!perms.canViewWarehouse;
-    if (mod === "shipping") return !!perms.canViewWarehouse;
-    if (mod === "audit") return !!perms.canAccessAdmin;
-    return false;
+    // Immediate, unconditional override for admin: Tier 1 Root Superuser
+    if (isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'Admin') return true;
+    return canAccessModule(currentUser, mod);
   }, [isAdmin, currentUser]);
 
   const canModify = useMemo(() => {
@@ -1164,8 +1284,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const res = await fetch("/api/sync", {
           method: "POST",
           cache: "no-store",
+          next: { revalidate: 0 } as any,
           headers: {
             "Content-Type": "application/json",
+            "Pragma": "no-cache",
+            "Cache-Control": "no-store, max-age=0",
             "x-user-name": currentUser?.username || "System",
             "x-user-role": currentUser?.role || "Staff",
             "x-user-permissions": JSON.stringify(userPermissions),
@@ -1196,7 +1319,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const pullFromServer = useCallback(async () => {
     const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
     try {
-      const res = await fetch("/api/sync", { cache: "no-store" });
+      const res = await fetch("/api/sync", {
+        cache: "no-store",
+        next: { revalidate: 0 } as any,
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-store, max-age=0",
+        },
+      });
       const elapsed = typeof performance !== "undefined" ? Math.max(1, Math.round(performance.now() - t0)) : 10;
       if (res.ok) {
         setIsOnline(true);
@@ -1363,6 +1493,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const res = await fetch("/api/server-info", {
           signal: controller.signal,
           cache: "no-store",
+          next: { revalidate: 0 } as any,
+          headers: {
+            "Pragma": "no-cache",
+            "Cache-Control": "no-store, max-age=0",
+          },
         });
         clearTimeout(timeoutId);
         const elapsed = Math.max(1, Date.now() - start);
@@ -1409,7 +1544,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSyncStatus("syncing");
     const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
     try {
-      const res = await fetch("/api/sync", { cache: "no-store" });
+      const res = await fetch("/api/sync", {
+        cache: "no-store",
+        next: { revalidate: 0 } as any,
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-store, max-age=0",
+        },
+      });
       const elapsed = typeof performance !== "undefined" ? Math.max(1, Math.round(performance.now() - t0)) : 10;
       if (res.ok) {
         const data = await res.json();
@@ -2302,6 +2444,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const addUserAccount = useCallback(
     (newUser: { username: string; displayName: string; role: UserRole; password: string; permissions?: UserModulePermissions }) => {
       if (users.some((u) => u.username.toLowerCase() === newUser.username.trim().toLowerCase())) return false;
+      // An owner MUST NOT be able to create admin accounts; admin can create all
+      if (!canAssignRole(currentUser, newUser.role)) return false;
+
       const account: UserAccount = {
         username: newUser.username.trim(),
         displayName: autoCapitalizeFirstLetter(newUser.displayName.trim()),
@@ -2320,12 +2465,17 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       logActivity("ADD_USER", `Added user account: ${account.displayName} (${account.role})`);
       return true;
     },
-    [users, pushToServer, logActivity]
+    [users, currentUser, pushToServer, logActivity]
   );
 
   const deleteUserAccount = useCallback(
     (username: string) => {
-      if (username.toLowerCase() === "bako") return false;
+      const target = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+      if (!target) return false;
+      // An admin MUST be able to delete ANY account, including owner accounts.
+      // An owner MUST NOT be able to delete admin accounts.
+      if (!canDeleteUser(currentUser, target)) return false;
+
       const updated = users.filter((u) => u.username.toLowerCase() !== username.toLowerCase());
       setUsers(updated);
       try {
@@ -2335,11 +2485,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       logActivity("DELETE_USER", `Deleted user account: ${username}`);
       return true;
     },
-    [users, pushToServer, logActivity]
+    [users, currentUser, pushToServer, logActivity]
   );
 
   const updateUserAccount = useCallback(
     (username: string, updates: Partial<{ displayName: string; role: UserRole; password?: string; permissions?: UserModulePermissions }>) => {
+      const target = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+      if (!target) return false;
+      // An admin MUST be able to edit ANY account, including owner accounts.
+      // An owner MUST NOT be able to modify admin accounts.
+      if (!canModifyUser(currentUser, target)) return false;
+
+      // Verify role assignment permission if role is changed
+      if (updates.role && !canAssignRole(currentUser, updates.role)) return false;
+
       const updated = users.map((u) => {
         if (u.username.toLowerCase() !== username.toLowerCase()) return u;
         return {
@@ -2374,6 +2533,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateUserPermissions = useCallback(
     (username: string, permissions: UserModulePermissions) => {
+      const target = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+      if (!target) return false;
+      // An owner MUST NOT be able to modify admin permissions
+      if (!canModifyUser(currentUser, target)) return false;
+
       const updated = users.map((u) => {
         if (u.username.toLowerCase() !== username.toLowerCase()) return u;
         return {
@@ -2417,7 +2581,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const res = await fetch("/api/backup", {
           method: "POST",
           cache: "no-store",
-          headers: { "Content-Type": "application/json" },
+          next: { revalidate: 0 } as any,
+          headers: {
+            "Content-Type": "application/json",
+            "Pragma": "no-cache",
+            "Cache-Control": "no-store, max-age=0",
+          },
           body: JSON.stringify({ action: "create", type: "manual", label }),
         });
         if (res.ok) {
@@ -2464,7 +2633,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const res = await fetch("/api/backup", {
           method: "POST",
           cache: "no-store",
-          headers: { "Content-Type": "application/json" },
+          next: { revalidate: 0 } as any,
+          headers: {
+            "Content-Type": "application/json",
+            "Pragma": "no-cache",
+            "Cache-Control": "no-store, max-age=0",
+          },
           body: JSON.stringify({
             action: "restore",
             backupId: !isObject ? backupIdOrSnapshot : undefined,
@@ -2488,7 +2662,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       await fetch("/api/backup", {
         method: "POST",
         cache: "no-store",
-        headers: { "Content-Type": "application/json" },
+        next: { revalidate: 0 } as any,
+        headers: {
+          "Content-Type": "application/json",
+          "Pragma": "no-cache",
+          "Cache-Control": "no-store, max-age=0",
+        },
         body: JSON.stringify({ action: "delete", backupId }),
       });
     } catch {}
@@ -2625,6 +2804,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     userPermissions,
     hasModulePermission,
     isAdmin,
+    isOwner,
     isManager,
     isStaff,
     isViewer,
