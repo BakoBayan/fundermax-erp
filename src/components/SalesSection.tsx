@@ -40,7 +40,8 @@ import {
   Paperclip,
   MoreVertical,
   FileText,
-  Clock
+  Clock,
+  Truck
 } from 'lucide-react';
 import { CurrencyCode, PanelTransaction, InvoiceItem, ExchangeRates } from '../types/inventory';
 import { openWhatsAppReceipt, openEmailReceipt } from '@/lib/receiptFormatter';
@@ -51,6 +52,7 @@ import DropdownManagerModal from './DropdownManagerModal';
 import { exportTransactionsToCSV } from '../utils/export';
 import { roundMoney, buildMoneySnapshot } from '../lib/money';
 import { autoCapitalizeFirstLetter } from '../utils/text';
+import { useWarehouseOps } from '../hooks/useWarehouseOps';
 
 export const SalesSection: React.FC = () => {
   const {
@@ -822,6 +824,30 @@ export const SalesSection: React.FC = () => {
     ).length;
   }, [transactions]);
 
+  const warehouseOps = useWarehouseOps();
+
+  const totalSupplierDebt = useMemo(() => {
+    return warehouseOps.activeShipments.reduce((acc, s) => {
+      if (s.isDeleted === 1) return acc;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      if (debt <= 0) return acc;
+      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+      return acc + convertCurrency(debt, curr as CurrencyCode, posDraft.activeCurrency);
+    }, 0);
+  }, [warehouseOps.activeShipments, convertCurrency, posDraft.activeCurrency]);
+
+  const supplierInvoicesWithDebtCount = useMemo(() => {
+    return warehouseOps.activeShipments.filter((s) => {
+      if (s.isDeleted === 1) return false;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      return debt > 0;
+    }).length;
+  }, [warehouseOps.activeShipments]);
+
   const totalSystemSales = useMemo(() => {
     return transactions.reduce((acc, tx) => {
       const amount = tx.totalAfterDiscount || tx.sellingAmount || 0;
@@ -1024,7 +1050,7 @@ export const SalesSection: React.FC = () => {
 
       {/* EXECUTIVE SALES & TOTAL DEBT HIGHLIGHT KPI GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* 1. TOTAL OUTSTANDING CUSTOMER DEBT (PRIMARY HIGHLIGHT) */}
+        {/* 1. TOTAL OUTSTANDING CUSTOMER DEBT (PRIMARY HIGHLIGHT: RECEIVABLES) */}
         <div 
           onClick={() => setInspectingTxForMath(true)}
           className="p-5 rounded-3xl border-2 border-rose-400/90 dark:border-rose-500/80 bg-gradient-to-br from-rose-50/90 via-white to-rose-50/50 dark:from-rose-950/40 dark:via-slate-850 dark:to-rose-950/20 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative overflow-hidden"
@@ -1039,7 +1065,7 @@ export const SalesSection: React.FC = () => {
                 {isKu ? 'قەرزی کۆکراوەی لای کڕیاران' : 'CUSTOMERS OWE US (RECEIVABLES)'}
               </span>
               <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80 font-medium block mt-0.5">
-                {isKu ? 'کۆی گشتی ئەو پارەیەی لای کڕیاران ماوەتەوە' : 'Total unpaid credit owed by customers'}
+                {isKu ? 'کۆی گشتی ئەو پارەیەی لای کڕیاران ماوەتەوە' : 'Cumulative unpaid credit across sales invoices'}
               </span>
             </div>
             <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold shadow-md shadow-rose-500/25 group-hover:scale-110 transition-transform shrink-0">
@@ -1058,22 +1084,35 @@ export const SalesSection: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. TOTAL INVOICED TURNOVER */}
-        <div className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
+        {/* 2. WE OWE SUPPLIERS (PAYABLES: PURCHASE LOGS & CONSIGNMENTS) */}
+        <div 
+          className="p-5 rounded-3xl border-2 border-indigo-400/90 dark:border-indigo-500/80 bg-gradient-to-br from-indigo-50/90 via-white to-indigo-50/50 dark:from-indigo-950/40 dark:via-slate-850 dark:to-indigo-950/20 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 group relative overflow-hidden"
+          title={isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە بۆ دابینکەران' : 'Cumulative unpaid balance owed to vendors/suppliers'}
+        >
+          {/* Subtle Ambient Corner Accent */}
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform" />
+          
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              {isKu ? 'کۆی گشتی فرۆشراو' : 'Total Invoiced Volume'}
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
-              <ReceiptText className="w-5 h-5" />
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300 block">
+                {isKu ? 'قەرزی سەر ئێمە بۆ دابینکەران' : 'WE OWE SUPPLIERS (PAYABLES)'}
+              </span>
+              <span className="text-[10px] text-indigo-700/80 dark:text-indigo-400/80 font-medium block mt-0.5">
+                {isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە' : 'Cumulative unpaid balance owed to vendors'}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-bold shadow-md shadow-indigo-500/25 group-hover:scale-110 transition-transform shrink-0">
+              <Truck className="w-5 h-5" />
             </div>
           </div>
+
           <div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
-              {formatMoney(totalSystemSales, posDraft.activeCurrency)}
+            <div className="text-2xl sm:text-3xl font-black text-indigo-600 dark:text-indigo-400 font-mono tracking-tight">
+              {formatMoney(totalSupplierDebt, posDraft.activeCurrency)}
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1.5">
-              {transactions.length} {isKu ? 'پسوولەی تۆمارکراو' : 'invoices recorded'}
+            <div className="flex items-center justify-between text-[11px] text-indigo-700/80 dark:text-indigo-300/80 font-medium mt-1.5">
+              <span>{supplierInvoicesWithDebtCount} {isKu ? 'پسوولەی دابینکەر' : 'supplier invoices'}</span>
+              <span className="font-semibold text-indigo-600/90 dark:text-indigo-400/90">{isKu ? 'خەرجی کڕین' : 'Purchases'}</span>
             </div>
           </div>
         </div>
@@ -2537,11 +2576,27 @@ export const SalesSection: React.FC = () => {
                         className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer select-none"
                       >
                         <td className="px-3.5 py-3">
-                          <div className="font-bold text-slate-900 dark:text-white font-mono">
-                            {tx.code || tx.id.slice(-6)}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            {new Date(tx.timestamp).toLocaleDateString()}
+                          <div className="flex items-center gap-2.5">
+                            {tx.images && tx.images.length > 0 ? (
+                              <img
+                                src={tx.images[0]}
+                                alt="Receipt"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setZoomedImage({ url: tx.images![0], title: `Invoice ${tx.code || tx.id} - Receipt` });
+                                }}
+                                className="w-9 h-9 rounded border border-slate-200 dark:border-slate-700 object-cover cursor-pointer hover:scale-105 transition shrink-0 shadow-2xs"
+                                title={isKu ? 'کرتە بکە بۆ پیشاندانی پسوولە' : 'Click to view receipt'}
+                              />
+                            ) : null}
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 dark:text-white font-mono">
+                                {tx.code || tx.id.slice(-6)}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                {new Date(tx.timestamp).toLocaleDateString()}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="px-3.5 py-3">
@@ -2714,131 +2769,151 @@ export const SalesSection: React.FC = () => {
 
                       {/* Expandable Line Items & Inspection Drawer */}
                       {isExpanded && (
-                        <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
-                          <td colSpan={10} className="p-4 sm:p-5 space-y-3.5">
-                            {/* Top Meta Bar: Exact Timestamp, Reference, Seller, Bank & Discount Breakdown */}
-                            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-slate-800 text-xs">
-                              <div className="flex flex-wrap items-center gap-3">
-                                <span className="font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 text-sky-500" />
-                                  <span>{isKu ? 'بەروار و کاتی تەواو:' : 'Exact Timestamp:'}</span>
-                                  <b className="text-slate-900 dark:text-white font-mono">
-                                    {new Date(tx.timestamp).toLocaleString()}
-                                  </b>
-                                </span>
-                                {tx.legacyInvoiceRef && (
-                                  <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono text-[11px]">
-                                    {isKu ? 'ئاماژە / داواکاری:' : 'Ref / PO #:'} <b>{tx.legacyInvoiceRef}</b>
+                        <tr className="bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800">
+                          <td colSpan={10} className="p-4 sm:p-5">
+                            <div className="p-5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                              {/* Top Meta Bar */}
+                              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-slate-800 text-xs">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <span className="font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-sky-500" />
+                                    <span>{isKu ? 'بەروار و کاتی تەواو:' : 'Exact Timestamp:'}</span>
+                                    <b className="text-slate-900 dark:text-white font-mono">
+                                      {new Date(tx.timestamp).toLocaleString()}
+                                    </b>
                                   </span>
-                                )}
-                                {tx.seller && (
-                                  <span className="text-slate-500">
-                                    {isKu ? 'فرۆشیار:' : 'Seller:'} <b className="text-slate-700 dark:text-slate-300">{tx.seller}</b>
+                                  {tx.legacyInvoiceRef && (
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono text-[11px]">
+                                      {isKu ? 'ئاماژە / داواکاری:' : 'Ref / PO #:'} <b>{tx.legacyInvoiceRef}</b>
+                                    </span>
+                                  )}
+                                  {tx.seller && (
+                                    <span className="text-slate-500">
+                                      {isKu ? 'فرۆشیار:' : 'Seller:'} <b className="text-slate-700 dark:text-slate-300">{tx.seller}</b>
+                                    </span>
+                                  )}
+                                  {tx.bank && (
+                                    <span className="text-slate-500">
+                                      {isKu ? 'قاسە / بانک:' : 'Drawer:'} <b className="text-slate-700 dark:text-slate-300">{tx.bank}</b>
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Discount & Net Breakdown */}
+                                <div className="flex items-center gap-2">
+                                  {((tx.discountDollars && tx.discountDollars > 0) || (tx.discountPercentage && tx.discountPercentage > 0)) && (
+                                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-mono font-bold">
+                                      {isKu ? 'داشکاندن:' : 'Discount:'}{' '}
+                                      {tx.discountDollars ? formatMoney(tx.discountDollars, txCur) : ''}
+                                      {tx.discountPercentage ? ` (${tx.discountPercentage}%)` : ''}
+                                    </span>
+                                  )}
+                                  <span className="px-3 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-sm font-mono font-extrabold whitespace-nowrap min-w-fit">
+                                    {isKu ? 'کۆی گشتی:' : 'Net Total:'} {formatMoney(tx.totalAfterDiscount, txCur)}
                                   </span>
-                                )}
-                                {tx.bank && (
-                                  <span className="text-slate-500">
-                                    {isKu ? 'قاسە / بانک:' : 'Drawer:'} <b className="text-slate-700 dark:text-slate-300">{tx.bank}</b>
-                                  </span>
-                                )}
+                                </div>
                               </div>
 
-                              {/* Discount & Net Breakdown */}
-                              <div className="flex items-center gap-2">
-                                {((tx.discountDollars && tx.discountDollars > 0) || (tx.discountPercentage && tx.discountPercentage > 0)) && (
-                                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-mono font-bold">
-                                    {isKu ? 'داشکاندن:' : 'Discount:'}{' '}
-                                    {tx.discountDollars ? formatMoney(tx.discountDollars, txCur) : ''}
-                                    {tx.discountPercentage ? ` (${tx.discountPercentage}%)` : ''}
-                                  </span>
-                                )}
-                                <span className="px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-mono font-bold">
-                                  {isKu ? 'کۆی گشتی:' : 'Net:'} {formatMoney(tx.totalAfterDiscount, txCur)}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Full Line Items Breakdown */}
-                            <div>
-                              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                                {isKu ? 'وردەکاری سەرجەم کاڵاکان (Line Items Breakdown):' : 'Line Items Breakdown:'}
-                              </div>
-                              {tx.items && tx.items.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                                  {tx.items.map((item, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs flex justify-between gap-3 shadow-2xs"
-                                    >
-                                      <div>
-                                        <div className="font-bold text-slate-900 dark:text-white">
-                                          {item.product}
-                                        </div>
-                                        <div className="text-slate-500 text-[11px] mt-0.5">
-                                          {item.quantity} units × {formatMoney(item.price, txCur)}
-                                        </div>
-                                        {item.fundermaxBatchRef && (
-                                          <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono mt-1">
-                                            {isKu ? 'وەجبە:' : 'Batch:'} {item.fundermaxBatchRef}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="text-right">
-                                        <div className="font-mono font-bold text-slate-900 dark:text-white text-sm">
-                                          {formatMoney(item.total, txCur)}
-                                        </div>
-                                        {item.estimatedCost ? (
-                                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                            {isKu ? 'تێچوو:' : 'Cost:'} {formatMoney(item.estimatedCost, txCur)}
-                                          </div>
-                                        ) : null}
-                                      </div>
+                              {/* Structured 2-Section Grid: Left (Receipt) vs Right (Financials & Notes) */}
+                              <div className={`grid gap-5 ${tx.images && tx.images.length > 0 ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
+                                {/* Left Section (Receipt Image Preview Card) */}
+                                {tx.images && tx.images.length > 0 && (
+                                  <div className="lg:col-span-4 flex flex-col gap-2">
+                                    <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                      <Paperclip className="w-3.5 h-3.5 text-sky-500" />
+                                      <span>{isKu ? 'فۆتۆی پسوولە و هاوپێچ:' : 'Attached Receipt / Slip:'}</span>
                                     </div>
-                                  ))}
+                                    <div className="p-3 bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-750 flex flex-col items-center justify-center gap-2">
+                                      <img
+                                        src={tx.images[0]}
+                                        alt="Receipt Preview"
+                                        onClick={() => setZoomedImage({ url: tx.images![0], title: `Invoice ${tx.code || tx.id} - Receipt` })}
+                                        className="max-w-xs max-h-64 object-contain rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm cursor-zoom-in hover:opacity-95 transition"
+                                        title="Click to view full-resolution image"
+                                      />
+                                      {tx.images.length > 1 && (
+                                        <div className="flex flex-wrap gap-1.5 justify-center mt-1">
+                                          {tx.images.slice(1).map((extraImg, idx) => (
+                                            <img
+                                              key={idx}
+                                              src={extraImg}
+                                              alt={`Extra ${idx}`}
+                                              onClick={() => setZoomedImage({ url: extraImg, title: `Invoice ${tx.code || tx.id} - Extra ${idx + 1}` })}
+                                              className="w-12 h-12 object-cover rounded-md border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:scale-105 transition"
+                                            />
+                                          ))}
+                                        </div>
+                                      )}
+                                      <span className="text-[11px] text-slate-400 font-medium">
+                                        {isKu ? 'کرتە بکە بۆ گەورەکردن' : 'Click to inspect full image'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Right Section (Financials, Line Items & Notes) */}
+                                <div className={`${tx.images && tx.images.length > 0 ? 'lg:col-span-8' : 'col-span-1'} space-y-3`}>
+                                  {/* Full Line Items Breakdown */}
+                                  <div>
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                                      {isKu ? 'وردەکاری سەرجەم کاڵاکان (Line Items Breakdown):' : 'Line Items Breakdown:'}
+                                    </div>
+                                    {tx.items && tx.items.length > 0 ? (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                        {tx.items.map((item, idx) => (
+                                          <div
+                                            key={idx}
+                                            className="p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs flex justify-between gap-3 shadow-2xs"
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="font-bold text-slate-900 dark:text-white truncate">
+                                                {item.product}
+                                              </div>
+                                              <div className="text-slate-500 text-[11px] mt-0.5 whitespace-nowrap min-w-fit">
+                                                {item.quantity} units × {formatMoney(item.price, txCur)}
+                                              </div>
+                                              {item.fundermaxBatchRef && (
+                                                <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono mt-1">
+                                                  {isKu ? 'وەجبە:' : 'Batch:'} {item.fundermaxBatchRef}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                              <div className="font-mono font-bold text-slate-900 dark:text-white text-sm whitespace-nowrap">
+                                                {formatMoney(item.total, txCur)}
+                                              </div>
+                                              {item.estimatedCost ? (
+                                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                  {isKu ? 'تێچوو:' : 'Cost:'} {formatMoney(item.estimatedCost, txCur)}
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs text-slate-700 dark:text-slate-300 flex justify-between">
+                                        <span>{tx.material || tx.panelType} ({tx.quantity} {tx.unit} • {tx.sellingType})</span>
+                                        <span className="font-mono font-bold whitespace-nowrap">{formatMoney(tx.totalAfterDiscount, txCur)}</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Full Unrestricted Text Notes */}
+                                  {tx.notes && (
+                                    <div className="p-3.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
+                                      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1 flex items-center gap-1.5">
+                                        <FileText className="w-3.5 h-3.5" />
+                                        <span>{isKu ? 'تێبینی و ڕوونکردنەوەی تەواو (Full Notes):' : 'Full Invoice Notes:'}</span>
+                                      </div>
+                                      <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed font-sans text-xs sm:text-sm">
+                                        {tx.notes}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs text-slate-700 dark:text-slate-300 flex justify-between">
-                                  <span>{tx.material || tx.panelType} ({tx.quantity} {tx.unit} • {tx.sellingType})</span>
-                                  <span className="font-mono font-bold">{formatMoney(tx.totalAfterDiscount, txCur)}</span>
-                                </div>
-                              )}
+                              </div>
                             </div>
-
-                            {/* Full Unrestricted Text Notes */}
-                            {tx.notes && (
-                              <div className="p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1 flex items-center gap-1.5">
-                                  <FileText className="w-3.5 h-3.5" />
-                                  <span>{isKu ? 'تێبینی و ڕوونکردنەوەی تەواو (Full Notes):' : 'Full Invoice Notes:'}</span>
-                                </div>
-                                <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed font-sans">
-                                  {tx.notes}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Attached Payment Receipt / Slip Photo Preview (with 1-click zoom) */}
-                            {tx.images && tx.images.length > 0 && (
-                              <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800">
-                                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                                  <Paperclip className="w-3.5 h-3.5 text-sky-500" />
-                                  <span>{isKu ? 'هاوپێچەکانی وەسڵ و فۆتۆی پارەدان (کرتە بکە بۆ گەورەکردن):' : 'Attached Paper Slips / Receipts (Click to zoom):'}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-2.5">
-                                  {tx.images.map((img, i) => (
-                                    <button
-                                      key={i}
-                                      type="button"
-                                      onClick={() => setZoomedImage({ url: img, title: `Invoice ${tx.code || tx.id} - Attachment ${i + 1}` })}
-                                      className="relative group w-16 h-16 rounded-2xl overflow-hidden border-2 border-slate-200 hover:border-sky-500 dark:border-slate-700 dark:hover:border-sky-400 shadow-sm hover:scale-105 transition-all cursor-pointer"
-                                      title="Click to view full image in high resolution"
-                                    >
-                                      <img src={img} alt="Slip" className="w-full h-full object-cover" />
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </td>
                         </tr>
                       )}

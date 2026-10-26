@@ -676,7 +676,7 @@ function WarehouseApp() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-slate-100/60 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors w-full max-w-full overflow-x-hidden">
+    <div className="relative h-auto md:min-h-screen flex flex-col bg-slate-100/60 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors w-full max-w-full overflow-x-hidden">
       {/* Global Ambient Background Motion Elements (Vivid & Clean on Light/Dark Canvas) */}
       <div
         className="fixed inset-0 pointer-events-none select-none overflow-hidden z-0 no-print"
@@ -850,7 +850,7 @@ function WarehouseApp() {
       )}
 
       {/* Dynamic Main Workspace Container */}
-      <main className="flex-1 flex flex-col w-full max-w-full min-h-0 overflow-x-hidden pb-20 md:pb-16 no-print print:hidden">
+      <main className="h-auto md:flex-1 flex flex-col w-full max-w-full min-h-0 overflow-x-hidden pb-4 md:pb-16 no-print print:hidden">
         {currentModule === 'hub' && (
           <ModuleHub
             onOpenBatchPrint={() => setIsBatchPrintModalOpen(true)}
@@ -994,8 +994,8 @@ function WarehouseApp() {
           { id: 'hub' as const, labelKu: 'سەرەکی', labelEn: 'Hub', icon: Home },
           { id: 'sales' as const, labelKu: 'فرۆشتن', labelEn: 'Sales', icon: ReceiptText },
           { id: 'panels' as const, labelKu: 'تەختەکان', labelEn: 'Panels', icon: Layers },
-          { id: 'shipping' as const, labelKu: 'گواستنەوە', labelEn: 'Shipping', icon: Truck },
           { id: 'orders' as const, labelKu: 'داواکاری', labelEn: 'Orders', icon: Package },
+          { id: 'shipping' as const, labelKu: 'گواستنەوە', labelEn: 'Shipping', icon: Truck },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = currentModule === tab.id;

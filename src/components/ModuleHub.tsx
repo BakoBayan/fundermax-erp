@@ -283,7 +283,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   }, [materials, allActiveOrders]);
 
   return (
-    <div className="relative w-full overflow-hidden min-h-0 md:min-h-[calc(100vh-100px)] bg-white dark:bg-slate-900">
+    <div className="relative w-full overflow-hidden h-auto bg-white dark:bg-slate-900">
       {/* ========================================================================= */}
       {/* 100% PURE GPU COMPOSITOR AMBIENT BACKGROUND (Desktop Only)                */}
       {/* ========================================================================= */}
@@ -373,7 +373,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
         {/* ========================================================================= */}
         {/* MOBILE-FIRST EXECUTIVE DASHBOARD (< 768px)                                */}
         {/* ========================================================================= */}
-        <div className="block md:hidden space-y-2.5 pb-1 overflow-x-hidden max-w-full">
+        <div className="block md:hidden h-auto space-y-3 pb-2 overflow-x-hidden max-w-full">
           {/* Sleek Compact Executive Header (h-12) */}
           <div className="h-12 px-3 rounded-2xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between gap-2">
             {/* Left: Avatar + User Name + Small Role Badge */}
@@ -464,7 +464,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 {/* 3. Our Debt to Suppliers (Payables / قەرزی سەر کۆمپانیا) */}
                 <button
                   type="button"
-                  onClick={() => handleSelectDivision('shipping', 'goods')}
+                  onClick={() => handleSelectDivision('sales')}
                   className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
                   title="View Supplier Debt (Payables)"
                 >

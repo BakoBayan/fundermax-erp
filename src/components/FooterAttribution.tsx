@@ -9,7 +9,7 @@ export const FooterAttribution: React.FC = () => {
   const isKu = language === 'ku';
 
   return (
-    <footer className="relative w-full mt-auto mb-16 md:mb-0 py-3 px-3 md:fixed md:bottom-0 md:inset-x-0 md:z-40 md:py-2 md:px-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] select-none no-print transition-colors">
+    <footer className="relative w-full mt-3 md:mt-auto mb-20 md:mb-0 py-3 px-3 md:fixed md:bottom-0 md:inset-x-0 md:z-40 md:py-2 md:px-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] select-none no-print transition-colors">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-1.5 md:gap-2 text-[11px] md:text-xs text-slate-500 text-center md:text-left">
         
         {/* Left: Professional & Legally Sound Copyright Attribution (Clickable) */}
