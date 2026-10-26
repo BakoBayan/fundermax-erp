@@ -56,11 +56,16 @@ ${totalsText}
 -----------------------------
 سوپاس بۆ مامەڵەکردنتان - سیستەمی سەرەکی باکۆ`;
 
+    const cleanPhone = (tx.clientPhone || (tx as any).phone || '').replace(/\D/g, '');
+    const recipientEmail = (tx as any).clientEmail || (tx as any).email || '';
+    const encodedBody = encodeURIComponent(body);
+    const encodedSubject = encodeURIComponent(subject);
+
     return {
       subject,
       body,
-      whatsAppUrl: `https://wa.me/?text=${encodeURIComponent(body)}`,
-      mailtoUrl: `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+      whatsAppUrl: `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedBody}`,
+      mailtoUrl: `mailto:${recipientEmail}?subject=${encodedSubject}&body=${encodedBody}`
     };
   } else {
     const itemsList = (tx.items && tx.items.length > 0)
@@ -90,17 +95,23 @@ Balance Due / Outstanding Debt: ${formatMoney(totalDebt, txCur)}
 -----------------------------
 Thank you for your business - Bako's Master System`;
 
+    const cleanPhone = (tx.clientPhone || (tx as any).phone || '').replace(/\D/g, '');
+    const recipientEmail = (tx as any).clientEmail || (tx as any).email || '';
+    const encodedBody = encodeURIComponent(body);
+    const encodedSubject = encodeURIComponent(subject);
+
     return {
       subject,
       body,
-      whatsAppUrl: `https://wa.me/?text=${encodeURIComponent(body)}`,
-      mailtoUrl: `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+      whatsAppUrl: `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedBody}`,
+      mailtoUrl: `mailto:${recipientEmail}?subject=${encodedSubject}&body=${encodedBody}`
     };
   }
 }
 
 /**
  * Direct launcher for WhatsApp receipt sharing.
+ * Safely targets a fresh tab/window so current POS draft state remains untouched.
  */
 export function openWhatsAppReceipt(
   tx: PanelTransaction,
@@ -115,6 +126,7 @@ export function openWhatsAppReceipt(
 
 /**
  * Direct launcher for Email/Gmail receipt sharing.
+ * Safely targets a fresh tab/window (never window.location.href) so current POS draft state remains untouched.
  */
 export function openEmailReceipt(
   tx: PanelTransaction,
@@ -123,6 +135,7 @@ export function openEmailReceipt(
 ) {
   const { mailtoUrl } = formatInvoiceReceipt(tx, formatMoney, lang);
   if (typeof window !== 'undefined') {
-    window.location.href = mailtoUrl;
+    window.open(mailtoUrl, '_blank', 'noopener,noreferrer');
   }
 }
+

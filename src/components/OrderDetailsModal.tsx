@@ -126,8 +126,11 @@ Bako's Master System`;
       }
     }
 
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    const customerPhone = (order.customerPhone || order.clientPhone || (order as any).phone || '');
+    const cleanPhone = (customerPhone || '').replace(/\D/g, '');
+    const encodedText = encodeURIComponent(text);
+    const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (

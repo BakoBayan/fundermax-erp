@@ -941,3 +941,21 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
     </div>
   );
 };
+
+/** Non-blocking external dispatch helpers (never force-navigate active tab) */
+export function dispatchOrderWhatsApp(phone: string, message: string): void {
+  const cleanPhone = (phone || '').replace(/\D/g, '');
+  const encodedText = encodeURIComponent(message);
+  const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+  if (typeof window !== 'undefined') {
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+  }
+}
+
+export function dispatchOrderEmail(recipientEmail: string, subject: string, body: string): void {
+  const mailtoUrl = `mailto:${recipientEmail || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  if (typeof window !== 'undefined') {
+    window.open(mailtoUrl, '_blank', 'noopener,noreferrer');
+  }
+}
+

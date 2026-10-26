@@ -54,6 +54,7 @@ import { roundMoney, buildMoneySnapshot } from '../lib/money';
 import { autoCapitalizeFirstLetter } from '../utils/text';
 import { readImageFiles } from '../utils/imageUpload';
 import { DEBT_PAYMENT_ACTION, buildDebtPaymentDetails, getTodayDebtPaymentIntake } from '../utils/debtPayments';
+import { useWarehouseOps } from '../hooks/useWarehouseOps';
 
 export const SalesSection: React.FC = () => {
   const {
@@ -89,6 +90,7 @@ export const SalesSection: React.FC = () => {
     setZoomedImage,
     logActivity,
     activityLogs,
+    setCurrentModule,
   } = useInventory();
 
   const isDark = theme === 'dark';
@@ -933,6 +935,31 @@ export const SalesSection: React.FC = () => {
     }, 0);
   }, [transactions, convertCurrency, posDraft.activeCurrency]);
 
+  const warehouseOps = useWarehouseOps();
+
+  const totalSupplierDebt = useMemo(() => {
+    return warehouseOps.activeShipments.reduce((acc, s) => {
+      if (s.isDeleted === 1) return acc;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      if (debt <= 0) return acc;
+      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+      return acc + convertCurrency(debt, curr as CurrencyCode, posDraft.activeCurrency);
+    }, 0);
+  }, [warehouseOps.activeShipments, convertCurrency, posDraft.activeCurrency]);
+
+  const supplierInvoicesWithDebtCount = useMemo(() => {
+    return warehouseOps.activeShipments.filter((s) => {
+      if (s.isDeleted === 1) return false;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      return debt > 0;
+    }).length;
+  }, [warehouseOps.activeShipments]);
+
+
   const filteredTotalDebt = useMemo(() => {
     return filteredTransactions.reduce((acc, tx) => {
       const debt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
@@ -1117,8 +1144,8 @@ export const SalesSection: React.FC = () => {
         </form>
       )}
 
-      {/* EXECUTIVE SALES POS KPI GRID (CUSTOMER INFLOW ONLY) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* EXECUTIVE SALES POS KPI GRID (CUSTOMER INFLOW ONLY + SUPPLIER PAYABLES) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* CARD 1: TOTAL INVOICED VOLUME (GROSS SALES VOLUME) */}
         <div className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
@@ -1238,6 +1265,42 @@ export const SalesSection: React.FC = () => {
               ) : (
                 <span className="text-emerald-600 dark:text-emerald-400 font-bold">{isKu ? 'تەواو دراوە (بێ قەرز)' : 'Paid in full (zero debt)'}</span>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 5: WE OWE SUPPLIERS (PAYABLES) */}
+        <div
+          onClick={() => {
+            if (setCurrentModule) setCurrentModule('goods');
+            else if (typeof window !== 'undefined') window.location.href = '/?module=goods';
+          }}
+          className="p-5 rounded-3xl border-2 border-purple-200 dark:border-purple-800 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          title={isKu ? 'کلیک بکە بۆ چوونە بەشی کڕین و دابینکەران' : 'Click to open Purchases / Warehouse module'}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-purple-700 dark:text-purple-300 block">
+                {isKu ? 'قەرزی سەر ئێمە بۆ دابینکەران' : 'WE OWE SUPPLIERS (PAYABLES)'}
+              </span>
+              <span className="text-[10px] text-purple-700/80 dark:text-purple-400/80 font-medium block mt-0.5">
+                {isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە' : 'Unpaid supplier payables'}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-purple-500/10 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold group-hover:scale-110 transition-transform shrink-0">
+              <Building2 className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-purple-700 dark:text-purple-300 font-mono tracking-tight">
+              {formatMoney(totalSupplierDebt, posDraft.activeCurrency)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-purple-700/80 dark:text-purple-400/80 font-medium mt-1.5">
+              <span>{supplierInvoicesWithDebtCount} {isKu ? 'پسوولەی دابینکەر' : 'supplier invoices'}</span>
+              <span className="font-bold underline group-hover:text-purple-800 dark:group-hover:text-purple-200">
+                {isKu ? 'کڕین و کۆگا ←' : 'Purchases / Warehouse ←'}
+              </span>
             </div>
           </div>
         </div>
@@ -1698,7 +1761,7 @@ export const SalesSection: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-2.5">
             <div>
               <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                 {isKu ? 'جۆر' : 'Type'}
@@ -1776,8 +1839,11 @@ export const SalesSection: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {isKu ? 'نرخی فرۆش' : 'Price'} ({posDraft.activeCurrency})
+              <label
+                className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1"
+                title="Selling Price ($) / نرخی فرۆشتن ($)"
+              >
+                {isKu ? 'نرخی فرۆشتن ($)' : 'Selling Price ($)'}
               </label>
               <input
                 ref={priceInputRef}
@@ -1802,10 +1868,14 @@ export const SalesSection: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-end gap-1.5">
-              <div className="flex-1">
-                <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 truncate" title="تێچووی کەرەستە بۆ هەژمارکردنی قازانج">
-                  {isKu ? 'تێچوو (Cost)' : 'Est. Cost'}
+            {/* Our Cost + Add Item (expanded cleanly across 2 columns in lg:grid-cols-8) */}
+            <div className="sm:col-span-2 md:col-span-3 lg:col-span-2 flex items-end gap-2">
+              <div className="flex-1 min-w-0">
+                <label
+                  className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 truncate"
+                  title="Internal wholesale cost for profit tracking (hidden from customer invoice) / تێچووی کڕین بۆ کۆمپانیا"
+                >
+                  {isKu ? 'تێچووی لەسەرمان ($)' : 'Our Cost ($)'}
                 </label>
                 <input
                   ref={costInputRef}
@@ -1821,8 +1891,9 @@ export const SalesSection: React.FC = () => {
                       handleAddLineItem();
                     }
                   }}
-                  placeholder="Cost"
-                  className="w-full min-h-[38px] px-2.5 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+                  placeholder="0.00"
+                  title="Internal wholesale cost for profit tracking (hidden from customer invoice) / تێچووی کڕین بۆ کۆمپانیا"
+                  className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
                 />
               </div>
 
@@ -1831,10 +1902,11 @@ export const SalesSection: React.FC = () => {
                 type="button"
                 onClick={handleAddLineItem}
                 disabled={!posDraft.rowType && !posDraft.rowProduct && currentRowPrice === 0}
-                className="flex items-center justify-center min-h-[38px] px-3 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-xs disabled:opacity-50 transition-all cursor-pointer shrink-0"
+                className="flex items-center justify-center min-h-[38px] px-3.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-xs disabled:opacity-50 transition-all cursor-pointer shrink-0"
                 title={isKu ? 'زیادکردنی بابەت' : 'Add Item'}
               >
                 <Plus className="w-4 h-4" />
+                <span className="hidden xl:inline ml-1">{isKu ? 'زیادکردن' : 'Add'}</span>
               </button>
             </div>
           </div>
@@ -1904,8 +1976,11 @@ export const SalesSection: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {isKu ? 'نرخ' : 'Unit Price'} ({posDraft.activeCurrency})
+              <label
+                className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+                title="Selling Price ($) / نرخی فرۆشتن ($)"
+              >
+                {isKu ? 'نرخی فرۆشتن ($)' : 'Selling Price ($)'}
               </label>
               <input
                 type="number"
@@ -1927,8 +2002,9 @@ export const SalesSection: React.FC = () => {
                 type="button"
                 onClick={() => setShowMobileCost(!showMobileCost)}
                 className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                title="Internal wholesale cost for profit tracking (hidden from customer invoice) / تێچووی کڕین بۆ کۆمپانیا"
               >
-                {showMobileCost ? (isKu ? '▲ شاردنەوەی تێچوو' : '▲ Hide Estimated Cost') : (isKu ? '▼ دیاریکردنی تێچوو (بۆ ئەدمین)' : '▼ Set Estimated Cost (Admin)')}
+                {showMobileCost ? (isKu ? '▲ شاردنەوەی تێچووی لەسەرمان' : '▲ Hide Our Cost') : (isKu ? '▼ دیاریکردنی تێچووی لەسەرمان ($)' : '▼ Set Our Cost ($)')}
               </button>
               {showMobileCost && (
                 <div className="mt-1.5">
@@ -1939,7 +2015,8 @@ export const SalesSection: React.FC = () => {
                     step="any"
                     value={posDraft.estimatedCost}
                     onChange={(e) => setPosDraft({ ...posDraft, estimatedCost: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                    placeholder={isKu ? 'تێچووی کەرەستە' : 'Estimated Cost'}
+                    title="Internal wholesale cost for profit tracking (hidden from customer invoice) / تێچووی کڕین بۆ کۆمپانیا"
+                    placeholder={isKu ? 'تێچووی لەسەرمان ($)' : 'Our Cost ($)'}
                     className="w-full h-11 px-3 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
                   />
                 </div>
@@ -1986,9 +2063,9 @@ export const SalesSection: React.FC = () => {
               </span>
             </div>
             <div className="text-slate-600 dark:text-slate-400 font-mono text-[11px] flex items-center gap-2">
-              <span>{isKu ? 'تێچوو:' : 'Cost:'} {formatMoney(posDraft.estimatedCost, posDraft.activeCurrency)}</span>
+              <span>{isKu ? 'تێچووی لەسەرمان:' : 'Our Cost:'} {formatMoney(posDraft.estimatedCost, posDraft.activeCurrency)}</span>
               <span>•</span>
-              <span>{isKu ? 'فرۆش:' : 'Price:'} {formatMoney(posDraft.rowPrice, posDraft.activeCurrency)}</span>
+              <span>{isKu ? 'فرۆشتن:' : 'Selling Price:'} {formatMoney(posDraft.rowPrice, posDraft.activeCurrency)}</span>
             </div>
           </div>
         )}

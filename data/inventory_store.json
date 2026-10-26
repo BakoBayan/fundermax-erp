@@ -227,7 +227,7 @@
     {
       "id": "tx-1793048880840",
       "code": "1",
-      "timestamp": "2026-10-26T21:11:48.847Z",
+      "timestamp": "2026-10-26T21:24:30.823Z",
       "panelType": "Fchg",
       "material": "Ytu6",
       "quantity": 1,
@@ -267,7 +267,7 @@
         }
       ],
       "status": "completed",
-      "lastUpdated": "2026-10-26T21:11:48.847Z",
+      "lastUpdated": "2026-10-26T21:24:30.823Z",
       "client": "کڕیاری گشتی (General Customer)",
       "clientPhone": "07705488654",
       "legacyInvoiceRef": "PI 3303033303",
@@ -326,5 +326,5 @@
       "Meeeeeee"
     ]
   },
-  "lastUpdated": 1793049108866
+  "lastUpdated": 1793049870852
 }

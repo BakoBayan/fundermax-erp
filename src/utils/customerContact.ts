@@ -32,5 +32,8 @@ export function buildOrderReadyMessage(isKu: boolean, customerName: string, orde
 }
 
 export function buildOrderReadyWhatsAppUrl(phone: string, isKu: boolean, customerName: string, orderCode: string): string {
-  return `https://wa.me/${toWhatsAppNumber(phone)}?text=${encodeURIComponent(buildOrderReadyMessage(isKu, customerName, orderCode))}`;
+  const cleanPhone = (phone || '').replace(/\D/g, '');
+  const encodedText = encodeURIComponent(buildOrderReadyMessage(isKu, customerName, orderCode));
+  return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
 }
+

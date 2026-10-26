@@ -26,15 +26,18 @@ export const OrderContactActions: React.FC<OrderContactActionsProps> = ({ order,
         <Phone className="w-3 h-3" />
         <span dir="ltr">{phone}</span>
       </a>
-      <a
-        href={wa}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
+      <button
+        type="button"
+        onClick={() => {
+          const cleanPhone = (phone || '').replace(/\D/g, '');
+          const message = buildOrderReadyWhatsAppUrl(phone, isKu, order.client, order.orderNumber);
+          window.open(message, '_blank', 'noopener,noreferrer');
+        }}
+        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
         title={isKu ? 'ناردن بە واتسئاپ' : 'WhatsApp'}
       >
         <MessageCircle className="w-3.5 h-3.5" />
-      </a>
+      </button>
     </span>
   );
 };
