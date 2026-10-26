@@ -318,7 +318,33 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
 
           {/* Right: Status Pill, Undo/Redo, Language, Theme, Presets, Admin & Account */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 relative z-30 pointer-events-auto">
-            {/* Resilience Status Pill Badge: Live vs Offline (Telemetry hidden on mobile) */}
+            {/* Mobile Active Status Pill */}
+            <button
+              type="button"
+              onClick={handleSyncPing}
+              className={`md:hidden relative z-20 pointer-events-auto h-9 px-2.5 rounded-xl text-xs font-bold border inline-flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                isOnline && syncStatus === "synced"
+                  ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400/80 text-emerald-700 dark:text-emerald-400"
+                  : syncStatus === "syncing" || isPinging
+                  ? "bg-sky-50 dark:bg-sky-950/60 border-sky-400/80 text-sky-700 dark:text-sky-400"
+                  : "bg-amber-50 dark:bg-amber-950/60 border-amber-400/80 text-amber-700 dark:text-amber-400"
+              }`}
+              title={isOnline ? "Live Connected" : "Offline Mode"}
+            >
+              <span className="relative flex h-2 w-2">
+                {syncStatus === "syncing" || isPinging ? (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                ) : null}
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  isOnline && syncStatus === "synced" ? "bg-emerald-500" : (syncStatus === "syncing" || isPinging ? "bg-sky-500" : "bg-amber-500")
+                }`} />
+              </span>
+              <span className="font-mono text-[11px]">
+                {isOnline && syncStatus === "synced" ? "Live" : syncStatus === "syncing" || isPinging ? "Sync" : "Offline"}
+              </span>
+            </button>
+
+            {/* Desktop Resilience Status Pill Badge: Live vs Offline */}
             <div className="hidden md:flex items-center gap-2">
               <button
                 type="button"
@@ -394,7 +420,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                 type="button"
                 aria-pressed={language === "en"}
                 onClick={() => handleSetLang("en")}
-                className={`min-w-[40px] px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
+                className={`min-w-[40px] px-2.5 sm:px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
                   language === "en"
                     ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-black ring-1 ring-slate-300/80 dark:ring-slate-600"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50"
@@ -407,7 +433,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
                 type="button"
                 aria-pressed={language === "ku"}
                 onClick={() => handleSetLang("ku")}
-                className={`min-w-[50px] px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
+                className={`min-w-[48px] sm:min-w-[50px] px-2.5 sm:px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
                   language === "ku"
                     ? "bg-emerald-600 text-white shadow-xs font-black ring-1 ring-emerald-500"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50"
@@ -418,13 +444,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               </button>
             </div>
 
-            {/* Theme Toggle: Day vs Night */}
+            {/* Theme Toggle: Day vs Night (Desktop) */}
             <button
               type="button"
               id="header-theme-toggle"
               aria-label="Toggle dark and light theme"
               onClick={handleToggleTheme}
-              className="relative z-20 pointer-events-auto h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750 inline-flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+              className="hidden md:inline-flex relative z-20 pointer-events-auto h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750 items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
               title={theme === "light" ? "Switch to Night Mode (Dark)" : "Switch to Day Mode (Light)"}
             >
               {theme === "light" ? <Moon className="w-4 h-4 text-slate-700" /> : <Sun className="w-4 h-4 text-amber-400" />}
@@ -477,31 +503,20 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               </button>
             )}
 
-            {/* Account / Role Badge */}
+            {/* User Profile Avatar / Role Badge (Sleek Mobile & Desktop) */}
             <button
               type="button"
               onClick={() => setIsAccountModalOpen(true)}
-              className="hidden sm:inline-flex relative z-20 pointer-events-auto h-9 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750 items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 transition-all cursor-pointer shadow-2xs active:scale-95 group"
+              className="relative z-20 pointer-events-auto h-9 w-9 sm:w-auto sm:px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750 inline-flex items-center justify-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 transition-all cursor-pointer shadow-2xs active:scale-95 group"
               title="User Account & Security"
+              aria-label="User Account Profile"
             >
-              <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
-              <span className="max-w-[120px] sm:max-w-[170px] truncate">
+              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 dark:bg-emerald-400/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Shield className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              </div>
+              <span className="hidden sm:inline max-w-[120px] sm:max-w-[170px] truncate">
                 {currentUser?.displayName || "Bako Bayan Madhhar"}
               </span>
-            </button>
-
-            {/* Mobile Hamburger Button */}
-            <button 
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="block md:hidden p-2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white ml-2"
-              aria-label="Toggle Menu"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {isMobileMenuOpen 
-                  ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                }
-              </svg>
             </button>
           </div>
         </div>

@@ -133,9 +133,9 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-0 sm:my-6 max-h-[85dvh] sm:max-h-none flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
+        className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl max-w-md w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
       >
-        {/* Mobile Pull Pill Indicator */}
+        {/* Mobile Pull Pill Drag Handle Indicator */}
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
 
         {/* Header */}
@@ -165,7 +165,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder={t.codePlaceholder}
-                className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono font-bold text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full h-12 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono font-bold text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
               />
             </div>
             <div>
@@ -194,7 +194,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t.namePlaceholder}
-              className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-medium text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-12 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-medium text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
             />
           </div>
 
@@ -264,7 +264,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
                   value={length}
                   onChange={(e) => setLength(e.target.value)}
                   placeholder="2440"
-                  className="w-full h-10 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-12 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                 />
                 <span className="block text-[10px] text-center text-slate-400 mt-0.5">L (mm)</span>
               </div>
@@ -276,7 +276,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
                   value={width}
                   onChange={(e) => setWidth(e.target.value)}
                   placeholder="1220"
-                  className="w-full h-10 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-12 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                 />
                 <span className="block text-[10px] text-center text-slate-400 mt-0.5">W (mm)</span>
               </div>
@@ -288,7 +288,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
                   value={thickness}
                   onChange={(e) => setThickness(e.target.value)}
                   placeholder="18"
-                  className="w-full h-10 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-12 sm:h-9 px-2 text-center bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white font-mono text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                 />
                 <span className="block text-[10px] text-center text-slate-400 mt-0.5">T (mm)</span>
               </div>
@@ -307,7 +307,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
               value={totalStock}
               onChange={(e) => setTotalStock(e.target.value)}
               placeholder="0"
-              className="w-full h-10 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-12 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
             />
           </div>
 
@@ -321,7 +321,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="..."
-              className="w-full h-10 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-12 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
             />
           </div>
 
@@ -563,9 +563,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl max-w-xl w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden my-0 sm:my-6 max-h-[92dvh] sm:max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
+        className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl max-w-xl w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
       >
-        {/* Mobile Pull Pill Indicator */}
+        {/* Mobile Pull Pill Drag Handle Indicator */}
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
 
         {/* Header */}
@@ -682,7 +682,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               placeholder="1"
-              className="w-full h-10 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-12 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
             />
           </div>
 
@@ -719,7 +719,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       value={doorHeight}
                       onChange={(e) => setDoorHeight(e.target.value)}
                       placeholder="2100"
-                      className="w-full h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="w-full h-12 sm:h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                     />
                     <span className="block text-[10px] text-center text-slate-400 mt-0.5 font-mono">
                       {(parseFloat(doorHeight) || 0) > 0 ? `${(parseFloat(doorHeight) / 10).toFixed(0)} cm` : "210 cm"}
@@ -738,7 +738,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       value={doorWidth}
                       onChange={(e) => setDoorWidth(e.target.value)}
                       placeholder="900"
-                      className="w-full h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="w-full h-12 sm:h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                     />
                     <span className="block text-[10px] text-center text-slate-400 mt-0.5 font-mono">
                       {(parseFloat(doorWidth) || 0) > 0 ? `${(parseFloat(doorWidth) / 10).toFixed(0)} cm` : "90 cm"}
@@ -757,7 +757,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       value={frameDepth}
                       onChange={(e) => setFrameDepth(e.target.value)}
                       placeholder="150"
-                      className="w-full h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="w-full h-12 sm:h-9 px-2.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl font-mono font-bold text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                     />
                     <span className="block text-[10px] text-center text-slate-400 mt-0.5 font-mono">
                       {(parseFloat(frameDepth) || 0) > 0 ? `${(parseFloat(frameDepth) / 10).toFixed(0)} cm` : "15 cm"}
@@ -861,7 +861,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   value={doorModel}
                   onChange={(e) => setDoorModel(e.target.value)}
                   placeholder="e.g. FunderMax Oak Modern, CNC Pattern A-12..."
-                  className="w-full h-9 px-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-12 sm:h-9 px-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                 />
               </div>
 
@@ -956,7 +956,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={jobType === "door" ? (isKu ? "تێبینی لەسەر قوفڵ، گێڕ، ڕەنگی کەتیبە..." : "Notes on lock, frame, architrave...") : "..."}
-              className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-12 sm:h-9 px-3 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-650 rounded-xl text-slate-900 dark:text-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
             />
           </div>
 
@@ -965,13 +965,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[46px] px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
+              className="min-h-[48px] px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              className="min-h-[46px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm cursor-pointer flex items-center gap-1.5"
+              className="min-h-[48px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-2xs active:scale-95 transition-all text-xs sm:text-sm cursor-pointer flex items-center gap-1.5"
             >
               {jobType === "door" && <DoorClosed className="w-4 h-4" />}
               <span>{orderToEdit ? t.save : (jobType === "door" ? (isKu ? "تۆمارکردنی داواکاری دەرگا" : "Save Door Order") : t.save)}</span>

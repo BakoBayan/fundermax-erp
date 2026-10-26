@@ -743,19 +743,19 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                     : "border-slate-200 dark:border-slate-700"
                 }`}
               >
-                {/* Header: Client & Status */}
-                <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-750 pb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                      <User className="w-4 h-4" />
+                {/* Header: Order # + Client Name + Status pill ([لە کاردایە / In Queue] or [تەواوکراو / Finalized]) */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-750 pb-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 font-mono font-bold text-xs border border-sky-500/20">
+                      #{order.orderNumber}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-black text-slate-900 dark:text-white text-sm truncate">
+                      <div className="font-black text-slate-900 dark:text-white text-sm sm:text-base truncate">
                         {order.client}
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          {order.orderNumber}
+                        <span className="font-mono text-xs text-slate-400">
+                          {order.date}
                         </span>
                         {(order.jobType === "door" || !!order.doorSpec) && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] border border-emerald-300 dark:border-emerald-800">
@@ -763,7 +763,6 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                             <span>
                               {isKu ? 'دەرگا ' : 'Door '}
                               {order.doorSpec ? `${(order.doorSpec.doorHeight / 10).toFixed(0)}×${(order.doorSpec.doorWidth / 10).toFixed(0)}` : ""}
-                              {order.doorSpec ? ` (${order.doorSpec.openingDirection === "left" ? (isKu ? "چەپ" : "L") : (isKu ? "ڕاست" : "R")})` : ""}
                             </span>
                           </span>
                         )}
@@ -771,25 +770,39 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-end shrink-0 flex items-center gap-1.5">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      isFinalized
-                        ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
-                        : "bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
-                    }`}>
-                      {isFinalized ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <Clock className="w-3 h-3 text-sky-600" />}
-                      <span>{isFinalized ? t.finalized : t.reserved}</span>
-                    </span>
-                    <span className="font-mono text-xs text-slate-500">
-                      {order.date}
-                    </span>
-                  </div>
+                  {/* Status Pill: [لە کاردایە / In Queue] vs [تەواوکراو / Finalized] */}
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold shrink-0 ${
+                    isFinalized
+                      ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                      : "bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                  }`}>
+                    {isFinalized ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Clock className="w-3.5 h-3.5 text-sky-600" />}
+                    <span>{isFinalized ? (isKu ? 'تەواوکراو / Finalized' : 'Finalized / تەواوکراو') : (isKu ? 'لە کاردایە / In Queue' : 'In Queue / لە کاردایە')}</span>
+                  </span>
                 </div>
 
-                {/* Panel Info & Quantity */}
-                <div className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {material.imageUrl && (
+                {/* Details: Assigned panel code, sheet count, attached blueprint thumbnail */}
+                <div className="flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Blueprint / Order Image Thumbnail if attached */}
+                    {order.imageUrl ? (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setZoomedImage({
+                            url: order.imageUrl!,
+                            title: `${order.client} - #${order.orderNumber}`,
+                          });
+                        }}
+                        className="relative w-12 h-12 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-600 shrink-0 shadow-2xs group cursor-pointer"
+                        title={t.zoom}
+                      >
+                        <img src={order.imageUrl} alt="Blueprint" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <div className="absolute inset-0 bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ImageIcon className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      </div>
+                    ) : material.imageUrl ? (
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
@@ -798,160 +811,102 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                             title: `${material.code} - ${material.name}`,
                           });
                         }}
-                        className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 shrink-0"
+                        className="relative w-12 h-12 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-600 shrink-0 shadow-2xs group cursor-pointer"
+                        title={t.zoom}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={material.imageUrl}
-                          alt="Panel"
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={material.imageUrl} alt="Panel" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                       </div>
-                    )}
+                    ) : null}
+
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-xs text-slate-800 dark:text-slate-200">
-                          {material.code}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-black text-xs text-slate-900 dark:text-white bg-white dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-650">
+                          #{material.code}
                         </span>
-                        <span className="text-[11px] text-slate-500">
-                          ({material.type})
+                        <span className="text-xs text-slate-500 font-semibold truncate">
+                          {material.type}
                         </span>
                       </div>
-                      <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5">
                         {material.name}
                       </div>
                     </div>
                   </div>
 
-                  {/* Quantity pill */}
-                  <div className="text-center bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-1 rounded-xl border border-emerald-300 dark:border-emerald-800 shrink-0">
-                    <div className="text-[10px] font-bold text-emerald-800 dark:text-emerald-400">
-                      {isFinalized ? t.panelUnit : t.reserved}
+                  {/* Sheet count */}
+                  <div className="text-center bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">
+                      {isKu ? 'دانە' : 'Sheets'}
                     </div>
-                    <div className="text-sm font-black font-mono text-emerald-900 dark:text-emerald-200">
+                    <div className="text-base font-black font-mono text-emerald-700 dark:text-emerald-400">
                       {order.quantity}
                     </div>
                   </div>
                 </div>
 
-                {/* Attached Blueprint Thumbnail if available */}
-                {order.imageUrl && (
-                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 pt-1">
-                    <ImageIcon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span className="font-semibold">{t.attachedImage}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setZoomedImage({
-                          url: order.imageUrl!,
-                          title: `${order.client} - ${order.orderNumber}`,
-                        });
-                      }}
-                      className="text-xs text-emerald-600 dark:text-emerald-400 font-bold underline ms-auto"
-                    >
-                      {t.zoom}
-                    </button>
-                  </div>
-                )}
-
                 {/* Order Notes: Expansive, clean block */}
                 {order.notes && (
-                  <div className="pt-1">
+                  <div className="pt-0.5">
                     <ExpandableNotes notes={order.notes} variant="block" />
                   </div>
                 )}
 
-                {/* Footer Actions: Oversized 48px touch targets for workshop ergonomics */}
+                {/* Bottom Action Bar: Prominent 1-tap buttons for [وردەکاری / Details], [چاپ / Print Slip], and [تەواوکردن / Finalize] */}
                 <div
-                  className="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-750 flex-wrap gap-2"
+                  className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-750"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-center gap-2 flex-wrap">
+                  {/* 1. [وردەکاری / Details] */}
+                  <button
+                    type="button"
+                    onClick={() => onSelectOrderForDetails({ order, material })}
+                    className="flex-1 min-h-[48px] px-2.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4 text-slate-600 dark:text-slate-300 shrink-0" />
+                    <span>{isKu ? 'وردەکاری / Details' : 'Details / وردەکاری'}</span>
+                  </button>
+
+                  {/* 2. [چاپ / Print Slip] */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedPrintItemIds && selectedPrintItemIds.size > 0 && onTogglePrintQueueItem) {
+                        onTogglePrintQueueItem({ id: `order-${order.id}`, type: "order", material, order });
+                      } else {
+                        printCuttingSlip(order, material);
+                      }
+                    }}
+                    className="flex-1 min-h-[48px] px-2.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                    title={isKu ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip'}
+                  >
+                    <Printer className="w-4 h-4 shrink-0" />
+                    <span>{isKu ? 'چاپ / Print' : 'Print / چاپ'}</span>
+                  </button>
+
+                  {/* 3. [تەواوکردن / Finalize] */}
+                  {userPermissions.canEditPanels && !isFinalized ? (
                     <button
-                      onClick={() => onSelectOrderForDetails({ order, material })}
-                      className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-bold text-xs flex items-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                      type="button"
+                      onClick={() => {
+                        requestConfirm({
+                          title: t.finalize,
+                          message: t.finalizeOrderPrompt,
+                          confirmLabel: t.finalize,
+                          type: "success",
+                          onConfirm: () => finalizeOrder(material.id, order.id),
+                        });
+                      }}
+                      className="flex-1 min-h-[48px] px-2.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
                     >
-                      <Eye className="w-4 h-4" />
-                      <span>{t.viewDetails}</span>
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{isKu ? 'تەواوکردن / Finalize' : 'Finalize / تەواوکردن'}</span>
                     </button>
-
-                    {userPermissions.canEditPanels && !isFinalized && (
-                      <button
-                        onClick={() => {
-                          requestConfirm({
-                            title: t.finalize,
-                            message: t.finalizeOrderPrompt,
-                            confirmLabel: t.finalize,
-                            type: "success",
-                            onConfirm: () => finalizeOrder(material.id, order.id),
-                          });
-                        }}
-                        className="flex items-center gap-1.5 min-h-[48px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white font-bold text-xs shadow-2xs active:scale-95 transition-all cursor-pointer"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>{t.finalize}</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {/* Print Slip or Toggle Queue */}
-                    {(() => {
-                      const inQueue = selectedPrintItemIds?.has(`order-${order.id}`);
-                      return (
-                        <button
-                          onClick={() => {
-                            if (selectedPrintItemIds && selectedPrintItemIds.size > 0 && onTogglePrintQueueItem) {
-                              onTogglePrintQueueItem({ id: `order-${order.id}`, type: "order", material, order });
-                            } else {
-                              printCuttingSlip(order, material);
-                            }
-                          }}
-                          className={`min-w-[48px] min-h-[48px] p-2.5 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center cursor-pointer ${
-                            inQueue
-                              ? "bg-sky-100 text-sky-800 border-sky-400 dark:bg-sky-950 dark:text-sky-200"
-                              : "bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200"
-                          }`}
-                          title={inQueue ? "Remove from Print Queue" : (language === 'ku' ? 'چاپی پسوڵەی بڕین' : 'Print Cutting Slip')}
-                        >
-                          <Printer className="w-5 h-5" />
-                        </button>
-                      );
-                    })()}
-
-                    {/* Edit: Strictly unmounted unless canEditPanels */}
-                    {userPermissions.canEditPanels && (
-                      <button
-                        onClick={() => onOpenOrderModal(material.id, { materialId: material.id, order })}
-                        className="min-w-[48px] min-h-[48px] p-2.5 rounded-xl bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs active:scale-95 flex items-center justify-center cursor-pointer"
-                        title={t.edit}
-                      >
-                        <Edit2 className="w-5 h-5" />
-                      </button>
-                    )}
-
-                    {/* Delete: Strictly unmounted unless canDeletePanels */}
-                    {userPermissions.canDeletePanels && (
-                      <button
-                        onClick={() => {
-                          const confirmMsg = isFinalized
-                            ? t.confirmDeleteFinalizedOrder
-                            : t.confirmDeleteOrder;
-                          requestConfirm({
-                            title: t.delete,
-                            message: confirmMsg,
-                            confirmLabel: t.delete,
-                            type: "danger",
-                            onConfirm: () => deleteOrder(material.id, order.id),
-                          });
-                        }}
-                        className="min-w-[48px] min-h-[48px] p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 shadow-2xs active:scale-95 flex items-center justify-center cursor-pointer"
-                        title={t.delete}
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    )}
-                  </div>
+                  ) : (
+                    <div className="flex-1 min-h-[48px] px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 font-bold text-xs flex items-center justify-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{isKu ? 'تەواوکراوە' : 'Finalized'}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );

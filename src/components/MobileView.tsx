@@ -273,7 +273,7 @@ export const MobileView: React.FC<MobileViewProps> = ({
                     : "border-slate-200 dark:border-slate-700/80"
                 }`}
               >
-                {/* 1. Header: Photo Thumbnail, Code, Type, Name, Dimensions & Top Action Buttons */}
+                {/* 1. Header: Prominent Code (#101) + Panel Name & Decor */}
                 <div className="p-3.5 pb-3 flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     {/* Panel Image Thumbnail with Pan & Zoom */}
@@ -301,25 +301,20 @@ export const MobileView: React.FC<MobileViewProps> = ({
                     ) : null}
 
                     <div className="min-w-0 flex-1">
-                      {/* Code and Type Tags */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-black text-xs sm:text-sm text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-750 px-2.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-650">
-                          {mat.code}
+                      {/* Prominent Code (#101) and Decor */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-black text-sm sm:text-base text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-750 px-2.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-650 shadow-2xs">
+                          #{mat.code}
                         </span>
-                        <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-750 font-medium text-xs text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-650">
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 font-semibold text-xs text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                           {mat.type}
                         </span>
                       </div>
 
                       {/* Panel Name */}
-                      <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base mt-1 truncate">
+                      <h4 className="font-bold text-slate-900 dark:text-white text-base mt-1 truncate">
                         {mat.name}
                       </h4>
-
-                      {/* Dimensions */}
-                      <div className="font-mono text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {mat.dimensions.formatted}
-                      </div>
                     </div>
                   </div>
 
@@ -381,63 +376,54 @@ export const MobileView: React.FC<MobileViewProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Stock Deduction Dashboard: Large clear steppers & high-contrast badges */}
-                <div className="p-3 bg-slate-50/80 dark:bg-slate-850/60 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60">
-                  {/* On-hand Stock with Large Stepper Buttons (48px tap targets for workshop safety) */}
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                      {t.currentStock}:
-                    </span>
-                    {userPermissions.canEditPanels ? (
-                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xs">
-                        <button
-                          onClick={() => quickStepStock(mat.id, -1)}
-                          disabled={mat.availableStock === 0}
-                          className="min-w-[48px] min-h-[48px] w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 disabled:opacity-30 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center active:scale-90 transition-transform hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer"
-                          title="-1"
-                        >
-                          <Minus className="w-5 h-5" />
-                        </button>
-                        <span
-                          className={`font-black text-lg sm:text-xl min-w-[36px] text-center font-mono ${
-                            isOutOfStock ? "text-slate-600 dark:text-slate-400" : "text-emerald-800 dark:text-emerald-300"
-                          }`}
-                        >
-                          {mat.availableStock}
-                        </span>
-                        <button
-                          onClick={() => quickStepStock(mat.id, 1)}
-                          className="min-w-[48px] min-h-[48px] w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center active:scale-90 transition-transform hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer"
-                          title="+1"
-                        >
-                          <Plus className="w-5 h-5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <span
-                        className={`font-black text-base sm:text-lg font-mono px-2 ${
-                          isOutOfStock ? "text-slate-600 dark:text-slate-400" : "text-emerald-800 dark:text-emerald-300"
-                        }`}
-                      >
-                        {mat.availableStock}
-                      </span>
-                    )}
+                {/* 2. Card Body: Clean Horizontal Badge Strip (Available, Reserved, Dimensions) */}
+                <div className="p-3 bg-slate-50/80 dark:bg-slate-850/60 flex items-center justify-between gap-2 flex-wrap border-b border-slate-100 dark:border-slate-700/60">
+                  <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                    {/* Available (بەردەست) */}
+                    <div className={`px-2.5 py-1 rounded-xl border font-bold text-xs flex items-center gap-1 ${
+                      isOutOfStock
+                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                    }`}>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">{language === 'ku' ? 'بەردەست:' : 'Available:'}</span>
+                      <span className="font-mono text-sm">{mat.availableStock}</span>
+                    </div>
+
+                    {/* Reserved (حجزکراو) */}
+                    <div className="px-2.5 py-1 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 font-bold text-xs flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">{language === 'ku' ? 'حجزکراو:' : 'Reserved:'}</span>
+                      <span className="font-mono text-sm">{mat.allocatedStock}</span>
+                    </div>
+
+                    {/* Dimensions (L × W × T mm) */}
+                    <div className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400 font-sans">{language === 'ku' ? 'قەبارە:' : 'Dim:'}</span>
+                      <span>{mat.dimensions.formatted || `${mat.dimensions.length}×${mat.dimensions.width}×${mat.dimensions.thickness} mm`}</span>
+                    </div>
                   </div>
 
-                  {/* Out of Stock Pill or Reserved Count */}
-                  <div>
-                    {isOutOfStock ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 shadow-2xs">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>{t.outOfStockBadge}</span>
-                      </span>
-                    ) : mat.allocatedStock > 0 ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-sky-50 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 shadow-2xs">
-                        <Clock className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                        <span>{mat.allocatedStock} {t.reserved}</span>
-                      </span>
-                    ) : null}
-                  </div>
+                  {/* Quick Stepper for Stock Adjustment */}
+                  {userPermissions.canEditPanels && (
+                    <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => quickStepStock(mat.id, -1)}
+                        disabled={mat.availableStock === 0}
+                        className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 disabled:opacity-30 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center active:scale-90 transition-transform cursor-pointer"
+                        title="-1"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => quickStepStock(mat.id, 1)}
+                        className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-black flex items-center justify-center active:scale-90 transition-transform cursor-pointer"
+                        title="+1"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. Dedicated Notes Section (Clean full-width block, never squeezed!) */}
@@ -625,16 +611,16 @@ export const MobileView: React.FC<MobileViewProps> = ({
                   );
                 })()}
 
-                {/* 5. Card Footer: Large tap buttons for [دەستکاری / Edit] and [+ داواکاری / Reserve] */}
+                {/* 5. Card Footer: Full-width tap actions for [دەستکاری / Edit] and [+ داواکاری / New Order] */}
                 <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-750/80 flex items-center gap-2">
                   {userPermissions.canEditPanels && (
                     <button
                       type="button"
                       onClick={() => onOpenMaterialModal(mat)}
-                      className="flex-1 min-h-[48px] py-3 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-650 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-98 transition-all cursor-pointer"
+                      className="flex-1 min-h-[48px] py-3 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-650 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-98 transition-all cursor-pointer shadow-2xs"
                     >
                       <Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                      <span>{language === 'ku' ? 'دەستکاری' : 'Edit'}</span>
+                      <span>{language === 'ku' ? 'دەستکاری / Edit' : 'Edit / دەستکاری'}</span>
                     </button>
                   )}
 
@@ -646,7 +632,7 @@ export const MobileView: React.FC<MobileViewProps> = ({
                       className="flex-1 min-h-[48px] py-3 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition-all cursor-pointer"
                     >
                       <PackagePlus className="w-4 h-4" />
-                      <span>{language === 'ku' ? '+ داواکاری' : '+ Reserve'}</span>
+                      <span>{language === 'ku' ? '+ داواکاری / New Order' : '+ New Order / داواکاری'}</span>
                     </button>
                   )}
                 </div>

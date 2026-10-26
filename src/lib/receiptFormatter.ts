@@ -20,6 +20,8 @@ export function formatInvoiceReceipt(
   const clientName = (tx as any).client || tx.seller || (lang === 'ku' ? 'کڕیاری گشتی (General Customer)' : 'General Customer (کڕیاری گشتی)');
   const totalDebt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
   const paidNow = tx.amountPaidNow || 0;
+  const invoiceTotal = tx.totalAfterDiscount !== undefined ? tx.totalAfterDiscount : (tx.sellingAmount || 0);
+  const dateFormatted = new Date(tx.timestamp || Date.now()).toLocaleDateString();
 
   if (lang === 'ku') {
     const itemsList = (tx.items && tx.items.length > 0)

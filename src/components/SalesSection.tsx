@@ -4,6 +4,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import {
   Plus,
+  Minus,
   Trash2,
   Edit3,
   ReceiptText,
@@ -332,6 +333,23 @@ export const SalesSection: React.FC = () => {
     setPosDraft((prev) => ({
       ...prev,
       items: prev.items.filter((i) => i.id !== id),
+    }));
+  };
+
+  const handleUpdateLineItemQuantity = (id: string, delta: number) => {
+    setPosDraft((prev) => ({
+      ...prev,
+      items: prev.items.map((it) => {
+        if (it.id === id) {
+          const newQty = Math.max(1, it.quantity + delta);
+          return {
+            ...it,
+            quantity: newQty,
+            total: newQty * it.price,
+          };
+        }
+        return it;
+      }),
     }));
   };
 
@@ -1119,7 +1137,7 @@ export const SalesSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Desktop Business Header Inputs: Code, Customer, Phone, Legacy Bridge, Seller, Bank, Payment Method */}
+        {/* Desktop Business Header Inputs: Code, Customer, Phone, Legacy Bridge, Attachment, Seller, Bank, Payment Method */}
         <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -1140,9 +1158,9 @@ export const SalesSection: React.FC = () => {
               {isKu ? 'کڕیار / پسوولە بۆ (Customer)' : 'Customer / Client'}
             </label>
             <SearchableDropdown
-              options={savedClients}
+              options={clientOptions}
               value={posDraft.client}
-              onChange={(v) => setPosDraft({ ...posDraft, client: v })}
+              onChange={handleCustomerSelect}
               onAddNew={(v) => addToDropdownPresets('savedClients', v)}
               onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
               placeholder={isKu ? 'ناوی کڕیار بنووسە یان هەڵبژێرە...' : 'Select or type customer name...'}
@@ -1185,6 +1203,57 @@ export const SalesSection: React.FC = () => {
             />
           </div>
 
+          {/* Legacy Attachment Upload (Slip / Transfer Photo) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Paperclip className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                <span>{isKu ? 'هاوپێچ / Attachment (Slip / Transfer Photo)' : 'هاوپێچ / Attachment (Slip / Transfer Photo)'}</span>
+              </span>
+              {posDraft.images && posDraft.images.length > 0 && (
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                  {posDraft.images.length} {isKu ? 'هاوپێچ' : 'attached'}
+                </span>
+              )}
+            </label>
+            <div className="flex items-center gap-2">
+              <label className="flex-1 min-h-[42px] px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                <Paperclip className="w-4 h-4 text-slate-400" />
+                <span className="truncate">
+                  {posDraft.images && posDraft.images.length > 0
+                    ? (isKu ? 'زیادکردنی وێنەی تر' : 'Add Another Photo')
+                    : (isKu ? 'هەڵبژاردنی وەسڵی دەستی' : 'Upload Slip / Photo')}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleAttachmentUpload}
+                  className="hidden"
+                />
+              </label>
+              {posDraft.images && posDraft.images.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setZoomedImage({ url: posDraft.images[0], title: 'Attachment Slip' })}
+                    className="w-[42px] h-[42px] rounded-xl overflow-hidden border border-sky-400 dark:border-sky-600 relative group cursor-pointer shrink-0"
+                    title="Preview attachment"
+                  >
+                    <img src={posDraft.images[0]} alt="Attachment preview" className="w-full h-full object-cover" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPosDraft((prev) => ({ ...prev, images: [] }))}
+                    className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
+                    title="Remove attachment"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               {t.seller}
@@ -1217,7 +1286,7 @@ export const SalesSection: React.FC = () => {
             />
           </div>
 
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               {t.paymentType}
             </label>
@@ -1231,26 +1300,31 @@ export const SalesSection: React.FC = () => {
               allowDelete={!isViewer}
               clearable={true}
             />
-            {/* Distinct Selectable Payment Methods */}
-            <div className="pt-2 flex flex-wrap items-center gap-1.5">
-              {[
-                { label: isKu ? 'کاش' : 'Cash', value: 'کاش (Cash)', hint: isKu ? 'نەقد' : 'Standard Cash' },
-                { label: isKu ? 'قەرز' : 'Debt Sale', value: 'قەرز (Customer Debt)', hint: isKu ? 'قەرزی کڕیار' : 'Deferred terms' },
-                { label: isKu ? 'ڕەسیدی کڕیار' : 'Store Credit', value: 'ڕەسیدی کڕیار / پێشەکی (Store Credit)', hint: isKu ? 'پێشەکی' : 'Prepaid balance' },
-                { label: isKu ? 'حەواڵە / بانک' : 'Bank Transfer', value: 'حەواڵە / بانک (Bank / Transfer)', hint: isKu ? 'بانک' : 'FIB / Wire' },
-              ].map((pill) => {
-                const isSelected = posDraft.paymentType === pill.value || (pill.value.includes('کاش') && posDraft.paymentType === 'Cash (نەقد)');
+          </div>
+
+          {/* Bilingual Payment Method Pills (Desktop) */}
+          <div className="md:col-span-2 lg:col-span-4 pt-1">
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">
+              {isKu ? 'شێوازی پارەدان (Bilingual Payment Methods):' : 'Payment Method Selection:'}
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              {BILINGUAL_PAYMENT_PILLS.map((pill) => {
+                const isSelected =
+                  posDraft.paymentType === pill.value ||
+                  (pill.value.includes('Cash') && (posDraft.paymentType.includes('Cash') || posDraft.paymentType.includes('نەقد') || posDraft.paymentType.includes('کاش'))) ||
+                  (pill.value.includes('Debt') && (posDraft.paymentType.includes('Debt') || posDraft.paymentType.includes('قەرز'))) ||
+                  (pill.value.includes('Store Credit') && (posDraft.paymentType.includes('Store Credit') || posDraft.paymentType.includes('ڕەسید'))) ||
+                  (pill.value.includes('Bank') && (posDraft.paymentType.includes('Bank') || posDraft.paymentType.includes('حەواڵە')));
                 return (
                   <button
                     key={pill.value}
                     type="button"
                     onClick={() => handlePaymentMethodSelect(isSelected ? '' : pill.value)}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                       isSelected
                         ? 'bg-sky-600 border-sky-700 text-white shadow-xs scale-[1.02]'
                         : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
                     }`}
-                    title={pill.hint}
                   >
                     {pill.label}
                   </button>
@@ -1268,9 +1342,9 @@ export const SalesSection: React.FC = () => {
               {isKu ? 'کڕیار' : 'Customer'}
             </label>
             <SearchableDropdown
-              options={savedClients}
+              options={clientOptions}
               value={posDraft.client}
-              onChange={(v) => setPosDraft({ ...posDraft, client: v })}
+              onChange={handleCustomerSelect}
               onAddNew={(v) => addToDropdownPresets('savedClients', v)}
               onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
               placeholder={isKu ? 'ناوی کڕیار بنووسە یان هەڵبژێرە...' : 'Select or type customer name...'}
@@ -1297,19 +1371,19 @@ export const SalesSection: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. Payment Method */}
+          {/* 3. Payment Method (Standardized Bilingual Pills) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               {isKu ? 'شێوازی پارەدان' : t.paymentType}
             </label>
             <div className="grid grid-cols-2 gap-1.5">
-              {[
-                { label: isKu ? 'کاش' : 'Cash', value: 'کاش (Cash)' },
-                { label: isKu ? 'قەرز' : 'Debt Sale', value: 'قەرز (Customer Debt)' },
-                { label: isKu ? 'ڕەسیدی کڕیار' : 'Store Credit', value: 'ڕەسیدی کڕیار / پێشەکی (Store Credit)' },
-                { label: isKu ? 'حەواڵە / بانک' : 'Bank Transfer', value: 'حەواڵە / بانک (Bank / Transfer)' },
-              ].map((pill) => {
-                const isSelected = posDraft.paymentType === pill.value || (pill.value.includes('کاش') && posDraft.paymentType === 'Cash (نەقد)');
+              {BILINGUAL_PAYMENT_PILLS.map((pill) => {
+                const isSelected =
+                  posDraft.paymentType === pill.value ||
+                  (pill.value.includes('Cash') && (posDraft.paymentType.includes('Cash') || posDraft.paymentType.includes('نەقد') || posDraft.paymentType.includes('کاش'))) ||
+                  (pill.value.includes('Debt') && (posDraft.paymentType.includes('Debt') || posDraft.paymentType.includes('قەرز'))) ||
+                  (pill.value.includes('Store Credit') && (posDraft.paymentType.includes('Store Credit') || posDraft.paymentType.includes('ڕەسید'))) ||
+                  (pill.value.includes('Bank') && (posDraft.paymentType.includes('Bank') || posDraft.paymentType.includes('حەواڵە')));
                 return (
                   <button
                     key={pill.value}
@@ -1338,13 +1412,64 @@ export const SalesSection: React.FC = () => {
               <span>
                 {showMoreInvoiceDetails
                   ? (isKu ? '- شاردنەوەی وردەکاری زیاتر' : '- Hide More Details')
-                  : (isKu ? '+ وردەکاری زیاتری وەسڵ (ژمارەی دەستی، بانک، فرۆشیار)' : '+ More Invoice Details')}
+                  : (isKu ? '+ وردەکاری زیاتری وەسڵ (هاوپێچ، ژمارەی دەستی، بانک، فرۆشیار)' : '+ More Invoice Details (Attachment, Legacy Ref)')}
               </span>
               <ChevronDown className={`w-4 h-4 transition-transform ${showMoreInvoiceDetails ? 'rotate-180' : ''}`} />
             </button>
 
             {showMoreInvoiceDetails && (
               <div className="p-3.5 mt-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in duration-150">
+                {/* Legacy Attachment Upload on Mobile */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Paperclip className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                      <span>{isKu ? 'هاوپێچ / Attachment (Slip / Transfer Photo)' : 'هاوپێچ / Attachment (Slip / Transfer Photo)'}</span>
+                    </span>
+                    {posDraft.images && posDraft.images.length > 0 && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        {posDraft.images.length} {isKu ? 'هاوپێچ' : 'attached'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="flex-1 h-11 px-3.5 text-xs rounded-xl bg-white dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 cursor-pointer">
+                      <Paperclip className="w-4 h-4 text-slate-400" />
+                      <span className="truncate">
+                        {posDraft.images && posDraft.images.length > 0
+                          ? (isKu ? 'زیادکردنی وێنەی تر' : 'Add Another Photo')
+                          : (isKu ? 'هەڵبژاردنی وەسڵی دەستی' : 'Upload Slip / Photo')}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleAttachmentUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {posDraft.images && posDraft.images.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setZoomedImage({ url: posDraft.images[0], title: 'Attachment Slip' })}
+                          className="w-11 h-11 rounded-xl overflow-hidden border border-sky-400 shrink-0 cursor-pointer"
+                          title="Preview attachment"
+                        >
+                          <img src={posDraft.images[0]} alt="Attachment preview" className="w-full h-full object-cover" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPosDraft((prev) => ({ ...prev, images: [] }))}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer"
+                          title="Remove attachment"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Invoice Code */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -1421,7 +1546,7 @@ export const SalesSection: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5">
             <div>
               <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                 {isKu ? 'جۆر' : 'Type'}
@@ -1439,7 +1564,8 @@ export const SalesSection: React.FC = () => {
               />
             </div>
 
-            <div>
+            {/* Product / Door expanded to 2 columns (Requirement 1) */}
+            <div className="sm:col-span-2 lg:col-span-2">
               <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                 {isKu ? 'کاڵا / دەرگا' : 'Product / Door'}
               </label>
@@ -1456,12 +1582,13 @@ export const SalesSection: React.FC = () => {
               />
             </div>
 
+            {/* Selling Type using standardized bilingual options (Requirement 3) */}
             <div>
               <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                 {isKu ? 'جۆری فرۆشتن' : 'Selling Type'}
               </label>
               <SearchableDropdown
-                options={savedSellingTypes}
+                options={sellingTypeOptions}
                 value={posDraft.rowSellingType}
                 onChange={(v) => setPosDraft({ ...posDraft, rowSellingType: v })}
                 onAddNew={(v) => addToDropdownPresets('savedSellingTypes', v)}
@@ -1587,7 +1714,25 @@ export const SalesSection: React.FC = () => {
             />
           </div>
 
-          {/* Line 2 (Grid 2-col): Quantity + Unit Price with h-12 */}
+          {/* Line 2: Selling Type Dropdown (Bilingual) */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              {isKu ? 'جۆری فرۆشتن' : 'Selling Type'}
+            </label>
+            <SearchableDropdown
+              options={sellingTypeOptions}
+              value={posDraft.rowSellingType}
+              onChange={(v) => setPosDraft({ ...posDraft, rowSellingType: v })}
+              onAddNew={(v) => addToDropdownPresets('savedSellingTypes', v)}
+              onDeleteOption={(v) => removeFromDropdownPresets('savedSellingTypes', v)}
+              placeholder={isKu ? 'جۆری فرۆشتن هەڵبژێرە...' : 'Select selling type...'}
+              allowDelete={!isViewer}
+              compact={true}
+              clearable={true}
+            />
+          </div>
+
+          {/* Line 3 (Grid 2-col): Quantity + Unit Price with h-12 */}
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
@@ -1650,7 +1795,7 @@ export const SalesSection: React.FC = () => {
             </div>
           )}
 
-          {/* Line 3: Total display + Add Item button */}
+          {/* Line 4: Total display + Add Item button */}
           <div className="pt-1 flex items-center gap-2">
             <div className="flex-1 px-3 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <span className="text-xs text-slate-500 font-medium">{isKu ? 'کۆی کاڵا:' : 'Line Total:'}</span>
@@ -1743,32 +1888,65 @@ export const SalesSection: React.FC = () => {
               </table>
             </div>
 
-            {/* Mobile Cards */}
-            <div className="block md:hidden space-y-2">
+            {/* Mobile Cards: Independent card-style line item with rounded borders, a clear quantity stepper (- Qty +), and unit price */}
+            <div className="block md:hidden space-y-2.5">
               {posDraft.items.map((item) => (
                 <div
                   key={item.id}
-                  className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2.5 shadow-2xs"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs space-y-2.5"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-slate-900 dark:text-white text-sm truncate">
-                      {item.product}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 dark:text-white text-sm sm:text-base truncate">
+                        {item.product}
+                      </div>
+                      <div className="text-xs text-slate-500 font-medium">
+                        {item.type} • {isKu ? 'نرخی یەکە:' : 'Unit:'} <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formatMoney(item.price, posDraft.activeCurrency)}</span>
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500 font-mono mt-0.5">
-                      {item.quantity} × {formatMoney(item.price, posDraft.activeCurrency)} ={' '}
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        {formatMoney(item.total, posDraft.activeCurrency)}
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLineItem(item.id)}
+                      className="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                      title={isKu ? 'سڕینەوە' : 'Remove'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Quantity Stepper & Line Total */}
+                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-750">
+                    <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-850 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateLineItemQuantity(item.id, -1)}
+                        disabled={item.quantity <= 1}
+                        className="w-9 h-9 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-30 flex items-center justify-center font-black active:scale-90 transition-transform cursor-pointer shadow-2xs"
+                        title="-1"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="font-mono font-black text-sm px-2.5 text-slate-900 dark:text-white text-center min-w-[28px]">
+                        {item.quantity}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateLineItemQuantity(item.id, 1)}
+                        className="w-9 h-9 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-black active:scale-90 transition-transform cursor-pointer shadow-2xs"
+                        title="+1"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase font-bold text-slate-400">{isKu ? 'کۆی کاڵا' : 'Line Total'}</div>
+                      <div className="font-mono font-black text-base text-slate-950 dark:text-white">
+                        {formatMoney(item.total, posDraft.activeCurrency)}
+                      </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteLineItem(item.id)}
-                    className="w-10 h-10 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                    title={isKu ? 'سڕینەوە' : 'Remove'}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
             </div>
@@ -1962,6 +2140,13 @@ export const SalesSection: React.FC = () => {
             />
           </div>
         </div>
+
+        {/* Prominent Red Total Debt Banner */}
+        {combinedTotalDebt > 0 && (
+          <div className="bg-rose-600 text-white font-bold p-3 rounded-xl text-center text-lg shadow-md animate-in fade-in duration-200">
+            {isKu ? 'کۆی قەرز / Total Debt' : 'Total Debt / کۆی قەرز'}: {formatMoney(combinedTotalDebt, posDraft.activeCurrency)}
+          </div>
+        )}
 
         {/* NET BALANCES & ACTIONS ROW */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50">
@@ -2271,7 +2456,7 @@ export const SalesSection: React.FC = () => {
                         </td>
                         <td className="px-3.5 py-3">
                           <div className="font-bold text-slate-900 dark:text-white">
-                            {tx.client || 'کڕیاری گشتی'}
+                            {tx.client || 'کڕیاری گشتی (General Customer)'}
                           </div>
                           {tx.clientPhone ? (
                             <a
@@ -2351,6 +2536,14 @@ export const SalesSection: React.FC = () => {
                         </td>
                         <td className="px-3.5 py-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setInspectingTx(tx)}
+                              className="p-2 text-slate-500 hover:text-sky-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                              title={isKu ? 'بینینی وردەکاری و هاوپێچ' : 'Inspect Invoice & Attachments'}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => setPrintingTx(tx)}
@@ -2508,6 +2701,27 @@ export const SalesSection: React.FC = () => {
                                 Notes: {tx.notes}
                               </p>
                             )}
+                            {tx.images && tx.images.length > 0 && (
+                              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                  <Paperclip className="w-3.5 h-3.5 text-sky-500" />
+                                  <span>{isKu ? 'هاوپێچەکانی وەسڵ (وەسڵی دەستی / پارەدان):' : 'Attached Paper Slips / Receipts:'}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {tx.images.map((img, i) => (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() => setZoomedImage({ url: img, title: 'Attachment Slip' })}
+                                      className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-2xs hover:scale-105 transition-transform cursor-pointer"
+                                      title="Preview full image"
+                                    >
+                                      <img src={img} alt="Slip" className="w-full h-full object-cover" />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}
@@ -2565,233 +2779,102 @@ export const SalesSection: React.FC = () => {
           ) : (
             filteredTransactions.map((tx) => {
               const txCur = tx.currency || 'USD';
-              const isExpanded = expandedTxIds.has(tx.id);
               const isDebt = (tx.combinedTotalDebt || tx.amountOwed || 0) > 0;
 
               return (
                 <div
                   key={tx.id}
-                  className="p-4 rounded-3xl bg-white dark:bg-slate-850 border-2 border-slate-200 dark:border-slate-750 shadow-xs space-y-3"
+                  className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs space-y-3"
                 >
-                  {/* Top Bar: Code, Date & Status */}
+                  {/* Top row: Invoice #, Date, and Client Name */}
                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-750 pb-2.5">
-                    <div>
-                      <span className="font-mono font-black text-sm text-sky-700 dark:text-sky-400">
-                        #{tx.code || tx.id.slice(-6)}
-                      </span>
-                      <span className="text-xs text-slate-400 ms-2">
-                        {new Date(tx.timestamp).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <span
-                      className={`px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider ${
-                        tx.status === 'completed'
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300'
-                          : tx.status === 'partial'
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300'
-                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300'
-                      }`}
-                    >
-                      {tx.status}
-                    </span>
-                  </div>
-
-                  {/* Customer (کڕیار) & Direct Phone Dial */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-750 text-xs">
-                    <div>
-                      <div className="text-[10px] text-slate-400 uppercase font-bold">{isKu ? 'کڕیار' : 'Customer'}</div>
-                      <div className="font-bold text-slate-900 dark:text-white text-sm">
-                        {tx.client || 'کڕیاری گشتی'}
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 dark:text-white text-sm sm:text-base truncate">
+                        {tx.client || (isKu ? 'کڕیاری گشتی' : 'General Customer')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mt-0.5">
+                        <span className="font-bold text-sky-700 dark:text-sky-400">#{tx.code || tx.id.slice(-6)}</span>
+                        <span>•</span>
+                        <span>{new Date(tx.timestamp).toLocaleDateString()}</span>
                       </div>
                     </div>
                     {tx.clientPhone ? (
                       <a
                         href={`tel:${tx.clientPhone}`}
-                        className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-mono font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Click to call customer directly"
+                        className="h-9 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-mono font-bold flex items-center gap-1 shrink-0"
                       >
                         <Phone className="w-3.5 h-3.5" />
                         <span>{tx.clientPhone}</span>
                       </a>
-                    ) : (
-                      <span className="text-slate-400 text-xs">{isKu ? 'بێ ژمارە' : 'No Phone'}</span>
-                    )}
+                    ) : null}
                   </div>
 
-                  {/* Accounting Tags: Legacy Ref & FunderMax Batch Ref */}
-                  {(tx.legacyInvoiceRef || tx.fundermaxBatchRef) && (
-                    <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {tx.legacyInvoiceRef && (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-bold"
-                          title={isKu ? 'ژمارەی تۆماری کۆن' : 'Legacy Invoice Ref'}
-                        >
-                          <Hash className="w-2.5 h-2.5" />
-                          <span>{isKu ? 'تۆماری کۆن:' : 'Legacy Ref:'} {tx.legacyInvoiceRef}</span>
-                        </span>
-                      )}
-                      {tx.fundermaxBatchRef && (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold"
-                          title="Batch Ref"
-                        >
-                          <PackageCheck className="w-2.5 h-2.5" />
-                          <span>BATCH: {tx.fundermaxBatchRef}</span>
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Summary / Items Preview */}
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs space-y-1.5">
-                    <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between">
-                      <span>{tx.material || tx.panelType}</span>
-                      <span className="font-mono text-slate-500 font-medium">
-                        {tx.quantity} {tx.unit} ({tx.sellingType})
-                      </span>
-                    </div>
-                    {tx.items && tx.items.length > 0 && isExpanded && (
-                      <div className="pt-2 border-t border-slate-200 dark:border-slate-750 space-y-1.5">
-                        {tx.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-[11px] py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                            <div>
-                              <span className="text-slate-800 dark:text-slate-200 font-bold">{item.product}</span>
-                              <div className="text-slate-400 text-[10px]">
-                                {item.quantity} units @ {formatMoney(item.price, txCur)}
-                                {item.fundermaxBatchRef && (isKu ? ` • وەجبە: ${item.fundermaxBatchRef}` : ` • Batch: ${item.fundermaxBatchRef}`)}
-                              </div>
-                            </div>
-                            <span className="font-mono font-bold text-slate-900 dark:text-white">
-                              {formatMoney(item.total, txCur)}
-                            </span>
-                          </div>
-                        ))}
+                  {/* Middle row: Net Total and Payment Status badge (Paid, Partial, or Debt) */}
+                  <div className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-850 p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
+                        {isKu ? 'کۆی گشتی' : 'Net Total'}
                       </div>
-                    )}
-                    {tx.notes && (
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 italic pt-1 border-t border-slate-200/60 dark:border-slate-800">
-                        {tx.notes}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* High Contrast Financial Grid: Paid vs Remaining Debt */}
-                  <div className="grid grid-cols-3 gap-2 text-center p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800">
-                    <div className="p-1">
-                      <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">{isKu ? 'کۆی گشتی' : 'Net Total'}</div>
-                      <div className="font-mono font-black text-xs sm:text-sm text-slate-950 dark:text-white mt-0.5">
+                      <div className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-white">
                         {formatMoney(tx.totalAfterDiscount, txCur)}
                       </div>
                     </div>
-                    <div className="p-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
-                      <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">{isKu ? 'پارەی دراو' : 'Paid'}</div>
-                      <div className="font-mono font-black text-xs sm:text-sm text-emerald-700 dark:text-emerald-400 mt-0.5">
-                        {formatMoney(tx.amountPaidNow, txCur)}
-                      </div>
-                    </div>
-                    <div className={`p-1 rounded-xl border ${isDebt ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'}`}>
-                      <div className={`text-[10px] uppercase font-bold ${isDebt ? 'text-rose-700 dark:text-rose-300' : 'text-slate-400'}`}>{isKu ? 'قەرزی ماوە' : 'Debt'}</div>
-                      <div className={`font-mono font-black text-xs sm:text-sm mt-0.5 ${isDebt ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
-                        {isDebt ? formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur) : '0'}
-                      </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider ${
+                          tx.status === 'completed'
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                            : tx.status === 'partial'
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                        }`}
+                      >
+                        {tx.status === 'completed'
+                          ? (isKu ? 'دراوە (Paid)' : 'Paid')
+                          : tx.status === 'partial'
+                          ? (isKu ? 'بەشێک (Partial)' : 'Partial')
+                          : (isKu ? 'قەرز (Debt)' : 'Debt')}
+                      </span>
+                      {isDebt && (
+                        <span className="font-mono text-xs font-bold text-rose-600 dark:text-rose-400">
+                          ({formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)})
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Oversized Tactile Action Buttons (Min 48px height) */}
-                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  {/* Bottom row: Single tap to open full invoice inspection, with quick-share buttons (WhatsApp, Print) neatly aligned without line-wrapping */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setInspectingTx(tx)}
+                      className="flex-1 min-h-[48px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer truncate"
+                      title={isKu ? 'وردەکاری پسوولە' : 'Inspect Invoice'}
+                    >
+                      <Eye className="w-4 h-4 text-slate-600 dark:text-slate-300 shrink-0" />
+                      <span className="truncate">{isKu ? 'وردەکاری پسوولە' : 'Inspect'}</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setPrintingTx(tx)}
-                      className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 flex-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      className="min-h-[48px] px-3.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
                       title="Print Invoice Slip"
                     >
-                      <Printer className="w-4 h-4" />
+                      <Printer className="w-4 h-4 shrink-0" />
                       <span>{isKu ? 'چاپ' : 'Print'}</span>
                     </button>
-                    <div className="min-h-[48px] px-1 bg-slate-100 dark:bg-slate-750 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-0.5 text-xs font-mono font-bold shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setReceiptShareLang('ku')}
-                        className={`h-[40px] px-2 rounded-xl transition cursor-pointer ${
-                          receiptShareLang === 'ku'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'text-slate-600 dark:text-slate-300'
-                        }`}
-                        title="Kurdish Receipt"
-                      >
-                        کو
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setReceiptShareLang('en')}
-                        className={`h-[40px] px-2 rounded-xl transition cursor-pointer ${
-                          receiptShareLang === 'en'
-                            ? 'bg-sky-600 text-white shadow-xs'
-                            : 'text-slate-600 dark:text-slate-300'
-                        }`}
-                        title="English Receipt"
-                      >
-                        EN
-                      </button>
-                    </div>
+
                     <button
                       type="button"
                       onClick={() => handleWhatsAppShare(tx)}
-                      className="min-h-[48px] px-3 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
-                      title={receiptShareLang === 'ku' ? 'ناردن بۆ وەتسئەپ (کوردی)' : 'Send WhatsApp (English)'}
+                      className="min-h-[48px] px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
+                      title={receiptShareLang === 'ku' ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
                     >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>{receiptShareLang === 'ku' ? 'وەتسئەپ' : 'WhatsApp'}</span>
+                      <MessageCircle className="w-4 h-4 shrink-0" />
+                      <span>WhatsApp</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleEmailShare(tx)}
-                      className="min-h-[48px] px-3 py-2.5 rounded-2xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
-                      title={receiptShareLang === 'ku' ? 'ناردن بە ئیمەیڵ (کوردی)' : 'Send Email (English)'}
-                    >
-                      <Mail className="w-4 h-4" />
-                      <span>{receiptShareLang === 'ku' ? 'ئیمەیڵ' : 'Email'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleExpandTx(tx.id)}
-                      className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
-                      title="Expand items"
-                    >
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      <span className="text-[11px]">{isExpanded ? (isKu ? 'شاردنەوە' : 'Hide') : (isKu ? 'کاڵاکان' : 'Items')}</span>
-                    </button>
-                    {userPermissions.canEditSales && (
-                      <button
-                        type="button"
-                        onClick={() => handleEditTx(tx)}
-                        className="min-w-[48px] min-h-[48px] rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
-                        title="Edit Invoice"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                    )}
-                    {userPermissions.canDeleteSales && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          requestConfirm({
-                            title: isKu ? 'سڕینەوەی پسوولە' : 'Delete Sales Invoice',
-                            message: isKu ? 'ئایا دڵنیایت لە سڕینەوەی ئەم پسوولەیە؟' : `Are you sure you want to delete invoice ${tx.code || tx.id}?`,
-                            type: 'danger',
-                            confirmLabel: isKu ? 'سڕینەوە' : 'Delete',
-                            cancelLabel: isKu ? 'پەشیمانبوونەوە' : 'Cancel',
-                            onConfirm: () => {
-                              deleteTransaction(tx.id);
-                            },
-                          });
-                        }}
-                        className="min-w-[48px] min-h-[48px] rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
-                        title="Delete Invoice"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -2839,6 +2922,230 @@ export const SalesSection: React.FC = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* INVOICE DETAILS INSPECTION MODAL (Requirement 2) */}
+      {inspectingTx && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setInspectingTx(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-sky-500" />
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                  {isKu ? 'وردەکاری پسوولە' : 'Invoice Details'} (#{inspectingTx.code || inspectingTx.id.slice(-6)})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingTx(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Header Summary Info */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-400 block">{isKu ? 'کڕیار:' : 'Customer:'}</span>
+                <span className="font-bold text-slate-900 dark:text-white text-sm">
+                  {inspectingTx.client || 'کڕیاری گشتی (General Customer)'}
+                </span>
+                {inspectingTx.clientPhone && (
+                  <div className="font-mono text-sky-600 dark:text-sky-400 text-[11px] mt-0.5">
+                    {inspectingTx.clientPhone}
+                  </div>
+                )}
+              </div>
+              <div>
+                <span className="text-slate-400 block">{isKu ? 'بەروار:' : 'Date:'}</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {new Date(inspectingTx.timestamp).toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">{isKu ? 'شێوازی پارەدان:' : 'Payment Method:'}</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {inspectingTx.paymentType || inspectingTx.bank || '—'}
+                </span>
+              </div>
+              {inspectingTx.legacyInvoiceRef && (
+                <div>
+                  <span className="text-slate-400 block">{isKu ? 'تۆماری کۆن / پسوولەی دەستی:' : 'Legacy Invoice Ref:'}</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                    {inspectingTx.legacyInvoiceRef}
+                  </span>
+                </div>
+              )}
+              {inspectingTx.seller && (
+                <div>
+                  <span className="text-slate-400 block">{isKu ? 'فرۆشیار:' : 'Seller:'}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {inspectingTx.seller}
+                  </span>
+                </div>
+              )}
+              {inspectingTx.bank && (
+                <div>
+                  <span className="text-slate-400 block">{isKu ? 'قاسە / بانک:' : 'Bank / Drawer:'}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {inspectingTx.bank}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Line Items Breakdown */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                {isKu ? 'کاڵا و بابەتەکان' : 'Purchased Items'}
+              </h4>
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold uppercase">
+                    <tr>
+                      <th className="px-3 py-2">{isKu ? 'کاڵا' : 'Item'}</th>
+                      <th className="px-3 py-2 text-center">{isKu ? 'بڕ' : 'Qty'}</th>
+                      <th className="px-3 py-2 text-right">{isKu ? 'نرخ' : 'Price'}</th>
+                      <th className="px-3 py-2 text-right">{isKu ? 'کۆی کاڵا' : 'Total'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                    {inspectingTx.items && inspectingTx.items.length > 0 ? (
+                      inspectingTx.items.map((it, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-3 py-2 text-slate-900 dark:text-white font-semibold">
+                            {it.product}
+                            {it.type && <span className="text-slate-400 font-normal ms-1">({it.type})</span>}
+                          </td>
+                          <td className="px-3 py-2 text-center font-mono">{it.quantity}</td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            {formatMoney(it.price, inspectingTx.currency || 'USD')}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
+                            {formatMoney(it.total, inspectingTx.currency || 'USD')}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="px-3 py-2 text-slate-900 dark:text-white font-semibold">
+                          {inspectingTx.material || inspectingTx.panelType}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono">{inspectingTx.quantity}</td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          {formatMoney(inspectingTx.sellingAmount, inspectingTx.currency || 'USD')}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
+                          {formatMoney(inspectingTx.totalAfterDiscount || inspectingTx.sellingAmount, inspectingTx.currency || 'USD')}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
+              <div className="p-1.5">
+                <span className="text-[10px] text-slate-500 uppercase font-bold block">{isKu ? 'کۆی گشتی' : 'Gross Total'}</span>
+                <span className="font-mono font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                  {formatMoney(inspectingTx.sellingAmount, inspectingTx.currency || 'USD')}
+                </span>
+              </div>
+              <div className="p-1.5">
+                <span className="text-[10px] text-slate-500 uppercase font-bold block">{isKu ? 'داشکاندن' : 'Discount'}</span>
+                <span className="font-mono font-bold text-xs sm:text-sm text-amber-600 dark:text-amber-400">
+                  {formatMoney(inspectingTx.discountDollars || 0, inspectingTx.currency || 'USD')}
+                </span>
+              </div>
+              <div className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
+                <span className="text-[10px] text-emerald-700 dark:text-emerald-300 uppercase font-bold block">{isKu ? 'دراوە' : 'Paid Now'}</span>
+                <span className="font-mono font-black text-xs sm:text-sm text-emerald-700 dark:text-emerald-400">
+                  {formatMoney(inspectingTx.amountPaidNow || 0, inspectingTx.currency || 'USD')}
+                </span>
+              </div>
+              <div className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60">
+                <span className="text-[10px] text-rose-700 dark:text-rose-300 uppercase font-bold block">{isKu ? 'قەرزی ماوە' : 'Order Debt'}</span>
+                <span className="font-mono font-black text-xs sm:text-sm text-rose-700 dark:text-rose-400">
+                  {formatMoney(inspectingTx.amountOwed || 0, inspectingTx.currency || 'USD')}
+                </span>
+              </div>
+            </div>
+
+            {/* Red Debt Banner if remaining debt exists */}
+            {(inspectingTx.combinedTotalDebt || inspectingTx.amountOwed || 0) > 0 && (
+              <div className="bg-rose-600 text-white font-bold p-3 rounded-lg text-lg text-center shadow-md">
+                {isKu ? 'کۆی قەرز / Total Combined Debt' : 'Total Combined Debt / کۆی قەرز'}: {formatMoney(inspectingTx.combinedTotalDebt || inspectingTx.amountOwed || 0, inspectingTx.currency || 'USD')}
+              </div>
+            )}
+
+            {/* Attached Slips / Receipts Section */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Paperclip className="w-4 h-4 text-sky-500" />
+                  <span>{isKu ? 'هاوپێچەکان (وەسڵی دەستی / پارەدان)' : 'Attached Slips / Photos (هاوپێچ)'}</span>
+                </div>
+                {inspectingTx.images && inspectingTx.images.length > 0 && (
+                  <span className="text-[10px] text-slate-400 font-mono font-bold">
+                    {inspectingTx.images.length} {isKu ? 'وێنە' : 'slips'}
+                  </span>
+                )}
+              </div>
+              {inspectingTx.images && inspectingTx.images.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                  {inspectingTx.images.map((img, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setZoomedImage({ url: img, title: 'Attachment Slip' })}
+                      className="group relative aspect-4/3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xs hover:border-sky-500 transition-all cursor-pointer"
+                      title="Click to preview fullscreen"
+                    >
+                      <img src={img} alt={`Slip ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold">
+                        {isKu ? 'گەورەکردن' : 'Zoom'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 italic pt-1">
+                  {isKu ? 'هیچ وێنە یان وەسڵێکی دەستی هاوپێچ نەکراوە.' : 'No attached slips or receipts for this invoice.'}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setInspectingTx(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+              >
+                {isKu ? 'داخستن' : 'Close'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrintingTx(inspectingTx);
+                  setInspectingTx(null);
+                }}
+                className="px-4 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>{isKu ? 'چاپکردنی وەسڵ' : 'Print Invoice'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -136,10 +136,10 @@ Bako's Master System`;
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 no-print print:hidden select-none"
     >
       <div
-        className="bg-white dark:bg-slate-850 rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-200 dark:border-slate-750 w-full max-w-lg overflow-hidden flex flex-col max-h-[85dvh] sm:max-h-[92vh] pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200"
+        className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-850 rounded-t-2xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-200 dark:border-slate-750 w-full max-w-lg overflow-y-auto max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Mobile Pull Pill Indicator */}
+        {/* Mobile Pull Pill Drag Handle Indicator */}
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
         {/* Modal Top Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-slate-50 to-slate-100/70 dark:from-slate-800 dark:to-slate-850 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
