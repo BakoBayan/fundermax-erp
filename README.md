@@ -1,4 +1,4 @@
-# Fundermax Logistics ERP
+# Bako's Master System | Fundermax Logistics ERP
 
 A cloud-native, mobile-first enterprise resource planning system designed to manage high-value physical logistics, cross-department tracking, and automated supplier communication.
 
