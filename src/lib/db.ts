@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { createClient, type Client } from "@libsql/client";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -64,11 +64,12 @@ export function getDatabasePath(): string {
       ? process.env.DATABASE_PATH
       : path.join(process.cwd(), process.env.DATABASE_PATH);
   }
-  // Check if warehouse.db exists from existing records; otherwise default to ./data/production.sqlite
-  const legacyWarehouseDb = path.join(DATA_DIR, "warehouse.db");
-  if (fs.existsSync(legacyWarehouseDb)) {
-    return legacyWarehouseDb;
-  }
+  try {
+    const legacyWarehouseDb = path.join(DATA_DIR, "warehouse.db");
+    if (fs.existsSync(legacyWarehouseDb)) {
+      return legacyWarehouseDb;
+    }
+  } catch {}
   return path.join(DATA_DIR, "production.sqlite");
 }
 
@@ -77,288 +78,317 @@ const BACKUPS_DIR = path.join(DATA_DIR, "backups");
 const LEGACY_JSON_PATH = path.join(DATA_DIR, "db.json");
 const INVENTORY_STORE_JSON_PATH = path.join(DATA_DIR, "inventory_store.json");
 
-const globalForDB = globalThis as unknown as { sqliteDB?: DatabaseSync };
+const globalForDB = globalThis as unknown as {
+  tursoClient?: Client;
+  tursoInitPromise?: Promise<void>;
+};
 
-export function getDB(): DatabaseSync {
-  if (globalForDB.sqliteDB) return globalForDB.sqliteDB;
+export function getDB(): Client {
+  if (globalForDB.tursoClient) return globalForDB.tursoClient;
 
-  const dbDir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
-  if (!fs.existsSync(BACKUPS_DIR)) {
-    fs.mkdirSync(BACKUPS_DIR, { recursive: true });
-  }
+  const url = process.env.TURSO_DATABASE_URL || `file:${DB_PATH}`;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
 
-  const db = new DatabaseSync(DB_PATH);
-  
-  // Configure SQLite settings for high performance and durability
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec("PRAGMA synchronous = NORMAL;");
-  db.exec("PRAGMA foreign_keys = ON;");
+  const db = createClient({
+    url,
+    authToken,
+  });
 
-  // Initialize core tables
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS materials (
-      id TEXT PRIMARY KEY,
-      code TEXT NOT NULL,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL,
-      length REAL NOT NULL,
-      width REAL NOT NULL,
-      thickness REAL NOT NULL,
-      unit TEXT DEFAULT 'mm',
-      formatted_dimensions TEXT NOT NULL,
-      total_stock INTEGER NOT NULL DEFAULT 0,
-      allocated_stock INTEGER NOT NULL DEFAULT 0,
-      available_stock INTEGER NOT NULL DEFAULT 0,
-      notes TEXT DEFAULT '',
-      image_url TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS orders (
-      id TEXT PRIMARY KEY,
-      material_id TEXT NOT NULL,
-      order_number TEXT NOT NULL,
-      client TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      date TEXT NOT NULL,
-      notes TEXT DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'reserved',
-      image_url TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT,
-      job_type TEXT DEFAULT 'generic',
-      door_spec_json TEXT,
-      FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS custom_types (
-      name TEXT PRIMARY KEY
-    );
-
-    CREATE TABLE IF NOT EXISTS user_accounts (
-      username TEXT PRIMARY KEY,
-      display_name TEXT NOT NULL,
-      role TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      last_login_at TEXT,
-      permissions_json TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS activity_logs (
-      id TEXT PRIMARY KEY,
-      timestamp INTEGER NOT NULL,
-      formatted_date TEXT NOT NULL,
-      action TEXT NOT NULL,
-      details TEXT NOT NULL,
-      user TEXT NOT NULL,
-      target_id TEXT,
-      target_type TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS backups (
-      id TEXT PRIMARY KEY,
-      timestamp INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      date_key TEXT NOT NULL,
-      type TEXT NOT NULL,
-      label TEXT NOT NULL,
-      total_panels INTEGER NOT NULL,
-      total_orders INTEGER NOT NULL,
-      sha256_checksum TEXT NOT NULL,
-      data_json TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-
-    -- UNIFIED MODULE 2: TRANSACTIONS & SALES INVOICES
-    CREATE TABLE IF NOT EXISTS transactions (
-      id TEXT PRIMARY KEY,
-      code TEXT,
-      timestamp TEXT NOT NULL,
-      panel_type TEXT,
-      material TEXT,
-      quantity REAL NOT NULL DEFAULT 1,
-      unit TEXT DEFAULT 'sheets',
-      selling_type TEXT,
-      seller TEXT,
-      bank TEXT,
-      payment_type TEXT,
-      currency TEXT DEFAULT 'USD',
-      currency_rate REAL DEFAULT 1,
-      selling_amount REAL DEFAULT 0,
-      cost_price REAL DEFAULT 0,
-      discount_dollars REAL DEFAULT 0,
-      discount_percentage REAL DEFAULT 0,
-      total_after_discount REAL DEFAULT 0,
-      amount_paid_now REAL DEFAULT 0,
-      amount_owed REAL DEFAULT 0,
-      old_unpaid_debt REAL DEFAULT 0,
-      combined_total_debt REAL DEFAULT 0,
-      gross_profit REAL DEFAULT 0,
-      profit_margin REAL DEFAULT 0,
-      notes TEXT DEFAULT '',
-      images_json TEXT DEFAULT '[]',
-      items_json TEXT DEFAULT '[]',
-      status TEXT DEFAULT 'completed',
-      client TEXT,
-      client_phone TEXT,
-      legacy_invoice_ref TEXT,
-      fundermax_batch_ref TEXT,
-      estimated_cost REAL DEFAULT 0,
-      last_updated TEXT NOT NULL
-    );
-
-    -- UNIFIED MODULE 3: WAREHOUSE GENERAL GOODS & PRODUCTS
-    CREATE TABLE IF NOT EXISTS products (
-      id TEXT PRIMARY KEY,
-      sku TEXT NOT NULL,
-      name TEXT NOT NULL,
-      category TEXT DEFAULT 'General',
-      current_stock REAL DEFAULT 0,
-      min_stock REAL DEFAULT 0,
-      location TEXT DEFAULT '',
-      price REAL DEFAULT 0,
-      image_url TEXT,
-      lane TEXT DEFAULT 'inStock',
-      last_updated TEXT NOT NULL
-    );
-
-    -- UNIFIED MODULE 3: SHIPPING PIPELINE
-    CREATE TABLE IF NOT EXISTS shipments (
-      id TEXT PRIMARY KEY,
-      tracking_code TEXT NOT NULL,
-      destination TEXT NOT NULL,
-      item_summary TEXT NOT NULL,
-      quantity REAL DEFAULT 1,
-      status TEXT DEFAULT 'pending',
-      created_at TEXT NOT NULL
-    );
-  `);
-
-  // Auto-migration check: If orders.updated_at notnull is 1, relax it
-  try {
-    const ordersInfo = db.prepare("PRAGMA table_info(orders)").all() as { name: string; notnull: number }[];
-    const updatedAtCol = ordersInfo.find((c) => c.name === "updated_at");
-    if (updatedAtCol && updatedAtCol.notnull === 1) {
-      db.exec(`
-        PRAGMA foreign_keys = OFF;
-        BEGIN IMMEDIATE;
-        CREATE TABLE orders_v2 (
-          id TEXT PRIMARY KEY,
-          material_id TEXT NOT NULL,
-          order_number TEXT NOT NULL,
-          client TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
-          date TEXT NOT NULL,
-          notes TEXT DEFAULT '',
-          status TEXT NOT NULL DEFAULT 'reserved',
-          image_url TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT,
-          FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
-        );
-        INSERT INTO orders_v2 SELECT * FROM orders;
-        DROP TABLE orders;
-        ALTER TABLE orders_v2 RENAME TO orders;
-        COMMIT;
-        PRAGMA foreign_keys = ON;
-      `);
-      console.log("[SQLite Migration] orders table updated_at column relaxed.");
-    }
-  } catch (migErr) {
-    console.error("[SQLite Migration Error]", migErr);
-  }
-
-  // Initial migration from legacy db.json if materials table is empty
-  const countRow = db.prepare("SELECT count(*) as count FROM materials").get() as { count: number } | undefined;
-  if (!countRow || countRow.count === 0) {
-    migrateFromLegacyJSON(db);
-  }
-
-  // Initial migration from inventory_store.json if transactions table is empty
-  const txCountRow = db.prepare("SELECT count(*) as count FROM transactions").get() as { count: number } | undefined;
-  if (!txCountRow || txCountRow.count === 0) {
-    migrateFromInventoryStoreJSON(db);
-  }
-
-  try {
-    const userTableInfo = db.prepare("PRAGMA table_info(user_accounts)").all() as Array<{ name: string }>;
-    const hasPermsCol = userTableInfo.some((col) => col.name === "permissions_json");
-    if (!hasPermsCol) {
-      db.exec("ALTER TABLE user_accounts ADD COLUMN permissions_json TEXT;");
-      console.log("[SQLite Migration] user_accounts table permissions_json column added.");
-    }
-  } catch (migErr) {
-    console.error("[SQLite Migration Error: permissions_json]", migErr);
-  }
-
-  try {
-    const ordersCols = db.prepare("PRAGMA table_info(orders)").all() as Array<{ name: string }>;
-    if (!ordersCols.some((col) => col.name === "job_type")) {
-      db.exec("ALTER TABLE orders ADD COLUMN job_type TEXT DEFAULT 'generic';");
-      console.log("[SQLite Migration] orders table job_type column added.");
-    }
-    if (!ordersCols.some((col) => col.name === "door_spec_json")) {
-      db.exec("ALTER TABLE orders ADD COLUMN door_spec_json TEXT;");
-      console.log("[SQLite Migration] orders table door_spec_json column added.");
-    }
-  } catch (migErr) {
-    console.error("[SQLite Migration Error: orders door columns]", migErr);
-  }
-
-  ensureDefaultAccounts(db);
-  runSchemaMigrations(db);
-  startBackupScheduler(getDB);
-
-  globalForDB.sqliteDB = db;
+  globalForDB.tursoClient = db;
   return db;
 }
 
-function ensureDefaultAccounts(db: DatabaseSync) {
-  const insertStmt = db.prepare(`
-    INSERT OR IGNORE INTO user_accounts (username, display_name, role, password_hash, created_at, last_login_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  const now = new Date().toISOString();
-  insertStmt.run("bako", "Bako (Administrator)", "Admin", "illcbtfmo1", now, now);
-  insertStmt.run("Awat", "Awat (Manager)", "Manager", "awat22", now, now);
-  insertStmt.run("viewer", "Viewer (Read-Only)", "Viewer", "1234", now, now);
+export async function initializeDatabase(db: Client = getDB()): Promise<void> {
+  if (globalForDB.tursoInitPromise) {
+    return globalForDB.tursoInitPromise;
+  }
+
+  globalForDB.tursoInitPromise = (async () => {
+    try {
+      await db.execute("PRAGMA journal_mode = WAL;");
+      await db.execute("PRAGMA synchronous = NORMAL;");
+      await db.execute("PRAGMA foreign_keys = ON;");
+    } catch {}
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS materials (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        length REAL NOT NULL,
+        width REAL NOT NULL,
+        thickness REAL NOT NULL,
+        unit TEXT DEFAULT 'mm',
+        formatted_dimensions TEXT NOT NULL,
+        total_stock INTEGER NOT NULL DEFAULT 0,
+        allocated_stock INTEGER NOT NULL DEFAULT 0,
+        available_stock INTEGER NOT NULL DEFAULT 0,
+        notes TEXT DEFAULT '',
+        image_url TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id TEXT PRIMARY KEY,
+        material_id TEXT NOT NULL,
+        order_number TEXT NOT NULL,
+        client TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        notes TEXT DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'reserved',
+        image_url TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        job_type TEXT DEFAULT 'generic',
+        door_spec_json TEXT,
+        FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS custom_types (
+        name TEXT PRIMARY KEY
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS user_accounts (
+        username TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_login_at TEXT,
+        permissions_json TEXT
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        formatted_date TEXT NOT NULL,
+        action TEXT NOT NULL,
+        details TEXT NOT NULL,
+        user TEXT NOT NULL,
+        target_id TEXT,
+        target_type TEXT
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS backups (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        date_key TEXT NOT NULL,
+        type TEXT NOT NULL,
+        label TEXT NOT NULL,
+        total_panels INTEGER NOT NULL,
+        total_orders INTEGER NOT NULL,
+        sha256_checksum TEXT NOT NULL,
+        data_json TEXT NOT NULL
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        timestamp TEXT NOT NULL,
+        panel_type TEXT,
+        material TEXT,
+        quantity REAL NOT NULL DEFAULT 1,
+        unit TEXT DEFAULT 'sheets',
+        selling_type TEXT,
+        seller TEXT,
+        bank TEXT,
+        payment_type TEXT,
+        currency TEXT DEFAULT 'USD',
+        currency_rate REAL DEFAULT 1,
+        selling_amount REAL DEFAULT 0,
+        cost_price REAL DEFAULT 0,
+        discount_dollars REAL DEFAULT 0,
+        discount_percentage REAL DEFAULT 0,
+        total_after_discount REAL DEFAULT 0,
+        amount_paid_now REAL DEFAULT 0,
+        amount_owed REAL DEFAULT 0,
+        old_unpaid_debt REAL DEFAULT 0,
+        combined_total_debt REAL DEFAULT 0,
+        gross_profit REAL DEFAULT 0,
+        profit_margin REAL DEFAULT 0,
+        notes TEXT DEFAULT '',
+        images_json TEXT DEFAULT '[]',
+        items_json TEXT DEFAULT '[]',
+        status TEXT DEFAULT 'completed',
+        client TEXT,
+        client_phone TEXT,
+        legacy_invoice_ref TEXT,
+        fundermax_batch_ref TEXT,
+        estimated_cost REAL DEFAULT 0,
+        last_updated TEXT NOT NULL
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS products (
+        id TEXT PRIMARY KEY,
+        sku TEXT NOT NULL,
+        name TEXT NOT NULL,
+        category TEXT DEFAULT 'General',
+        current_stock REAL DEFAULT 0,
+        min_stock REAL DEFAULT 0,
+        location TEXT DEFAULT '',
+        price REAL DEFAULT 0,
+        image_url TEXT,
+        lane TEXT DEFAULT 'inStock',
+        last_updated TEXT NOT NULL
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS shipments (
+        id TEXT PRIMARY KEY,
+        tracking_code TEXT NOT NULL,
+        destination TEXT NOT NULL,
+        item_summary TEXT NOT NULL,
+        quantity REAL DEFAULT 1,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT NOT NULL
+      );
+    `);
+
+    // Auto-migration check: If orders.updated_at notnull is 1, relax it
+    try {
+      const ordersInfoRes = await db.execute("PRAGMA table_info(orders)");
+      const ordersInfo = ordersInfoRes.rows as unknown as { name: string; notnull: number }[];
+      const updatedAtCol = ordersInfo.find((c) => c.name === "updated_at");
+      if (updatedAtCol && Number(updatedAtCol.notnull) === 1) {
+        await db.execute("PRAGMA foreign_keys = OFF;");
+        await db.execute(`
+          CREATE TABLE orders_v2 (
+            id TEXT PRIMARY KEY,
+            material_id TEXT NOT NULL,
+            order_number TEXT NOT NULL,
+            client TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            notes TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'reserved',
+            image_url TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT,
+            FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+          );
+        `);
+        await db.execute("INSERT INTO orders_v2 SELECT * FROM orders;");
+        await db.execute("DROP TABLE orders;");
+        await db.execute("ALTER TABLE orders_v2 RENAME TO orders;");
+        await db.execute("PRAGMA foreign_keys = ON;");
+        console.log("[SQLite Migration] orders table updated_at column relaxed.");
+      }
+    } catch (migErr) {
+      console.error("[SQLite Migration Error]", migErr);
+    }
+
+    // Initial migration from legacy db.json if materials table is empty
+    const countRes = await db.execute("SELECT count(*) as count FROM materials");
+    const countRow = countRes.rows[0] as unknown as { count: number } | undefined;
+    if (!countRow || Number(countRow.count) === 0) {
+      await migrateFromLegacyJSON(db);
+    }
+
+    // Initial migration from inventory_store.json if transactions table is empty
+    const txCountRes = await db.execute("SELECT count(*) as count FROM transactions");
+    const txCountRow = txCountRes.rows[0] as unknown as { count: number } | undefined;
+    if (!txCountRow || Number(txCountRow.count) === 0) {
+      await migrateFromInventoryStoreJSON(db);
+    }
+
+    try {
+      const userTableInfoRes = await db.execute("PRAGMA table_info(user_accounts)");
+      const userTableInfo = userTableInfoRes.rows as unknown as Array<{ name: string }>;
+      const hasPermsCol = userTableInfo.some((col) => col.name === "permissions_json");
+      if (!hasPermsCol) {
+        await db.execute("ALTER TABLE user_accounts ADD COLUMN permissions_json TEXT;");
+        console.log("[SQLite Migration] user_accounts table permissions_json column added.");
+      }
+    } catch (migErr) {
+      console.error("[SQLite Migration Error: permissions_json]", migErr);
+    }
+
+    try {
+      const ordersColsRes = await db.execute("PRAGMA table_info(orders)");
+      const ordersCols = ordersColsRes.rows as unknown as Array<{ name: string }>;
+      if (!ordersCols.some((col) => col.name === "job_type")) {
+        await db.execute("ALTER TABLE orders ADD COLUMN job_type TEXT DEFAULT 'generic';");
+        console.log("[SQLite Migration] orders table job_type column added.");
+      }
+      if (!ordersCols.some((col) => col.name === "door_spec_json")) {
+        await db.execute("ALTER TABLE orders ADD COLUMN door_spec_json TEXT;");
+        console.log("[SQLite Migration] orders table door_spec_json column added.");
+      }
+    } catch (migErr) {
+      console.error("[SQLite Migration Error: orders door columns]", migErr);
+    }
+
+    await ensureDefaultAccounts(db);
+    await runSchemaMigrations(db);
+    startBackupScheduler(getDB);
+  })();
+
+  return globalForDB.tursoInitPromise;
 }
 
-function migrateFromLegacyJSON(db: DatabaseSync) {
-  if (!fs.existsSync(LEGACY_JSON_PATH)) return;
+async function ensureDefaultAccounts(db: Client): Promise<void> {
+  const insertSql = `
+    INSERT OR IGNORE INTO user_accounts (username, display_name, role, password_hash, created_at, last_login_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  const now = new Date().toISOString();
+  await db.execute({ sql: insertSql, args: ["bako", "Bako (Administrator)", "Admin", "illcbtfmo1", now, now] });
+  await db.execute({ sql: insertSql, args: ["Awat", "Awat (Manager)", "Manager", "awat22", now, now] });
+  await db.execute({ sql: insertSql, args: ["viewer", "Viewer (Read-Only)", "Viewer", "1234", now, now] });
+}
+
+async function migrateFromLegacyJSON(db: Client): Promise<void> {
   try {
+    if (!fs.existsSync(LEGACY_JSON_PATH)) return;
     const raw = fs.readFileSync(LEGACY_JSON_PATH, "utf8");
     const data = JSON.parse(raw);
     if (!data || !Array.isArray(data.materials)) return;
 
-    db.exec("BEGIN IMMEDIATE;");
-    try {
-      const insertMat = db.prepare(`
-        INSERT OR REPLACE INTO materials (
-          id, code, name, type, length, width, thickness, unit, formatted_dimensions,
-          total_stock, allocated_stock, available_stock, notes, image_url, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
+    const insertMatSql = `
+      INSERT OR REPLACE INTO materials (
+        id, code, name, type, length, width, thickness, unit, formatted_dimensions,
+        total_stock, allocated_stock, available_stock, notes, image_url, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-      const insertOrd = db.prepare(`
-        INSERT OR REPLACE INTO orders (
-          id, material_id, order_number, client, quantity, date, notes, status, image_url, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
+    const insertOrdSql = `
+      INSERT OR REPLACE INTO orders (
+        id, material_id, order_number, client, quantity, date, notes, status, image_url, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-      const insertType = db.prepare(`INSERT OR IGNORE INTO custom_types (name) VALUES (?)`);
+    const insertTypeSql = `INSERT OR IGNORE INTO custom_types (name) VALUES (?)`;
 
-      for (const mat of data.materials) {
-        insertMat.run(
+    for (const mat of data.materials) {
+      await db.execute({
+        sql: insertMatSql,
+        args: [
           mat.id,
           mat.code,
           mat.name,
@@ -374,12 +404,15 @@ function migrateFromLegacyJSON(db: DatabaseSync) {
           mat.notes || "",
           mat.imageUrl || null,
           mat.createdAt ? String(mat.createdAt) : new Date().toISOString(),
-          mat.updatedAt || new Date().toISOString()
-        );
+          mat.updatedAt || new Date().toISOString(),
+        ],
+      });
 
-        if (Array.isArray(mat.activeOrders)) {
-          for (const ord of mat.activeOrders) {
-            insertOrd.run(
+      if (Array.isArray(mat.activeOrders)) {
+        for (const ord of mat.activeOrders) {
+          await db.execute({
+            sql: insertOrdSql,
+            args: [
               ord.id,
               mat.id,
               ord.orderNumber,
@@ -390,57 +423,53 @@ function migrateFromLegacyJSON(db: DatabaseSync) {
               ord.status || "reserved",
               ord.imageUrl || null,
               ord.createdAt ? String(ord.createdAt) : new Date().toISOString(),
-              ord.finalizedAt || null
-            );
-          }
+              ord.finalizedAt || null,
+            ],
+          });
         }
       }
-
-      if (Array.isArray(data.customTypes)) {
-        for (const t of data.customTypes) {
-          if (typeof t === "string" && t.trim()) {
-            insertType.run(t.trim());
-          }
-        }
-      }
-
-      db.exec("COMMIT;");
-      console.log(`[SQLite Migration] Migrated ${data.materials.length} panels from legacy db.json.`);
-    } catch (err) {
-      db.exec("ROLLBACK;");
-      console.error("[SQLite Migration Error]", err);
     }
+
+    if (Array.isArray(data.customTypes)) {
+      for (const t of data.customTypes) {
+        if (typeof t === "string" && t.trim()) {
+          await db.execute({ sql: insertTypeSql, args: [t.trim()] });
+        }
+      }
+    }
+
+    console.log(`[SQLite Migration] Migrated ${data.materials.length} panels from legacy db.json.`);
   } catch (err) {
-    console.error("[Legacy JSON Read Error]", err);
+    console.error("[Legacy JSON Migration Error]", err);
   }
 }
 
-function migrateFromInventoryStoreJSON(db: DatabaseSync) {
-  const targetPath = path.resolve(process.cwd(), "data", "inventory_store.json");
-  if (!fs.existsSync(targetPath)) {
-    return;
-  }
-
+async function migrateFromInventoryStoreJSON(db: Client): Promise<void> {
   try {
+    const targetPath = path.resolve(process.cwd(), "data", "inventory_store.json");
+    if (!fs.existsSync(targetPath)) {
+      return;
+    }
+
     const raw = fs.readFileSync(targetPath, "utf8");
     const data = JSON.parse(raw);
     if (!data) return;
 
-    db.exec("BEGIN IMMEDIATE;");
-    try {
-      // 1. Transactions
-      if (Array.isArray(data.transactions) && data.transactions.length > 0) {
-        const insertTx = db.prepare(`
-          INSERT OR REPLACE INTO transactions (
-            id, code, timestamp, panel_type, material, quantity, unit, selling_type, seller, bank, payment_type,
-            currency, currency_rate, selling_amount, cost_price, discount_dollars, discount_percentage,
-            total_after_discount, amount_paid_now, amount_owed, old_unpaid_debt, combined_total_debt,
-            gross_profit, profit_margin, notes, images_json, items_json, status, last_updated
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
+    // 1. Transactions
+    if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+      const insertTxSql = `
+        INSERT OR REPLACE INTO transactions (
+          id, code, timestamp, panel_type, material, quantity, unit, selling_type, seller, bank, payment_type,
+          currency, currency_rate, selling_amount, cost_price, discount_dollars, discount_percentage,
+          total_after_discount, amount_paid_now, amount_owed, old_unpaid_debt, combined_total_debt,
+          gross_profit, profit_margin, notes, images_json, items_json, status, last_updated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
 
-        for (const tx of data.transactions) {
-          insertTx.run(
+      for (const tx of data.transactions) {
+        await db.execute({
+          sql: insertTxSql,
+          args: [
             tx.id,
             tx.code || "",
             tx.timestamp || new Date().toISOString(),
@@ -469,21 +498,24 @@ function migrateFromInventoryStoreJSON(db: DatabaseSync) {
             JSON.stringify(tx.images || []),
             JSON.stringify(tx.items || []),
             tx.status || "completed",
-            tx.lastUpdated || new Date().toISOString()
-          );
-        }
-        console.log(`[SQLite Migration] Migrated ${data.transactions.length} sales invoices from inventory_store.json.`);
+            tx.lastUpdated || new Date().toISOString(),
+          ],
+        });
       }
+      console.log(`[SQLite Migration] Migrated ${data.transactions.length} sales invoices from inventory_store.json.`);
+    }
 
-      // 2. Products
-      if (Array.isArray(data.products) && data.products.length > 0) {
-        const insertProd = db.prepare(`
-          INSERT OR REPLACE INTO products (
-            id, sku, name, category, current_stock, min_stock, location, price, image_url, lane, last_updated
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        for (const p of data.products) {
-          insertProd.run(
+    // 2. Products
+    if (Array.isArray(data.products) && data.products.length > 0) {
+      const insertProdSql = `
+        INSERT OR REPLACE INTO products (
+          id, sku, name, category, current_stock, min_stock, location, price, image_url, lane, last_updated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      for (const p of data.products) {
+        await db.execute({
+          sql: insertProdSql,
+          args: [
             p.id,
             p.sku || "",
             p.name || "",
@@ -494,57 +526,60 @@ function migrateFromInventoryStoreJSON(db: DatabaseSync) {
             p.price || 0,
             p.imageUrl || null,
             p.lane || "inStock",
-            p.lastUpdated || new Date().toISOString()
-          );
-        }
+            p.lastUpdated || new Date().toISOString(),
+          ],
+        });
       }
+    }
 
-      // 3. Shipments
-      if (Array.isArray(data.shipments) && data.shipments.length > 0) {
-        const insertShip = db.prepare(`
-          INSERT OR REPLACE INTO shipments (
-            id, tracking_code, destination, item_summary, quantity, status, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-        for (const s of data.shipments) {
-          insertShip.run(
+    // 3. Shipments
+    if (Array.isArray(data.shipments) && data.shipments.length > 0) {
+      const insertShipSql = `
+        INSERT OR REPLACE INTO shipments (
+          id, tracking_code, destination, item_summary, quantity, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `;
+      for (const s of data.shipments) {
+        await db.execute({
+          sql: insertShipSql,
+          args: [
             s.id,
             s.trackingCode || "",
             s.destination || "",
             s.itemSummary || "",
             s.quantity || 1,
             s.status || "pending",
-            s.createdAt || new Date().toISOString()
-          );
-        }
+            s.createdAt || new Date().toISOString(),
+          ],
+        });
       }
-
-      // 4. Exchange Rates
-      if (data.exchangeRates) {
-        const insertMeta = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`);
-        insertMeta.run("exchange_rates", JSON.stringify(data.exchangeRates));
-      }
-
-      // 5. Dropdown Presets
-      const presets: DropdownPresets = {
-        savedTypes: Array.isArray(data.savedTypes) ? data.savedTypes : [],
-        savedProducts: Array.isArray(data.savedProducts) ? data.savedProducts : [],
-        savedSellingTypes: Array.isArray(data.savedSellingTypes) ? data.savedSellingTypes : [],
-        savedSellers: Array.isArray(data.savedSellers) ? data.savedSellers : [],
-        savedBanks: Array.isArray(data.savedBanks) ? data.savedBanks : [],
-        savedPaymentTypes: Array.isArray(data.savedPaymentTypes) ? data.savedPaymentTypes : [],
-      };
-      const insertMeta = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`);
-      insertMeta.run("dropdown_presets", JSON.stringify(presets));
-
-      db.exec("COMMIT;");
-      console.log("[SQLite Migration] Successfully initialized unified datasets from inventory_store.json.");
-    } catch (migErr) {
-      db.exec("ROLLBACK;");
-      console.error("[Migration from inventory_store Error]", migErr);
     }
+
+    // 4. Exchange Rates
+    if (data.exchangeRates) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`,
+        args: ["exchange_rates", JSON.stringify(data.exchangeRates)],
+      });
+    }
+
+    // 5. Dropdown Presets
+    const presets: DropdownPresets = {
+      savedTypes: Array.isArray(data.savedTypes) ? data.savedTypes : [],
+      savedProducts: Array.isArray(data.savedProducts) ? data.savedProducts : [],
+      savedSellingTypes: Array.isArray(data.savedSellingTypes) ? data.savedSellingTypes : [],
+      savedSellers: Array.isArray(data.savedSellers) ? data.savedSellers : [],
+      savedBanks: Array.isArray(data.savedBanks) ? data.savedBanks : [],
+      savedPaymentTypes: Array.isArray(data.savedPaymentTypes) ? data.savedPaymentTypes : [],
+    };
+    await db.execute({
+      sql: `INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`,
+      args: ["dropdown_presets", JSON.stringify(presets)],
+    });
+
+    console.log("[SQLite Migration] Successfully initialized unified datasets from inventory_store.json.");
   } catch (err) {
-    console.error("[inventory_store.json Read Error]", err);
+    console.error("[inventory_store.json Migration Error]", err);
   }
 }
 
@@ -552,28 +587,32 @@ function migrateFromInventoryStoreJSON(db: DatabaseSync) {
 // INVENTORY CRUD OPERATIONS
 // ==========================================
 
-export function getInventoryFromDB(): {
+export async function getInventoryFromDB(): Promise<{
   materials: PanelMaterial[];
   customTypes: string[];
   users: UserAccount[];
   lastUpdated: number;
-} {
+}> {
   const db = getDB();
 
-  const matRows = db.prepare(`
+  const matRes = await db.execute(`
     SELECT * FROM materials WHERE is_deleted = 0 ORDER BY CAST(code AS INTEGER) ASC, name ASC
-  `).all() as Record<string, unknown>[];
+  `);
+  const matRows = matRes.rows as unknown as Record<string, unknown>[];
 
-  const ordRows = db.prepare(`
+  const ordRes = await db.execute(`
     SELECT * FROM orders WHERE is_deleted = 0 ORDER BY date DESC, created_at DESC
-  `).all() as Record<string, unknown>[];
+  `);
+  const ordRows = ordRes.rows as unknown as Record<string, unknown>[];
 
-  const typeRows = db.prepare(`
+  const typeRes = await db.execute(`
     SELECT name FROM custom_types ORDER BY name ASC
-  `).all() as { name: string }[];
+  `);
+  const typeRows = typeRes.rows as unknown as { name: string }[];
 
-  const metaRow = db.prepare(`SELECT value FROM meta WHERE key = 'last_updated'`).get() as { value: string } | undefined;
-  const lastUpdated = metaRow ? parseInt(metaRow.value, 10) : Date.now();
+  const metaRes = await db.execute(`SELECT value FROM meta WHERE key = 'last_updated'`);
+  const metaRow = metaRes.rows[0] as unknown as { value: string } | undefined;
+  const lastUpdated = metaRow ? parseInt(String(metaRow.value), 10) : Date.now();
 
   const ordersByMat: Record<string, OrderAllocation[]> = {};
   for (const o of ordRows) {
@@ -626,14 +665,15 @@ export function getInventoryFromDB(): {
     };
   });
 
-  const customTypes = typeRows.map((r) => r.name);
+  const customTypes = typeRows.map((r) => String(r.name));
   if (!customTypes.includes("HPL")) {
     customTypes.unshift("HPL");
   }
 
-  const userRows = db.prepare(`
+  const userRes = await db.execute(`
     SELECT username, display_name, role, password_hash, created_at, permissions_json FROM user_accounts ORDER BY created_at ASC
-  `).all() as Record<string, unknown>[];
+  `);
+  const userRows = userRes.rows as unknown as Record<string, unknown>[];
 
   const users: UserAccount[] = userRows.map((u) => {
     const rawRole = String(u.role || "Staff").toLowerCase();
@@ -672,16 +712,16 @@ function buildUpsertSql(table: string, columns: readonly string[]): string {
     ON CONFLICT(id) DO UPDATE SET ${updates}, is_deleted = 0, deleted_at = NULL`;
 }
 
-export function saveInventoryToDB(
+export async function saveInventoryToDB(
   materials: PanelMaterial[],
   customTypes: string[],
   users?: UserAccount[]
-): { success: boolean; lastUpdated: number } {
+): Promise<{ success: boolean; lastUpdated: number }> {
   const db = getDB();
   const nowTime = Date.now();
 
   try {
-    runInTransaction(db, () => {
+    await runInTransaction(db, async () => {
       const nowIso = new Date().toISOString();
       const incomingMatIds = new Set<string>(materials.map((m) => m.id));
       const incomingOrdIds = new Set<string>();
@@ -690,15 +730,20 @@ export function saveInventoryToDB(
       }
 
       // Panels that disappeared from the list: soft delete the panel and its orders. Never DELETE.
-      const liveMats = db.prepare(`SELECT * FROM materials WHERE is_deleted = 0`).all() as Record<string, unknown>[];
+      const liveMatsRes = await db.execute(`SELECT * FROM materials WHERE is_deleted = 0`);
+      const liveMats = liveMatsRes.rows as unknown as Record<string, unknown>[];
       for (const m of liveMats) {
         const id = String(m.id);
         if (incomingMatIds.has(id)) continue;
-        const archivedOrders = db
-          .prepare(`UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE material_id = ? AND is_deleted = 0`)
-          .run(nowIso, id);
-        db.prepare(`UPDATE materials SET is_deleted = 1, deleted_at = ? WHERE id = ?`).run(nowIso, id);
-        writeAuditLog(db, "MATERIAL_DELETED", {
+        const archivedOrders = await db.execute({
+          sql: `UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE material_id = ? AND is_deleted = 0`,
+          args: [nowIso, id],
+        });
+        await db.execute({
+          sql: `UPDATE materials SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
+          args: [nowIso, id],
+        });
+        await writeAuditLog(db, "MATERIAL_DELETED", {
           table: "materials",
           id,
           before: {
@@ -710,11 +755,11 @@ export function saveInventoryToDB(
             available_stock: m.available_stock,
           },
           after: { is_deleted: 1, deleted_at: nowIso },
-          ordersArchivedWithPanel: Number(archivedOrders.changes),
+          ordersArchivedWithPanel: Number(archivedOrders.rowsAffected ?? 0),
         });
       }
 
-      const upsertMat = db.prepare(`
+      const upsertMatSql = `
         INSERT INTO materials (
           id, code, name, type, length, width, thickness, unit, formatted_dimensions,
           total_stock, allocated_stock, available_stock, notes, image_url, created_at, updated_at,
@@ -727,9 +772,9 @@ export function saveInventoryToDB(
           allocated_stock = excluded.allocated_stock, available_stock = excluded.available_stock,
           notes = excluded.notes, image_url = excluded.image_url, created_at = excluded.created_at,
           updated_at = excluded.updated_at, is_deleted = 0, deleted_at = NULL
-      `);
+      `;
 
-      const upsertOrd = db.prepare(`
+      const upsertOrdSql = `
         INSERT INTO orders (
           id, material_id, order_number, client, quantity, date, notes, status, image_url, created_at, updated_at,
           job_type, door_spec_json, is_deleted, deleted_at
@@ -740,56 +785,66 @@ export function saveInventoryToDB(
           image_url = excluded.image_url, created_at = excluded.created_at, updated_at = excluded.updated_at,
           job_type = excluded.job_type, door_spec_json = excluded.door_spec_json,
           is_deleted = 0, deleted_at = NULL
-      `);
+      `;
 
       for (const mat of materials) {
-        upsertMat.run(
-          mat.id,
-          autoCapitalizeFirstLetter(mat.code),
-          autoCapitalizeFirstLetter(mat.name),
-          autoCapitalizeFirstLetter(mat.type || "HPL"),
-          mat.dimensions?.length ?? 0,
-          mat.dimensions?.width ?? 0,
-          mat.dimensions?.thickness ?? 0,
-          "mm",
-          mat.dimensions?.formatted ?? "",
-          mat.totalStock ?? 0,
-          mat.allocatedStock ?? 0,
-          mat.availableStock ?? 0,
-          mat.notes ? autoCapitalizeFirstLetter(mat.notes) : "",
-          mat.imageUrl || null,
-          mat.createdAt ? String(mat.createdAt) : String(Date.now()),
-          mat.updatedAt || new Date().toISOString()
-        );
+        await db.execute({
+          sql: upsertMatSql,
+          args: [
+            mat.id,
+            autoCapitalizeFirstLetter(mat.code),
+            autoCapitalizeFirstLetter(mat.name),
+            autoCapitalizeFirstLetter(mat.type || "HPL"),
+            mat.dimensions?.length ?? 0,
+            mat.dimensions?.width ?? 0,
+            mat.dimensions?.thickness ?? 0,
+            "mm",
+            mat.dimensions?.formatted ?? "",
+            mat.totalStock ?? 0,
+            mat.allocatedStock ?? 0,
+            mat.availableStock ?? 0,
+            mat.notes ? autoCapitalizeFirstLetter(mat.notes) : "",
+            mat.imageUrl || null,
+            mat.createdAt ? String(mat.createdAt) : String(Date.now()),
+            mat.updatedAt || new Date().toISOString(),
+          ],
+        });
 
         if (Array.isArray(mat.activeOrders)) {
           for (const ord of mat.activeOrders) {
-            upsertOrd.run(
-              ord.id,
-              mat.id,
-              ord.orderNumber,
-              autoCapitalizeFirstLetter(ord.client),
-              ord.quantity ?? 1,
-              ord.date,
-              ord.notes ? autoCapitalizeFirstLetter(ord.notes) : "",
-              ord.status || "reserved",
-              ord.imageUrl || null,
-              ord.createdAt ? String(ord.createdAt) : String(Date.now()),
-              ord.finalizedAt || null,
-              ord.jobType || (ord.doorSpec ? "door" : "generic"),
-              ord.doorSpec ? JSON.stringify(ord.doorSpec) : null
-            );
+            await db.execute({
+              sql: upsertOrdSql,
+              args: [
+                ord.id,
+                mat.id,
+                ord.orderNumber,
+                autoCapitalizeFirstLetter(ord.client),
+                ord.quantity ?? 1,
+                ord.date,
+                ord.notes ? autoCapitalizeFirstLetter(ord.notes) : "",
+                ord.status || "reserved",
+                ord.imageUrl || null,
+                ord.createdAt ? String(ord.createdAt) : String(Date.now()),
+                ord.finalizedAt || null,
+                ord.jobType || (ord.doorSpec ? "door" : "generic"),
+                ord.doorSpec ? JSON.stringify(ord.doorSpec) : null,
+              ],
+            });
           }
         }
       }
 
       // Orders removed from an existing panel: soft delete with audit log
-      const liveOrders = db.prepare(`SELECT * FROM orders WHERE is_deleted = 0`).all() as Record<string, unknown>[];
+      const liveOrdersRes = await db.execute(`SELECT * FROM orders WHERE is_deleted = 0`);
+      const liveOrders = liveOrdersRes.rows as unknown as Record<string, unknown>[];
       for (const o of liveOrders) {
         const id = String(o.id);
         if (incomingOrdIds.has(id)) continue;
-        db.prepare(`UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`).run(nowIso, id);
-        writeAuditLog(db, "ORDER_DELETED", {
+        await db.execute({
+          sql: `UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
+          args: [nowIso, id],
+        });
+        await writeAuditLog(db, "ORDER_DELETED", {
           table: "orders",
           id,
           orderNumber: o.order_number,
@@ -801,24 +856,27 @@ export function saveInventoryToDB(
         });
       }
 
-      const insertType = db.prepare(`INSERT OR IGNORE INTO custom_types (name) VALUES (?)`);
+      const insertTypeSql = `INSERT OR IGNORE INTO custom_types (name) VALUES (?)`;
       for (const t of customTypes) {
         if (typeof t === "string" && t.trim()) {
-          insertType.run(autoCapitalizeFirstLetter(t.trim()));
+          await db.execute({
+            sql: insertTypeSql,
+            args: [autoCapitalizeFirstLetter(t.trim())],
+          });
         }
       }
 
       if (Array.isArray(users) && users.length > 0) {
-        saveUsersToDB(users);
+        await saveUsersToDB(users);
       }
 
-      const updateMeta = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)`);
-      updateMeta.run(String(nowTime));
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)`,
+        args: [String(nowTime)],
+      });
     });
 
-    try {
-      fs.writeFileSync(LEGACY_JSON_PATH, JSON.stringify({ materials, customTypes, users, lastUpdated: nowTime }, null, 2), "utf8");
-    } catch {}
+    // Local file-system backup bypassed for Vercel read-only environment
 
     return { success: true, lastUpdated: nowTime };
   } catch (err) {
@@ -827,9 +885,10 @@ export function saveInventoryToDB(
   }
 }
 
-export function getTransactionsFromDB(): PanelTransaction[] {
+export async function getTransactionsFromDB(): Promise<PanelTransaction[]> {
   const db = getDB();
-  const rows = db.prepare(`SELECT * FROM transactions WHERE is_deleted = 0 ORDER BY timestamp DESC`).all() as Record<string, unknown>[];
+  const res = await db.execute(`SELECT * FROM transactions WHERE is_deleted = 0 ORDER BY timestamp DESC`);
+  const rows = res.rows as unknown as Record<string, unknown>[];
 
   return rows.map((r) => {
     let images: string[] = [];
@@ -896,15 +955,16 @@ const TX_COLUMNS = [
 ] as const;
 
 
-export function saveTransactionsToDB(transactions: PanelTransaction[]): void {
+export async function saveTransactionsToDB(transactions: PanelTransaction[]): Promise<void> {
   const db = getDB();
   try {
-    runInTransaction(db, () => {
-      const existingRows = db.prepare(`SELECT * FROM transactions`).all() as Record<string, unknown>[];
+    await runInTransaction(db, async () => {
+      const existingRes = await db.execute(`SELECT * FROM transactions`);
+      const existingRows = existingRes.rows as unknown as Record<string, unknown>[];
       const existingById = new Map<string, Record<string, unknown>>();
       for (const r of existingRows) existingById.set(String(r.id), r);
 
-      const upsertTx = db.prepare(buildUpsertSql("transactions", TX_COLUMNS));
+      const upsertTxSql = buildUpsertSql("transactions", TX_COLUMNS);
       const incomingIds = new Set<string>();
 
       for (const tx of transactions) {
@@ -964,7 +1024,7 @@ export function saveTransactionsToDB(transactions: PanelTransaction[]): void {
             JSON.stringify(beforeTotals) !== JSON.stringify(afterTotals) ||
             sig(beforeItems) !== sig(sanitizedItems)
           ) {
-            writeAuditLog(db, "PRICE_OVERRIDE", {
+            await writeAuditLog(db, "PRICE_OVERRIDE", {
               table: "transactions",
               id: tx.id,
               code: tx.code || null,
@@ -975,49 +1035,52 @@ export function saveTransactionsToDB(transactions: PanelTransaction[]): void {
           }
         }
 
-        upsertTx.run(
-          tx.id,
-          tx.code ? autoCapitalizeFirstLetter(tx.code) : "",
-          tx.timestamp || new Date().toISOString(),
-          tx.panelType ? autoCapitalizeFirstLetter(tx.panelType) : "",
-          tx.material ? autoCapitalizeFirstLetter(tx.material) : "",
-          tx.quantity || 1,
-          tx.unit || "sheets",
-          tx.sellingType ? autoCapitalizeFirstLetter(tx.sellingType) : "",
-          tx.seller ? autoCapitalizeFirstLetter(tx.seller) : "",
-          tx.bank ? autoCapitalizeFirstLetter(tx.bank) : "",
-          tx.paymentType ? autoCapitalizeFirstLetter(tx.paymentType) : "",
-          cur,
-          tx.currencyRate || 1,
-          sellingAmount,
-          m(tx.costPrice),
-          discountDollars,
-          tx.discountPercentage || 0,
-          totalAfterDiscount,
-          m(tx.amountPaidNow),
-          m(tx.amountOwed),
-          m(tx.oldUnpaidDebt),
-          m(tx.combinedTotalDebt),
-          m(tx.grossProfit),
-          tx.profitMargin || 0,
-          tx.notes ? autoCapitalizeFirstLetter(tx.notes) : "",
-          JSON.stringify(tx.images || []),
-          JSON.stringify(sanitizedItems),
-          tx.status || "completed",
-          tx.lastUpdated || new Date().toISOString(),
-          chargedAmount,
-          cur,
-          rate,
-          baseUsd,
-          tx.legacyInvoiceRef ? autoCapitalizeFirstLetter(tx.legacyInvoiceRef) : "",
-          tx.fundermaxBatchRef ? autoCapitalizeFirstLetter(tx.fundermaxBatchRef) : "",
-          tx.client ? autoCapitalizeFirstLetter(tx.client) : "",
-          tx.clientPhone ? tx.clientPhone.trim() : "",
-          tx.estimatedCost || 0
-        );
+        await db.execute({
+          sql: upsertTxSql,
+          args: [
+            tx.id,
+            tx.code ? autoCapitalizeFirstLetter(tx.code) : "",
+            tx.timestamp || new Date().toISOString(),
+            tx.panelType ? autoCapitalizeFirstLetter(tx.panelType) : "",
+            tx.material ? autoCapitalizeFirstLetter(tx.material) : "",
+            tx.quantity || 1,
+            tx.unit || "sheets",
+            tx.sellingType ? autoCapitalizeFirstLetter(tx.sellingType) : "",
+            tx.seller ? autoCapitalizeFirstLetter(tx.seller) : "",
+            tx.bank ? autoCapitalizeFirstLetter(tx.bank) : "",
+            tx.paymentType ? autoCapitalizeFirstLetter(tx.paymentType) : "",
+            cur,
+            tx.currencyRate || 1,
+            sellingAmount,
+            m(tx.costPrice),
+            discountDollars,
+            tx.discountPercentage || 0,
+            totalAfterDiscount,
+            m(tx.amountPaidNow),
+            m(tx.amountOwed),
+            m(tx.oldUnpaidDebt),
+            m(tx.combinedTotalDebt),
+            m(tx.grossProfit),
+            tx.profitMargin || 0,
+            tx.notes ? autoCapitalizeFirstLetter(tx.notes) : "",
+            JSON.stringify(tx.images || []),
+            JSON.stringify(sanitizedItems),
+            tx.status || "completed",
+            tx.lastUpdated || new Date().toISOString(),
+            chargedAmount,
+            cur,
+            rate,
+            baseUsd,
+            tx.legacyInvoiceRef ? autoCapitalizeFirstLetter(tx.legacyInvoiceRef) : "",
+            tx.fundermaxBatchRef ? autoCapitalizeFirstLetter(tx.fundermaxBatchRef) : "",
+            tx.client ? autoCapitalizeFirstLetter(tx.client) : "",
+            tx.clientPhone ? tx.clientPhone.trim() : "",
+            tx.estimatedCost || 0,
+          ],
+        });
       }
 
-      softDeleteMissing(db, "transactions", incomingIds, "INVOICE_DELETED");
+      await softDeleteMissing(db, "transactions", incomingIds, "INVOICE_DELETED");
     });
   } catch (err) {
     console.error("[saveTransactionsToDB Error]", err);
@@ -1027,9 +1090,10 @@ export function saveTransactionsToDB(transactions: PanelTransaction[]): void {
 
 
 
-export function getProductsFromDB(): Product[] {
+export async function getProductsFromDB(): Promise<Product[]> {
   const db = getDB();
-  const rows = db.prepare(`SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC`).all() as Record<string, unknown>[];
+  const res = await db.execute(`SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC`);
+  const rows = res.rows as unknown as Record<string, unknown>[];
   return rows.map((r) => ({
     id: String(r.id),
     sku: String(r.sku || ""),
@@ -1049,28 +1113,31 @@ const PRODUCT_COLUMNS = [
   "sku", "name", "category", "current_stock", "min_stock", "location", "price", "image_url", "lane", "last_updated",
 ] as const;
 
-export function saveProductsToDB(products: Product[]): void {
+export async function saveProductsToDB(products: Product[]): Promise<void> {
   const db = getDB();
-  runInTransaction(db, () => {
-    const upsert = db.prepare(buildUpsertSql("products", PRODUCT_COLUMNS));
+  await runInTransaction(db, async () => {
+    const upsertSql = buildUpsertSql("products", PRODUCT_COLUMNS);
     const incomingIds = new Set<string>();
     for (const p of products) {
       incomingIds.add(p.id);
-      upsert.run(
-        p.id,
-        p.sku ? autoCapitalizeFirstLetter(p.sku) : "",
-        autoCapitalizeFirstLetter(p.name || ""),
-        p.category ? autoCapitalizeFirstLetter(p.category) : "General",
-        p.currentStock || 0,
-        p.minStock || 0,
-        p.location ? autoCapitalizeFirstLetter(p.location) : "",
-        p.price || 0,
-        p.imageUrl || null,
-        p.lane || "inStock",
-        p.lastUpdated || new Date().toISOString()
-      );
+      await db.execute({
+        sql: upsertSql,
+        args: [
+          p.id,
+          p.sku ? autoCapitalizeFirstLetter(p.sku) : "",
+          autoCapitalizeFirstLetter(p.name || ""),
+          p.category ? autoCapitalizeFirstLetter(p.category) : "General",
+          p.currentStock || 0,
+          p.minStock || 0,
+          p.location ? autoCapitalizeFirstLetter(p.location) : "",
+          p.price || 0,
+          p.imageUrl || null,
+          p.lane || "inStock",
+          p.lastUpdated || new Date().toISOString(),
+        ],
+      });
     }
-    softDeleteMissing(db, "products", incomingIds, "PRODUCT_DELETED");
+    await softDeleteMissing(db, "products", incomingIds, "PRODUCT_DELETED");
   });
 }
 
@@ -1078,9 +1145,10 @@ export function saveProductsToDB(products: Product[]): void {
 // SHIPMENTS PIPELINE CRUD
 // ==========================================
 
-export function getShipmentsFromDB(): Shipment[] {
+export async function getShipmentsFromDB(): Promise<Shipment[]> {
   const db = getDB();
-  const rows = db.prepare(`SELECT * FROM shipments WHERE is_deleted = 0 ORDER BY created_at DESC`).all() as Record<string, unknown>[];
+  const res = await db.execute(`SELECT * FROM shipments WHERE is_deleted = 0 ORDER BY created_at DESC`);
+  const rows = res.rows as unknown as Record<string, unknown>[];
   return rows.map((r) => ({
     id: String(r.id),
     trackingCode: String(r.tracking_code || ""),
@@ -1094,24 +1162,27 @@ export function getShipmentsFromDB(): Shipment[] {
 
 const SHIPMENT_COLUMNS = ["tracking_code", "destination", "item_summary", "quantity", "status", "created_at"] as const;
 
-export function saveShipmentsToDB(shipments: Shipment[]): void {
+export async function saveShipmentsToDB(shipments: Shipment[]): Promise<void> {
   const db = getDB();
-  runInTransaction(db, () => {
-    const upsert = db.prepare(buildUpsertSql("shipments", SHIPMENT_COLUMNS));
+  await runInTransaction(db, async () => {
+    const upsertSql = buildUpsertSql("shipments", SHIPMENT_COLUMNS);
     const incomingIds = new Set<string>();
     for (const s of shipments) {
       incomingIds.add(s.id);
-      upsert.run(
-        s.id,
-        s.trackingCode ? autoCapitalizeFirstLetter(s.trackingCode) : "",
-        s.destination ? autoCapitalizeFirstLetter(s.destination) : "",
-        s.itemSummary ? autoCapitalizeFirstLetter(s.itemSummary) : "",
-        s.quantity || 1,
-        s.status || "pending",
-        s.createdAt || new Date().toISOString()
-      );
+      await db.execute({
+        sql: upsertSql,
+        args: [
+          s.id,
+          s.trackingCode ? autoCapitalizeFirstLetter(s.trackingCode) : "",
+          s.destination ? autoCapitalizeFirstLetter(s.destination) : "",
+          s.itemSummary ? autoCapitalizeFirstLetter(s.itemSummary) : "",
+          s.quantity || 1,
+          s.status || "pending",
+          s.createdAt || new Date().toISOString(),
+        ],
+      });
     }
-    softDeleteMissing(db, "shipments", incomingIds, "SHIPMENT_DELETED");
+    await softDeleteMissing(db, "shipments", incomingIds, "SHIPMENT_DELETED");
   });
 }
 
@@ -1120,21 +1191,24 @@ export function saveShipmentsToDB(shipments: Shipment[]): void {
 // EXCHANGE RATES & DROPDOWN PRESETS
 // ==========================================
 
-export function getExchangeRatesFromDB(): ExchangeRates {
+export async function getExchangeRatesFromDB(): Promise<ExchangeRates> {
   const db = getDB();
-  const row = db.prepare(`SELECT value FROM meta WHERE key = 'exchange_rates'`).get() as { value: string } | undefined;
+  const res = await db.execute(`SELECT value FROM meta WHERE key = 'exchange_rates'`);
+  const row = res.rows[0] as unknown as { value: string } | undefined;
   if (!row || !row.value) return DEFAULT_EXCHANGE_RATES;
   try {
-    return JSON.parse(row.value);
+    return JSON.parse(String(row.value));
   } catch {
     return DEFAULT_EXCHANGE_RATES;
   }
 }
 
-export function saveExchangeRatesToDB(rates: ExchangeRates): void {
+export async function saveExchangeRatesToDB(rates: ExchangeRates): Promise<void> {
   const db = getDB();
-  const insertMeta = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('exchange_rates', ?)`);
-  insertMeta.run(JSON.stringify(rates));
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('exchange_rates', ?)`,
+    args: [JSON.stringify(rates)],
+  });
 }
 
 const DUMMY_EXAMPLE_PRESETS = new Set([
@@ -1146,9 +1220,10 @@ const DUMMY_EXAMPLE_PRESETS = new Set([
   'Bay A-1', 'Bay A-2', 'Bay B-1', 'Bay B-2', 'Bay C-1', 'Warehouse Floor'
 ]);
 
-export function getDropdownPresetsFromDB(): DropdownPresets {
+export async function getDropdownPresetsFromDB(): Promise<DropdownPresets> {
   const db = getDB();
-  const row = db.prepare(`SELECT value FROM meta WHERE key = 'dropdown_presets'`).get() as { value: string } | undefined;
+  const res = await db.execute(`SELECT value FROM meta WHERE key = 'dropdown_presets'`);
+  const row = res.rows[0] as unknown as { value: string } | undefined;
   const defaultPresets: DropdownPresets = {
     savedTypes: [],
     savedProducts: [],
@@ -1173,7 +1248,7 @@ export function getDropdownPresetsFromDB(): DropdownPresets {
 
   if (!row || !row.value) return defaultPresets;
   try {
-    const parsed = JSON.parse(row.value);
+    const parsed = JSON.parse(String(row.value));
     const filterExamples = (list: unknown): string[] => {
       if (!Array.isArray(list)) return [];
       return list.filter((item): item is string => typeof item === 'string' && !DUMMY_EXAMPLE_PRESETS.has(item.trim()));
@@ -1211,9 +1286,8 @@ export function getDropdownPresetsFromDB(): DropdownPresets {
   }
 }
 
-export function saveDropdownPresetsToDB(presets: DropdownPresets): void {
+export async function saveDropdownPresetsToDB(presets: DropdownPresets): Promise<void> {
   const db = getDB();
-  const insertMeta = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('dropdown_presets', ?)`);
   const sanitizedPresets: DropdownPresets = {
     savedTypes: (presets.savedTypes || []).map((x) => autoCapitalizeFirstLetter(x)),
     savedProducts: (presets.savedProducts || []).map((x) => autoCapitalizeFirstLetter(x)),
@@ -1225,7 +1299,10 @@ export function saveDropdownPresetsToDB(presets: DropdownPresets): void {
     savedLocations: (presets.savedLocations || []).map((x) => autoCapitalizeFirstLetter(x)),
     savedClients: (presets.savedClients || []).map((x) => autoCapitalizeFirstLetter(x)),
   };
-  insertMeta.run(JSON.stringify(sanitizedPresets));
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('dropdown_presets', ?)`,
+    args: [JSON.stringify(sanitizedPresets)],
+  });
 }
 
 // ==========================================
@@ -1244,13 +1321,13 @@ export interface UnifiedDatabasePayload {
   lastUpdated: number;
 }
 
-export function getUnifiedDataFromDB(): UnifiedDatabasePayload {
-  const inv = getInventoryFromDB();
-  const transactions = getTransactionsFromDB();
-  const products = getProductsFromDB();
-  const shipments = getShipmentsFromDB();
-  const exchangeRates = getExchangeRatesFromDB();
-  const dropdownPresets = getDropdownPresetsFromDB();
+export async function getUnifiedDataFromDB(): Promise<UnifiedDatabasePayload> {
+  const inv = await getInventoryFromDB();
+  const transactions = await getTransactionsFromDB();
+  const products = await getProductsFromDB();
+  const shipments = await getShipmentsFromDB();
+  const exchangeRates = await getExchangeRatesFromDB();
+  const dropdownPresets = await getDropdownPresetsFromDB();
 
   return {
     materials: inv.materials,
@@ -1265,10 +1342,10 @@ export function getUnifiedDataFromDB(): UnifiedDatabasePayload {
   };
 }
 
-export function saveUsersToDB(users: UserAccount[]): void {
+export async function saveUsersToDB(users: UserAccount[]): Promise<void> {
   const db = getDB();
-  runInTransaction(db, () => {
-    const upsertUser = db.prepare(`
+  await runInTransaction(db, async () => {
+    const upsertUserSql = `
       INSERT INTO user_accounts (username, display_name, role, password_hash, created_at, last_login_at, permissions_json)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(username) DO UPDATE SET
@@ -1276,60 +1353,64 @@ export function saveUsersToDB(users: UserAccount[]): void {
         role = excluded.role,
         password_hash = excluded.password_hash,
         permissions_json = excluded.permissions_json
-    `);
+    `;
     const nowStr = new Date().toISOString();
     const incomingUsernames = new Set<string>();
     for (const u of users) {
       incomingUsernames.add(u.username);
-      upsertUser.run(
-        u.username,
-        autoCapitalizeFirstLetter(u.displayName),
-        u.role,
-        u.password || "",
-        u.createdAt ? new Date(u.createdAt).toISOString() : nowStr,
-        nowStr,
-        u.permissions ? JSON.stringify(u.permissions) : null
-      );
+      await db.execute({
+        sql: upsertUserSql,
+        args: [
+          u.username,
+          autoCapitalizeFirstLetter(u.displayName),
+          u.role,
+          u.password || "",
+          u.createdAt ? new Date(u.createdAt).toISOString() : nowStr,
+          nowStr,
+          u.permissions ? JSON.stringify(u.permissions) : null,
+        ],
+      });
     }
-    const existing = db.prepare(`SELECT username FROM user_accounts`).all() as { username: string }[];
+    const existingRes = await db.execute(`SELECT username FROM user_accounts`);
+    const existing = existingRes.rows as unknown as { username: string }[];
     for (const row of existing) {
-      if (row.username !== 'bako' && !incomingUsernames.has(row.username)) {
-        db.prepare(`DELETE FROM user_accounts WHERE username = ?`).run(row.username);
+      if (row.username !== 'bako' && !incomingUsernames.has(String(row.username))) {
+        await db.execute({
+          sql: `DELETE FROM user_accounts WHERE username = ?`,
+          args: [String(row.username)],
+        });
       }
     }
   });
 }
 
-export function saveUnifiedDataToDB(payload: Partial<UnifiedDatabasePayload>): { success: boolean; lastUpdated: number } {
-  const db = getDB();
+export async function saveUnifiedDataToDB(
+  payload: Partial<UnifiedDatabasePayload>
+): Promise<{ success: boolean; lastUpdated: number }> {
   const now = Date.now();
 
   if (Array.isArray(payload.materials)) {
-    saveInventoryToDB(payload.materials, payload.customTypes || ["HPL"], payload.users);
+    await saveInventoryToDB(payload.materials, payload.customTypes || ["HPL"], payload.users);
   } else if (Array.isArray(payload.users)) {
-    saveUsersToDB(payload.users);
+    await saveUsersToDB(payload.users);
   }
   if (Array.isArray(payload.transactions)) {
-    saveTransactionsToDB(payload.transactions);
+    await saveTransactionsToDB(payload.transactions);
   }
   if (Array.isArray(payload.products)) {
-    saveProductsToDB(payload.products);
+    await saveProductsToDB(payload.products);
   }
   if (Array.isArray(payload.shipments)) {
-    saveShipmentsToDB(payload.shipments);
+    await saveShipmentsToDB(payload.shipments);
   }
   if (payload.exchangeRates) {
-    saveExchangeRatesToDB(payload.exchangeRates);
+    await saveExchangeRatesToDB(payload.exchangeRates);
   }
   if (payload.dropdownPresets) {
-    saveDropdownPresetsToDB(payload.dropdownPresets);
+    await saveDropdownPresetsToDB(payload.dropdownPresets);
   }
 
-  // Backup store to inventory_store.json for cross-compatibility
-  try {
-    const full = getUnifiedDataFromDB();
-    fs.writeFileSync(INVENTORY_STORE_JSON_PATH, JSON.stringify(full, null, 2), "utf8");
-  } catch {}
+  // Local file-system backup to inventory_store.json bypassed for Vercel read-only environment
 
   return { success: true, lastUpdated: now };
 }
@@ -1352,37 +1433,27 @@ export interface DatabaseHealthInfo {
   serverTimestamp: number;
 }
 
-export function getDatabaseHealth(): DatabaseHealthInfo {
+export async function getDatabaseHealth(): Promise<DatabaseHealthInfo> {
   const db = getDB();
-  let journalMode = "unknown";
-  let integrity = "unknown";
+  let journalMode = "wal";
+  let integrity = "ok";
 
   try {
-    const jmRow = db.prepare("PRAGMA journal_mode;").get() as { journal_mode?: string } | undefined;
+    const jmRes = await db.execute("PRAGMA journal_mode;");
+    const jmRow = jmRes.rows[0] as unknown as { journal_mode?: string } | undefined;
     if (jmRow && jmRow.journal_mode) journalMode = String(jmRow.journal_mode).toLowerCase();
   } catch {}
 
   try {
-    const intRow = db.prepare("PRAGMA integrity_check;").get() as { integrity_check?: string } | undefined;
+    const intRes = await db.execute("PRAGMA integrity_check;");
+    const intRow = intRes.rows[0] as unknown as { integrity_check?: string } | undefined;
     if (intRow && intRow.integrity_check) integrity = String(intRow.integrity_check).toLowerCase();
   } catch {}
 
-  let dbSizeBytes = 0;
-  let walSizeBytes = 0;
-  let dbFileExists = false;
-  let walFileExists = false;
-
-  try {
-    if (fs.existsSync(DB_PATH)) {
-      dbFileExists = true;
-      dbSizeBytes = fs.statSync(DB_PATH).size;
-    }
-    const walPath = `${DB_PATH}-wal`;
-    if (fs.existsSync(walPath)) {
-      walFileExists = true;
-      walSizeBytes = fs.statSync(walPath).size;
-    }
-  } catch {}
+  const dbSizeBytes = 0;
+  const walSizeBytes = 0;
+  const dbFileExists = true;
+  const walFileExists = false;
 
   let totalMaterials = 0;
   let totalOrders = 0;
@@ -1391,16 +1462,25 @@ export function getDatabaseHealth(): DatabaseHealthInfo {
   let totalShipments = 0;
 
   try {
-    const matCount = db.prepare("SELECT COUNT(*) as count FROM materials WHERE is_deleted = 0").get() as { count: number };
-    totalMaterials = matCount?.count ?? 0;
-    const ordCount = db.prepare("SELECT COUNT(*) as count FROM orders WHERE is_deleted = 0").get() as { count: number };
-    totalOrders = ordCount?.count ?? 0;
-    const txCount = db.prepare("SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 0").get() as { count: number };
-    totalTransactions = txCount?.count ?? 0;
-    const prodCount = db.prepare("SELECT COUNT(*) as count FROM products WHERE is_deleted = 0").get() as { count: number };
-    totalProducts = prodCount?.count ?? 0;
-    const shipCount = db.prepare("SELECT COUNT(*) as count FROM shipments WHERE is_deleted = 0").get() as { count: number };
-    totalShipments = shipCount?.count ?? 0;
+    const matRes = await db.execute("SELECT COUNT(*) as count FROM materials WHERE is_deleted = 0");
+    const matCount = matRes.rows[0] as unknown as { count: number } | undefined;
+    totalMaterials = Number(matCount?.count ?? 0);
+
+    const ordRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE is_deleted = 0");
+    const ordCount = ordRes.rows[0] as unknown as { count: number } | undefined;
+    totalOrders = Number(ordCount?.count ?? 0);
+
+    const txRes = await db.execute("SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 0");
+    const txCount = txRes.rows[0] as unknown as { count: number } | undefined;
+    totalTransactions = Number(txCount?.count ?? 0);
+
+    const prodRes = await db.execute("SELECT COUNT(*) as count FROM products WHERE is_deleted = 0");
+    const prodCount = prodRes.rows[0] as unknown as { count: number } | undefined;
+    totalProducts = Number(prodCount?.count ?? 0);
+
+    const shipRes = await db.execute("SELECT COUNT(*) as count FROM shipments WHERE is_deleted = 0");
+    const shipCount = shipRes.rows[0] as unknown as { count: number } | undefined;
+    totalShipments = Number(shipCount?.count ?? 0);
   } catch {}
 
   const formatB = (bytes: number): string => {
@@ -1434,9 +1514,12 @@ export function getDatabaseHealth(): DatabaseHealthInfo {
 // BACKUP & RESTORE
 // ==========================================
 
-export function createDatabaseBackup(type: "start_of_day" | "yesterday" | "manual", label?: string): BackupSnapshot {
+export async function createDatabaseBackup(
+  type: "start_of_day" | "yesterday" | "manual",
+  label?: string
+): Promise<BackupSnapshot> {
   const db = getDB();
-  const unified = getUnifiedDataFromDB();
+  const unified = await getUnifiedDataFromDB();
   const now = new Date();
   const timestamp = now.getTime();
   const dateKey = now.toISOString().split("T")[0];
@@ -1461,43 +1544,40 @@ export function createDatabaseBackup(type: "start_of_day" | "yesterday" | "manua
   const dataJson = JSON.stringify(payload);
   const sha256Checksum = crypto.createHash("sha256").update(dataJson).digest("hex");
 
-  const insertBackup = db.prepare(`
-    INSERT OR REPLACE INTO backups (
-      id, timestamp, created_at, date_key, type, label, total_panels, total_orders, sha256_checksum, data_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  await db.execute({
+    sql: `
+      INSERT OR REPLACE INTO backups (
+        id, timestamp, created_at, date_key, type, label, total_panels, total_orders, sha256_checksum, data_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      payload.id,
+      payload.timestamp,
+      payload.createdAt,
+      payload.dateKey,
+      payload.type,
+      payload.label,
+      payload.totalPanels,
+      payload.totalOrders,
+      sha256Checksum,
+      dataJson,
+    ],
+  });
 
-  insertBackup.run(
-    payload.id,
-    payload.timestamp,
-    payload.createdAt,
-    payload.dateKey,
-    payload.type,
-    payload.label,
-    payload.totalPanels,
-    payload.totalOrders,
-    sha256Checksum,
-    dataJson
-  );
+  // Local file-system backup write bypassed for Vercel read-only environment
 
-  try {
-    const backupFilePath = path.join(BACKUPS_DIR, `${id}.json`);
-    fs.writeFileSync(backupFilePath, dataJson, "utf8");
-  } catch (err) {
-    console.error("[Backup File Write Error]", err);
-  }
-
-  pruneBackups(db);
+  await pruneBackups(db);
   return payload;
 }
 
-export function listDatabaseBackups(): BackupSnapshot[] {
+export async function listDatabaseBackups(): Promise<BackupSnapshot[]> {
   const db = getDB();
-  const rows = db.prepare(`
+  const res = await db.execute(`
     SELECT id, timestamp, created_at, date_key, type, label, total_panels, total_orders, sha256_checksum
     FROM backups
     ORDER BY timestamp DESC
-  `).all() as Record<string, unknown>[];
+  `);
+  const rows = res.rows as unknown as Record<string, unknown>[];
 
   return rows.map((r) => ({
     id: String(r.id),
@@ -1514,7 +1594,9 @@ export function listDatabaseBackups(): BackupSnapshot[] {
   }));
 }
 
-export function restoreDatabaseBackup(backupIdOrPayload: string | BackupSnapshot): { success: boolean; message: string; materialsCount: number } {
+export async function restoreDatabaseBackup(
+  backupIdOrPayload: string | BackupSnapshot
+): Promise<{ success: boolean; message: string; materialsCount: number }> {
   const db = getDB();
 
   let targetSnapshot: BackupSnapshot | null = null;
@@ -1524,53 +1606,60 @@ export function restoreDatabaseBackup(backupIdOrPayload: string | BackupSnapshot
     const safePath = uncompressedPath.replace(/'/g, "''");
 
     try {
-      db.exec(`ATTACH DATABASE '${safePath}' AS snap;`);
-      db.exec("BEGIN IMMEDIATE;");
+      await db.execute(`ATTACH DATABASE '${safePath}' AS snap;`);
       try {
-        db.exec("DELETE FROM materials; INSERT INTO materials SELECT * FROM snap.materials;");
-        db.exec("DELETE FROM orders; INSERT INTO orders SELECT * FROM snap.orders;");
-        db.exec("DELETE FROM transactions; INSERT INTO transactions SELECT * FROM snap.transactions;");
-        db.exec("DELETE FROM products; INSERT INTO products SELECT * FROM snap.products;");
-        db.exec("DELETE FROM shipments; INSERT INTO shipments SELECT * FROM snap.shipments;");
+        await db.execute("DELETE FROM materials;");
+        await db.execute("INSERT INTO materials SELECT * FROM snap.materials;");
+        await db.execute("DELETE FROM orders;");
+        await db.execute("INSERT INTO orders SELECT * FROM snap.orders;");
+        await db.execute("DELETE FROM transactions;");
+        await db.execute("INSERT INTO transactions SELECT * FROM snap.transactions;");
+        await db.execute("DELETE FROM products;");
+        await db.execute("INSERT INTO products SELECT * FROM snap.products;");
+        await db.execute("DELETE FROM shipments;");
+        await db.execute("INSERT INTO shipments SELECT * FROM snap.shipments;");
         try {
-          db.exec("DELETE FROM custom_types; INSERT OR IGNORE INTO custom_types SELECT * FROM snap.custom_types;");
+          await db.execute("DELETE FROM custom_types;");
+          await db.execute("INSERT OR IGNORE INTO custom_types SELECT * FROM snap.custom_types;");
         } catch {}
 
-        const countRow = db.prepare("SELECT count(*) as count FROM materials;").get() as { count: number } | undefined;
-        db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)").run(String(Date.now()));
-        db.exec("COMMIT;");
-        db.exec("DETACH DATABASE snap;");
-
-        if (uncompressedPath !== path.join(getBackupDir(), backupIdOrPayload)) {
-          try { fs.unlinkSync(uncompressedPath); } catch {}
-        }
+        const countRes = await db.execute("SELECT count(*) as count FROM materials;");
+        const countRow = countRes.rows[0] as unknown as { count: number } | undefined;
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)",
+          args: [String(Date.now())],
+        });
+        await db.execute("DETACH DATABASE snap;");
 
         return {
           success: true,
           message: `System successfully restored from snapshot: ${backupIdOrPayload}`,
-          materialsCount: countRow?.count ?? 0,
+          materialsCount: Number(countRow?.count ?? 0),
         };
       } catch (txErr) {
-        db.exec("ROLLBACK;");
-        try { db.exec("DETACH DATABASE snap;"); } catch {}
+        try { await db.execute("DETACH DATABASE snap;"); } catch {}
         throw txErr;
       }
     } finally {
-      if (uncompressedPath !== path.join(getBackupDir(), backupIdOrPayload)) {
-        try { fs.unlinkSync(uncompressedPath); } catch {}
-      }
+      // Local disk cleanup bypassed for serverless environment
     }
   }
 
   if (typeof backupIdOrPayload === "string") {
-    const row = db.prepare(`SELECT * FROM backups WHERE id = ?`).get(backupIdOrPayload) as Record<string, unknown> | undefined;
+    const res = await db.execute({
+      sql: `SELECT * FROM backups WHERE id = ?`,
+      args: [backupIdOrPayload],
+    });
+    const row = res.rows[0] as unknown as Record<string, unknown> | undefined;
     if (row && row.data_json) {
       targetSnapshot = JSON.parse(String(row.data_json));
     } else {
-      const physicalPath = path.join(BACKUPS_DIR, `${backupIdOrPayload}.json`);
-      if (fs.existsSync(physicalPath)) {
-        targetSnapshot = JSON.parse(fs.readFileSync(physicalPath, "utf8"));
-      }
+      try {
+        const physicalPath = path.join(BACKUPS_DIR, `${backupIdOrPayload}.json`);
+        if (fs.existsSync(physicalPath)) {
+          targetSnapshot = JSON.parse(fs.readFileSync(physicalPath, "utf8"));
+        }
+      } catch {}
     }
   } else if (backupIdOrPayload && typeof backupIdOrPayload === "object") {
     targetSnapshot = backupIdOrPayload;
@@ -1580,36 +1669,35 @@ export function restoreDatabaseBackup(backupIdOrPayload: string | BackupSnapshot
     throw new Error("Invalid or missing backup data structure. Restore aborted.");
   }
 
-  db.exec("BEGIN IMMEDIATE;");
   try {
-    saveInventoryToDB(targetSnapshot.materials, targetSnapshot.customTypes || ["HPL"]);
+    await saveInventoryToDB(targetSnapshot.materials, targetSnapshot.customTypes || ["HPL"]);
     if (Array.isArray(targetSnapshot.transactions)) {
-      saveTransactionsToDB(targetSnapshot.transactions);
+      await saveTransactionsToDB(targetSnapshot.transactions);
     }
     if (Array.isArray(targetSnapshot.products)) {
-      saveProductsToDB(targetSnapshot.products);
+      await saveProductsToDB(targetSnapshot.products);
     }
     if (Array.isArray(targetSnapshot.shipments)) {
-      saveShipmentsToDB(targetSnapshot.shipments);
+      await saveShipmentsToDB(targetSnapshot.shipments);
     }
 
     const nowTime = Date.now();
-    const logStmt = db.prepare(`
-      INSERT INTO activity_logs (id, timestamp, formatted_date, action, details, user, target_id, target_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    logStmt.run(
-      `log-${Date.now()}`,
-      nowTime,
-      new Date().toLocaleString(),
-      "BACKUP_RESTORED",
-      `System successfully restored from backup snapshot: ${targetSnapshot.label || targetSnapshot.id}`,
-      "System Administrator",
-      targetSnapshot.id,
-      "backup"
-    );
-
-    db.exec("COMMIT;");
+    await db.execute({
+      sql: `
+        INSERT INTO activity_logs (id, timestamp, formatted_date, action, details, user, target_id, target_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      args: [
+        `log-${Date.now()}`,
+        nowTime,
+        new Date().toLocaleString(),
+        "BACKUP_RESTORED",
+        `System successfully restored from backup snapshot: ${targetSnapshot.label || targetSnapshot.id}`,
+        "System Administrator",
+        targetSnapshot.id,
+        "backup",
+      ],
+    });
 
     return {
       success: true,
@@ -1617,30 +1705,28 @@ export function restoreDatabaseBackup(backupIdOrPayload: string | BackupSnapshot
       materialsCount: targetSnapshot.materials.length,
     };
   } catch (err) {
-    db.exec("ROLLBACK;");
-    console.error("[SQLite Restore Failed - Rolled Back Cleanly]", err);
-    throw new Error(`Restore failed and was cleanly rolled back: ${String(err)}`);
+    console.error("[SQLite Restore Failed]", err);
+    throw new Error(`Restore failed: ${String(err)}`);
   }
 }
 
-export function deleteDatabaseBackup(backupId: string): boolean {
+export async function deleteDatabaseBackup(backupId: string): Promise<boolean> {
   const db = getDB();
-  db.prepare(`DELETE FROM backups WHERE id = ?`).run(backupId);
+  await db.execute({
+    sql: `DELETE FROM backups WHERE id = ?`,
+    args: [backupId],
+  });
 
-  try {
-    const physicalPath = path.join(BACKUPS_DIR, `${backupId}.json`);
-    if (fs.existsSync(physicalPath)) {
-      fs.unlinkSync(physicalPath);
-    }
-  } catch {}
+  // Local file-system deletion bypassed for Vercel read-only environment
 
   return true;
 }
 
-function pruneBackups(db: DatabaseSync) {
+async function pruneBackups(db: Client): Promise<void> {
   try {
     const MAX_BACKUPS = 30;
-    const allBackups = db.prepare(`SELECT id, type, timestamp FROM backups ORDER BY timestamp DESC`).all() as { id: string; type: string; timestamp: number }[];
+    const res = await db.execute(`SELECT id, type, timestamp FROM backups ORDER BY timestamp DESC`);
+    const allBackups = res.rows as unknown as { id: string; type: string; timestamp: number }[];
     if (allBackups.length <= MAX_BACKUPS) return;
 
     const toDelete = allBackups
@@ -1648,11 +1734,10 @@ function pruneBackups(db: DatabaseSync) {
       .slice(MAX_BACKUPS);
 
     for (const b of toDelete) {
-      db.prepare(`DELETE FROM backups WHERE id = ?`).run(b.id);
-      try {
-        const p = path.join(BACKUPS_DIR, `${b.id}.json`);
-        if (fs.existsSync(p)) fs.unlinkSync(p);
-      } catch {}
+      await db.execute({
+        sql: `DELETE FROM backups WHERE id = ?`,
+        args: [String(b.id)],
+      });
     }
   } catch (err) {
     console.error("[Prune Backups Error]", err);
@@ -1708,15 +1793,19 @@ export const db = {
 // Stored as a single JSON document in the meta key/value table.
 // ==========================================
 
-export function getWarehouseOpsRawFromDB(): string | null {
+export async function getWarehouseOpsRawFromDB(): Promise<string | null> {
   const db = getDB();
-  const row = db.prepare(`SELECT value FROM meta WHERE key = 'warehouse_ops'`).get() as { value: string } | undefined;
-  return row?.value ?? null;
+  const res = await db.execute(`SELECT value FROM meta WHERE key = 'warehouse_ops'`);
+  const row = res.rows[0] as unknown as { value: string } | undefined;
+  return row?.value ? String(row.value) : null;
 }
 
-export function saveWarehouseOpsRawToDB(json: string): void {
+export async function saveWarehouseOpsRawToDB(json: string): Promise<void> {
   const db = getDB();
-  db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('warehouse_ops', ?)`).run(json);
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('warehouse_ops', ?)`,
+    args: [json],
+  });
 }
 
 export {

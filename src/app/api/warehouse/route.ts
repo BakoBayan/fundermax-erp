@@ -11,7 +11,7 @@ const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-
 export async function GET() {
   noStore();
   try {
-    const raw = getWarehouseOpsRawFromDB();
+    const raw = await getWarehouseOpsRawFromDB();
     return NextResponse.json({ state: raw ? JSON.parse(raw) : null }, { headers: NO_STORE });
   } catch (error) {
     console.error('[API GET /api/warehouse Error]', error);
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     }
 
     // Last-write-wins guard: never overwrite a newer server document with an older one.
-    const existingRaw = getWarehouseOpsRawFromDB();
+    const existingRaw = await getWarehouseOpsRawFromDB();
     if (existingRaw) {
       try {
         const existing = JSON.parse(existingRaw) as { updatedAt?: number };
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       }
     }
 
-    saveWarehouseOpsRawToDB(JSON.stringify(body.state));
+    await saveWarehouseOpsRawToDB(JSON.stringify(body.state));
     revalidatePath('/', 'layout');
     return NextResponse.json({ success: true }, { headers: NO_STORE });
   } catch (error) {

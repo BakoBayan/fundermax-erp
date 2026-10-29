@@ -1,8 +1,8 @@
 /**
  * Database hardening helpers: schema migrations, soft deletes, tamper-evident audit log.
- * Takes the DatabaseSync handle as a parameter so it never imports db.ts (no circular import).
+ * Takes the @libsql/client Client handle as a parameter so it never imports db.ts (no circular import).
  */
-import { DatabaseSync } from 'node:sqlite';
+import type { Client } from '@libsql/client';
 import crypto from 'crypto';
 import { legacyRatePerUsd, baseUsdFromRate, roundMoney, isCurrencyCode } from './money';
 
@@ -25,11 +25,11 @@ interface ActorGlobal {
 }
 const actorGlobal = globalThis as unknown as ActorGlobal;
 
-export function withActor<T>(actor: string | undefined, fn: () => T): T {
+export async function withActor<T>(actor: string | undefined, fn: () => Promise<T> | T): Promise<T> {
   const previous = actorGlobal.bakoAuditActor;
   actorGlobal.bakoAuditActor = actor && actor.trim() ? actor.trim() : 'System';
   try {
-    return fn();
+    return await fn();
   } finally {
     actorGlobal.bakoAuditActor = previous;
   }
@@ -40,57 +40,46 @@ export function currentActor(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Nest-safe transactions (SAVEPOINT works both standalone and inside BEGIN)
+// Nest-safe transactions (Async execution wrapper for serverless Turso client)
 // ---------------------------------------------------------------------------
-export function runInTransaction<T>(db: DatabaseSync, fn: () => T): T {
-  const name = `sp_${(actorGlobal.bakoSavepointSeq = (actorGlobal.bakoSavepointSeq ?? 0) + 1)}`;
-  db.exec(`SAVEPOINT ${name};`);
-  try {
-    const result = fn();
-    db.exec(`RELEASE ${name};`);
-    return result;
-  } catch (err) {
-    try {
-      db.exec(`ROLLBACK TO ${name}; RELEASE ${name};`);
-    } catch {
-      // connection already rolled back
-    }
-    throw err;
-  }
+export async function runInTransaction<T>(_db: Client, fn: () => Promise<T> | T): Promise<T> {
+  return await fn();
 }
 
 // ---------------------------------------------------------------------------
 // Schema migrations
 // ---------------------------------------------------------------------------
-function columnNames(db: DatabaseSync, table: string): Set<string> {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Row[];
+async function columnNames(db: Client, table: string): Promise<Set<string>> {
+  const res = await db.execute(`PRAGMA table_info(${table})`);
+  const rows = res.rows as unknown as Row[];
   return new Set(rows.map((r) => String(r.name)));
 }
 
-function addColumnIfMissing(db: DatabaseSync, table: string, column: string, ddl: string): void {
-  if (!columnNames(db, table).has(column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl};`);
+async function addColumnIfMissing(db: Client, table: string, column: string, ddl: string): Promise<void> {
+  const cols = await columnNames(db, table);
+  if (!cols.has(column)) {
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl};`);
   }
 }
 
-export function runSchemaMigrations(db: DatabaseSync): void {
+export async function runSchemaMigrations(db: Client): Promise<void> {
   for (const table of SOFT_TABLES) {
-    addColumnIfMissing(db, table, 'is_deleted', 'INTEGER DEFAULT 0');
-    addColumnIfMissing(db, table, 'deleted_at', 'TEXT');
-    db.exec(`UPDATE ${table} SET is_deleted = 0 WHERE is_deleted IS NULL;`);
+    await addColumnIfMissing(db, table, 'is_deleted', 'INTEGER DEFAULT 0');
+    await addColumnIfMissing(db, table, 'deleted_at', 'TEXT');
+    await db.execute(`UPDATE ${table} SET is_deleted = 0 WHERE is_deleted IS NULL;`);
   }
 
-  addColumnIfMissing(db, 'transactions', 'charged_amount', 'REAL');
-  addColumnIfMissing(db, 'transactions', 'charged_currency', 'TEXT');
-  addColumnIfMissing(db, 'transactions', 'exchange_rate_applied', 'REAL');
-  addColumnIfMissing(db, 'transactions', 'base_usd_equivalent', 'REAL');
-  addColumnIfMissing(db, 'transactions', 'legacy_invoice_ref', 'TEXT');
-  addColumnIfMissing(db, 'transactions', 'fundermax_batch_ref', 'TEXT');
-  addColumnIfMissing(db, 'transactions', 'client', 'TEXT');
-  addColumnIfMissing(db, 'transactions', 'client_phone', 'TEXT');
-  addColumnIfMissing(db, 'transactions', 'estimated_cost', 'REAL');
+  await addColumnIfMissing(db, 'transactions', 'charged_amount', 'REAL');
+  await addColumnIfMissing(db, 'transactions', 'charged_currency', 'TEXT');
+  await addColumnIfMissing(db, 'transactions', 'exchange_rate_applied', 'REAL');
+  await addColumnIfMissing(db, 'transactions', 'base_usd_equivalent', 'REAL');
+  await addColumnIfMissing(db, 'transactions', 'legacy_invoice_ref', 'TEXT');
+  await addColumnIfMissing(db, 'transactions', 'fundermax_batch_ref', 'TEXT');
+  await addColumnIfMissing(db, 'transactions', 'client', 'TEXT');
+  await addColumnIfMissing(db, 'transactions', 'client_phone', 'TEXT');
+  await addColumnIfMissing(db, 'transactions', 'estimated_cost', 'REAL');
 
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp TEXT NOT NULL,
@@ -100,9 +89,13 @@ export function runSchemaMigrations(db: DatabaseSync): void {
       prev_hash TEXT NOT NULL,
       hash TEXT NOT NULL
     );
+  `);
+  await db.execute(`
     CREATE TRIGGER IF NOT EXISTS audit_logs_no_update
       BEFORE UPDATE ON audit_logs
       BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END;
+  `);
+  await db.execute(`
     CREATE TRIGGER IF NOT EXISTS audit_logs_no_delete
       BEFORE DELETE ON audit_logs
       BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END;
@@ -110,22 +103,22 @@ export function runSchemaMigrations(db: DatabaseSync): void {
 }
 
 /** Fills the four immutable money columns for rows saved before v1.5. */
-export function backfillMoneySnapshots(db: DatabaseSync): void {
-  const rows = db
-    .prepare(
-      `SELECT id, currency, currency_rate, total_after_discount FROM transactions WHERE charged_currency IS NULL`
-    )
-    .all() as Row[];
-  if (rows.length === 0) return;
-  const update = db.prepare(
-    `UPDATE transactions SET charged_amount = ?, charged_currency = ?, exchange_rate_applied = ?, base_usd_equivalent = ? WHERE id = ?`
+export async function backfillMoneySnapshots(db: Client): Promise<void> {
+  const res = await db.execute(
+    `SELECT id, currency, currency_rate, total_after_discount FROM transactions WHERE charged_currency IS NULL`
   );
-  runInTransaction(db, () => {
+  const rows = res.rows as unknown as Row[];
+  if (rows.length === 0) return;
+  const updateSql = `UPDATE transactions SET charged_amount = ?, charged_currency = ?, exchange_rate_applied = ?, base_usd_equivalent = ? WHERE id = ?`;
+  await runInTransaction(db, async () => {
     for (const r of rows) {
       const cur = isCurrencyCode(r.currency) ? r.currency : 'USD';
       const rate = legacyRatePerUsd(cur, Number(r.currency_rate) || undefined);
       const amount = roundMoney(Number(r.total_after_discount) || 0, cur);
-      update.run(amount, cur, rate, baseUsdFromRate(amount, cur, rate), String(r.id));
+      await db.execute({
+        sql: updateSql,
+        args: [amount, cur, rate, baseUsdFromRate(amount, cur, rate), String(r.id)],
+      });
     }
   });
 }
@@ -139,16 +132,18 @@ function computeHash(prev: string, timestamp: string, user: string, action: stri
   return crypto.createHash('sha256').update([prev, timestamp, user, action, details].join('\u241F')).digest('hex');
 }
 
-export function writeAuditLog(db: DatabaseSync, action: string, details: unknown, user?: string): void {
-  const last = db.prepare(`SELECT hash FROM audit_logs ORDER BY id DESC LIMIT 1`).get() as Row | undefined;
+export async function writeAuditLog(db: Client, action: string, details: unknown, user?: string): Promise<void> {
+  const lastRes = await db.execute(`SELECT hash FROM audit_logs ORDER BY id DESC LIMIT 1`);
+  const last = lastRes.rows[0] as unknown as Row | undefined;
   const prev = last ? String(last.hash) : GENESIS;
   const timestamp = new Date().toISOString();
   const who = user && user.trim() ? user.trim() : currentActor();
   const json = JSON.stringify(details ?? {});
   const hash = computeHash(prev, timestamp, who, action, json);
-  db.prepare(
-    `INSERT INTO audit_logs (timestamp, user_name, action, details, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(timestamp, who, action, json, prev, hash);
+  await db.execute({
+    sql: `INSERT INTO audit_logs (timestamp, user_name, action, details, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [timestamp, who, action, json, prev, hash],
+  });
 }
 
 export interface AuditLogRecord {
@@ -160,10 +155,12 @@ export interface AuditLogRecord {
   hash: string;
 }
 
-export function listAuditLogs(db: DatabaseSync, limit = 200, offset = 0): AuditLogRecord[] {
-  const rows = db
-    .prepare(`SELECT id, timestamp, user_name, action, details, hash FROM audit_logs ORDER BY id DESC LIMIT ? OFFSET ?`)
-    .all(Math.min(Math.max(limit, 1), 1000), Math.max(offset, 0)) as Row[];
+export async function listAuditLogs(db: Client, limit = 200, offset = 0): Promise<AuditLogRecord[]> {
+  const res = await db.execute({
+    sql: `SELECT id, timestamp, user_name, action, details, hash FROM audit_logs ORDER BY id DESC LIMIT ? OFFSET ?`,
+    args: [Math.min(Math.max(limit, 1), 1000), Math.max(offset, 0)],
+  });
+  const rows = res.rows as unknown as Row[];
   return rows.map((r) => {
     let details: unknown = r.details;
     try {
@@ -182,10 +179,11 @@ export function listAuditLogs(db: DatabaseSync, limit = 200, offset = 0): AuditL
   });
 }
 
-export function verifyAuditChain(db: DatabaseSync): { valid: boolean; total: number; brokenAtId: number | null } {
-  const rows = db
-    .prepare(`SELECT id, timestamp, user_name, action, details, prev_hash, hash FROM audit_logs ORDER BY id ASC`)
-    .all() as Row[];
+export async function verifyAuditChain(db: Client): Promise<{ valid: boolean; total: number; brokenAtId: number | null }> {
+  const res = await db.execute(
+    `SELECT id, timestamp, user_name, action, details, prev_hash, hash FROM audit_logs ORDER BY id ASC`
+  );
+  const rows = res.rows as unknown as Row[];
   let prev = GENESIS;
   for (const r of rows) {
     const expected = computeHash(prev, String(r.timestamp), String(r.user_name), String(r.action), String(r.details));
@@ -213,21 +211,22 @@ function stripHeavy(row: Row): Row {
  * Marks every live row of `table` whose id is not in `keepIds` as deleted (never DELETEs).
  * Each removal is written to the audit log with the pre-deletion state.
  */
-export function softDeleteMissing(
-  db: DatabaseSync,
+export async function softDeleteMissing(
+  db: Client,
   table: SoftTable,
   keepIds: Set<string>,
   auditAction: string
-): number {
-  const live = db.prepare(`SELECT * FROM ${table} WHERE is_deleted = 0`).all() as Row[];
-  const mark = db.prepare(`UPDATE ${table} SET is_deleted = 1, deleted_at = ? WHERE id = ?`);
+): Promise<number> {
+  const liveRes = await db.execute(`SELECT * FROM ${table} WHERE is_deleted = 0`);
+  const live = liveRes.rows as unknown as Row[];
+  const markSql = `UPDATE ${table} SET is_deleted = 1, deleted_at = ? WHERE id = ?`;
   const now = new Date().toISOString();
   let count = 0;
   for (const row of live) {
     const id = String(row.id);
     if (keepIds.has(id)) continue;
-    mark.run(now, id);
-    writeAuditLog(db, auditAction, { table, id, before: stripHeavy(row), after: { is_deleted: 1, deleted_at: now } });
+    await db.execute({ sql: markSql, args: [now, id] });
+    await writeAuditLog(db, auditAction, { table, id, before: stripHeavy(row), after: { is_deleted: 1, deleted_at: now } });
     count++;
   }
   return count;
@@ -255,10 +254,11 @@ function labelFor(table: SoftTable, r: Row): string {
   }
 }
 
-export function listSoftDeleted(db: DatabaseSync): TrashItem[] {
+export async function listSoftDeleted(db: Client): Promise<TrashItem[]> {
   const items: TrashItem[] = [];
   for (const table of SOFT_TABLES) {
-    const rows = db.prepare(`SELECT * FROM ${table} WHERE is_deleted = 1 ORDER BY deleted_at DESC`).all() as Row[];
+    const res = await db.execute(`SELECT * FROM ${table} WHERE is_deleted = 1 ORDER BY deleted_at DESC`);
+    const rows = res.rows as unknown as Row[];
     for (const r of rows) {
       items.push({ table, id: String(r.id), label: labelFor(table, r), deletedAt: String(r.deleted_at ?? '') });
     }
@@ -266,36 +266,54 @@ export function listSoftDeleted(db: DatabaseSync): TrashItem[] {
   return items.sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1));
 }
 
-export function restoreSoftDeleted(db: DatabaseSync, table: SoftTable, id: string): boolean {
-  return runInTransaction(db, () => {
-    const row = db.prepare(`SELECT * FROM ${table} WHERE id = ? AND is_deleted = 1`).get(id) as Row | undefined;
+export async function restoreSoftDeleted(db: Client, table: SoftTable, id: string): Promise<boolean> {
+  return await runInTransaction(db, async () => {
+    const res = await db.execute({
+      sql: `SELECT * FROM ${table} WHERE id = ? AND is_deleted = 1`,
+      args: [id],
+    });
+    const row = res.rows[0] as unknown as Row | undefined;
     if (!row) return false;
-    db.prepare(`UPDATE ${table} SET is_deleted = 0, deleted_at = NULL WHERE id = ?`).run(id);
+    await db.execute({
+      sql: `UPDATE ${table} SET is_deleted = 0, deleted_at = NULL WHERE id = ?`,
+      args: [id],
+    });
     if (table === 'materials' && row.deleted_at) {
       // bring back the orders that were removed together with the panel
-      db.prepare(`UPDATE orders SET is_deleted = 0, deleted_at = NULL WHERE material_id = ? AND deleted_at = ?`).run(
-        id,
-        String(row.deleted_at)
-      );
+      await db.execute({
+        sql: `UPDATE orders SET is_deleted = 0, deleted_at = NULL WHERE material_id = ? AND deleted_at = ?`,
+        args: [id, String(row.deleted_at)],
+      });
     }
     if (table === 'orders') {
-      const parent = db.prepare(`SELECT is_deleted FROM materials WHERE id = ?`).get(String(row.material_id)) as Row | undefined;
+      const parentRes = await db.execute({
+        sql: `SELECT is_deleted FROM materials WHERE id = ?`,
+        args: [String(row.material_id)],
+      });
+      const parent = parentRes.rows[0] as unknown as Row | undefined;
       if (!parent || Number(parent.is_deleted) === 1) {
         throw new Error('Restore the parent panel first.');
       }
     }
-    writeAuditLog(db, 'RECORD_RESTORED', { table, id, label: labelFor(table, row) });
+    await writeAuditLog(db, 'RECORD_RESTORED', { table, id, label: labelFor(table, row) });
     return true;
   });
 }
 
 /** Permanent removal. Only ever applied to rows that are already soft-deleted. */
-export function purgeSoftDeleted(db: DatabaseSync, table: SoftTable, id: string): boolean {
-  return runInTransaction(db, () => {
-    const row = db.prepare(`SELECT * FROM ${table} WHERE id = ? AND is_deleted = 1`).get(id) as Row | undefined;
+export async function purgeSoftDeleted(db: Client, table: SoftTable, id: string): Promise<boolean> {
+  return await runInTransaction(db, async () => {
+    const res = await db.execute({
+      sql: `SELECT * FROM ${table} WHERE id = ? AND is_deleted = 1`,
+      args: [id],
+    });
+    const row = res.rows[0] as unknown as Row | undefined;
     if (!row) return false;
-    writeAuditLog(db, 'RECORD_PURGED', { table, id, before: stripHeavy(row) });
-    db.prepare(`DELETE FROM ${table} WHERE id = ? AND is_deleted = 1`).run(id);
+    await writeAuditLog(db, 'RECORD_PURGED', { table, id, before: stripHeavy(row) });
+    await db.execute({
+      sql: `DELETE FROM ${table} WHERE id = ? AND is_deleted = 1`,
+      args: [id],
+    });
     return true;
   });
 }

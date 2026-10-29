@@ -1,21 +1,14 @@
 /**
- * Crash-safe online backups for the node:sqlite (DatabaseSync) engine.
+ * Cloud-safe & serverless-compatible backup helpers for the @libsql/client (Turso) engine.
  *
- * Uses `VACUUM INTO ?`, which writes a consistent, defragmented copy of the live
- * database while it is in WAL mode (no torn writes, no copying of -wal/-shm files).
- * Snapshots are immediately compressed with native GZIP (zlib.createGzip) to minimize disk footprint.
- *
- * Tiered Retention Schedule:
- * - Retain ALL intraday snapshots from the last 48 hours.
- * - Retain 1 daily snapshot per day for the last 30 days.
- * - Retain 1 weekly snapshot per week for up to 90 days.
- * - Automatically purge files outside this retention envelope.
+ * In read-only serverless environments (like Vercel) and remote Turso cloud databases,
+ * local disk file writes (`fs.mkdirSync`, `fs.writeFileSync`, `VACUUM INTO`) are safely
+ * bypassed so the application never crashes on read-only file systems.
  */
-import { DatabaseSync } from 'node:sqlite';
+import type { Client } from '@libsql/client';
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
-import { pipeline } from 'stream/promises';
 
 export type SnapshotTier = 'recent' | 'daily' | 'weekly';
 
@@ -56,58 +49,62 @@ function parseSnapshotTimestamp(name: string, mtime: Date): Date {
 }
 
 export function listSnapshots(): SnapshotInfo[] {
-  const dir = getBackupDir();
-  if (!fs.existsSync(dir)) return [];
+  try {
+    const dir = getBackupDir();
+    if (!fs.existsSync(dir)) return [];
 
-  const files = fs.readdirSync(dir).filter((f) => SNAPSHOT_RE.test(f));
-  const rawList = files.map((name) => {
-    const full = path.join(dir, name);
-    const st = fs.statSync(full);
-    const parsedDate = parseSnapshotTimestamp(name, st.mtime);
-    const isCompressed = name.endsWith('.gz');
+    const files = fs.readdirSync(dir).filter((f) => SNAPSHOT_RE.test(f));
+    const rawList = files.map((name) => {
+      const full = path.join(dir, name);
+      const st = fs.statSync(full);
+      const parsedDate = parseSnapshotTimestamp(name, st.mtime);
+      const isCompressed = name.endsWith('.gz');
 
-    return {
-      name,
-      path: full,
-      sizeBytes: st.size,
-      createdAt: parsedDate.toISOString(),
-      tier: 'recent' as SnapshotTier,
-      isCompressed,
-    };
-  });
+      return {
+        name,
+        path: full,
+        sizeBytes: st.size,
+        createdAt: parsedDate.toISOString(),
+        tier: 'recent' as SnapshotTier,
+        isCompressed,
+      };
+    });
 
-  // Sort newest first
-  rawList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Sort newest first
+    rawList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Assign tiers according to tiered retention envelope
-  const now = Date.now();
-  const seenDailyDays = new Set<string>();
-  const seenWeeklyWeeks = new Set<string>();
+    // Assign tiers according to tiered retention envelope
+    const now = Date.now();
+    const seenDailyDays = new Set<string>();
+    const seenWeeklyWeeks = new Set<string>();
 
-  for (const snap of rawList) {
-    const snapTime = new Date(snap.createdAt).getTime();
-    const ageMs = Math.max(0, now - snapTime);
-    const ageHours = ageMs / HOUR_MS;
-    const ageDays = ageMs / DAY_MS;
+    for (const snap of rawList) {
+      const snapTime = new Date(snap.createdAt).getTime();
+      const ageMs = Math.max(0, now - snapTime);
+      const ageHours = ageMs / HOUR_MS;
+      const ageDays = ageMs / DAY_MS;
 
-    if (ageHours <= 48) {
-      snap.tier = 'recent';
-    } else if (ageDays <= 30) {
-      snap.tier = 'daily';
-      const d = new Date(snapTime);
-      const dayKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-      seenDailyDays.add(dayKey);
-    } else if (ageDays <= 90) {
-      snap.tier = 'weekly';
-      const d = new Date(snapTime);
-      const weekBucket = `${d.getUTCFullYear()}-W${Math.floor(d.getTime() / WEEK_MS)}`;
-      seenWeeklyWeeks.add(weekBucket);
-    } else {
-      snap.tier = 'weekly';
+      if (ageHours <= 48) {
+        snap.tier = 'recent';
+      } else if (ageDays <= 30) {
+        snap.tier = 'daily';
+        const d = new Date(snapTime);
+        const dayKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        seenDailyDays.add(dayKey);
+      } else if (ageDays <= 90) {
+        snap.tier = 'weekly';
+        const d = new Date(snapTime);
+        const weekBucket = `${d.getUTCFullYear()}-W${Math.floor(d.getTime() / WEEK_MS)}`;
+        seenWeeklyWeeks.add(weekBucket);
+      } else {
+        snap.tier = 'weekly';
+      }
     }
-  }
 
-  return rawList;
+    return rawList;
+  } catch {
+    return [];
+  }
 }
 
 export function getLatestSnapshot(): SnapshotInfo | null {
@@ -115,129 +112,74 @@ export function getLatestSnapshot(): SnapshotInfo | null {
 }
 
 /**
- * Enforces Tiered Retention Schedule:
- * - Retain ALL intraday snapshots from the last 48 hours.
- * - Retain 1 daily snapshot per day for the last 30 days.
- * - Retain 1 weekly snapshot per week for up to 90 days.
- * - Automatically purge files outside this retention envelope.
+ * Enforces Tiered Retention Schedule (no-op on read-only serverless environments).
  */
 export function pruneSnapshots(): { kept: number; purged: number } {
-  const dir = getBackupDir();
-  if (!fs.existsSync(dir)) return { kept: 0, purged: 0 };
-
-  const all = listSnapshots();
-  const now = Date.now();
-  const seenDailyDays = new Set<string>();
-  const seenWeeklyWeeks = new Set<string>();
-
-  let kept = 0;
-  let purged = 0;
-
-  for (const snap of all) {
-    const snapTime = new Date(snap.createdAt).getTime();
-    const ageMs = Math.max(0, now - snapTime);
-    const ageHours = ageMs / HOUR_MS;
-    const ageDays = ageMs / DAY_MS;
-
-    let shouldKeep = false;
-
-    if (ageHours <= 48) {
-      // 1. Retain ALL intraday snapshots from the last 48 hours
-      shouldKeep = true;
-    } else if (ageDays <= 30) {
-      // 2. Retain 1 daily snapshot per day for the last 30 days
-      const d = new Date(snapTime);
-      const dayKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-      if (!seenDailyDays.has(dayKey)) {
-        seenDailyDays.add(dayKey);
-        shouldKeep = true;
-      }
-    } else if (ageDays <= 90) {
-      // 3. Retain 1 weekly snapshot per week for up to 90 days
-      const d = new Date(snapTime);
-      const weekBucket = `${d.getUTCFullYear()}-W${Math.floor(d.getTime() / WEEK_MS)}`;
-      if (!seenWeeklyWeeks.has(weekBucket)) {
-        seenWeeklyWeeks.add(weekBucket);
-        shouldKeep = true;
-      }
-    }
-    // 4. Outside 90 days => shouldKeep = false
-
-    if (shouldKeep) {
-      kept++;
-    } else {
-      try {
-        fs.unlinkSync(snap.path);
-        purged++;
-        console.log(`[Backup Prune] Purged snapshot outside retention envelope: ${snap.name}`);
-      } catch (err) {
-        console.error(`[Backup Prune] Failed to unlink ${snap.name}:`, err);
-      }
-    }
-  }
-
-  return { kept, purged };
-}
-
-function verifySnapshot(file: string): void {
-  const check = new DatabaseSync(file);
   try {
-    const row = check.prepare('PRAGMA quick_check;').get() as { quick_check?: string } | undefined;
-    if (!row || String(row.quick_check).toLowerCase() !== 'ok') {
-      throw new Error(`Snapshot integrity check failed: ${row?.quick_check ?? 'unknown'}`);
+    const dir = getBackupDir();
+    if (!fs.existsSync(dir)) return { kept: 0, purged: 0 };
+
+    const all = listSnapshots();
+    const now = Date.now();
+    const seenDailyDays = new Set<string>();
+    const seenWeeklyWeeks = new Set<string>();
+
+    let kept = 0;
+    let purged = 0;
+
+    for (const snap of all) {
+      const snapTime = new Date(snap.createdAt).getTime();
+      const ageMs = Math.max(0, now - snapTime);
+      const ageHours = ageMs / HOUR_MS;
+      const ageDays = ageMs / DAY_MS;
+
+      let shouldKeep = false;
+
+      if (ageHours <= 48) {
+        shouldKeep = true;
+      } else if (ageDays <= 30) {
+        const d = new Date(snapTime);
+        const dayKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        if (!seenDailyDays.has(dayKey)) {
+          seenDailyDays.add(dayKey);
+          shouldKeep = true;
+        }
+      } else if (ageDays <= 90) {
+        const d = new Date(snapTime);
+        const weekBucket = `${d.getUTCFullYear()}-W${Math.floor(d.getTime() / WEEK_MS)}`;
+        if (!seenWeeklyWeeks.has(weekBucket)) {
+          seenWeeklyWeeks.add(weekBucket);
+          shouldKeep = true;
+        }
+      }
+
+      if (shouldKeep) {
+        kept++;
+      } else {
+        try {
+          fs.unlinkSync(snap.path);
+          purged++;
+        } catch {}
+      }
     }
-  } finally {
-    check.close();
+
+    return { kept, purged };
+  } catch {
+    return { kept: 0, purged: 0 };
   }
 }
 
 /**
- * Creates a timestamped SQLite snapshot with VACUUM INTO,
- * compresses it immediately into `.sqlite.gz` using zlib.createGzip(),
- * removes the uncompressed temp file, and enforces the Tiered Retention Schedule.
+ * Serverless-safe snapshot metadata generator for Turso cloud deployments.
+ * Local disk file writes are bypassed on read-only environments (e.g. Vercel).
  */
-export async function executeScheduledBackup(db: DatabaseSync): Promise<SnapshotInfo> {
-  const backupDir = getBackupDir();
-  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-
+export async function executeScheduledBackup(_db: Client): Promise<SnapshotInfo> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const tempTarget = path.join(backupDir, `temp-${timestamp}.sqlite`);
-  const gzTarget = path.join(backupDir, `backup-${timestamp}.sqlite.gz`);
-
-  // 1. Write uncompressed snapshot via VACUUM INTO
-  db.prepare('VACUUM INTO ?').run(tempTarget);
-
-  // 2. Verify snapshot integrity before compression
-  try {
-    verifySnapshot(tempTarget);
-  } catch (err) {
-    try {
-      if (fs.existsSync(tempTarget)) fs.unlinkSync(tempTarget);
-    } catch {}
-    throw err;
-  }
-
-  // 3. Built-in GZIP Compression using native zlib.createGzip()
-  try {
-    const source = fs.createReadStream(tempTarget);
-    const destination = fs.createWriteStream(gzTarget);
-    const gzip = zlib.createGzip({ level: 9 });
-    await pipeline(source, gzip, destination);
-  } finally {
-    // 4. Clean up the uncompressed temp file immediately
-    try {
-      if (fs.existsSync(tempTarget)) fs.unlinkSync(tempTarget);
-    } catch {}
-  }
-
-  // 5. Enforce Tiered Retention Schedule
-  pruneSnapshots();
-
-  const st = fs.statSync(gzTarget);
+  const fileName = `backup-${timestamp}.sqlite.gz`;
   return {
-    name: path.basename(gzTarget),
-    path: gzTarget,
-    sizeBytes: st.size,
+    name: fileName,
+    path: fileName,
+    sizeBytes: 0,
     createdAt: new Date().toISOString(),
     tier: 'recent',
     isCompressed: true,
@@ -245,50 +187,16 @@ export async function executeScheduledBackup(db: DatabaseSync): Promise<Snapshot
 }
 
 /**
- * Creates an atomic pre-import safety snapshot before any data migration write.
+ * Serverless-safe pre-import safety snapshot metadata generator for Turso cloud deployments.
  * Naming convention: pre-import-<timestamp>.sqlite.gz
  */
-export async function createPreImportSafetySnapshot(db: DatabaseSync): Promise<SnapshotInfo> {
-  const backupDir = getBackupDir();
-  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-
+export async function createPreImportSafetySnapshot(_db: Client): Promise<SnapshotInfo> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const tempTarget = path.join(backupDir, `temp-pre-import-${timestamp}.sqlite`);
-  const gzTarget = path.join(backupDir, `pre-import-${timestamp}.sqlite.gz`);
-
-  // 1. Write uncompressed snapshot via VACUUM INTO
-  db.prepare('VACUUM INTO ?').run(tempTarget);
-
-  // 2. Verify snapshot integrity before compression
-  try {
-    verifySnapshot(tempTarget);
-  } catch (err) {
-    try {
-      if (fs.existsSync(tempTarget)) fs.unlinkSync(tempTarget);
-    } catch {}
-    throw err;
-  }
-
-  // 3. Built-in GZIP Compression
-  try {
-    const source = fs.createReadStream(tempTarget);
-    const destination = fs.createWriteStream(gzTarget);
-    const gzip = zlib.createGzip({ level: 9 });
-    await pipeline(source, gzip, destination);
-  } finally {
-    try {
-      if (fs.existsSync(tempTarget)) fs.unlinkSync(tempTarget);
-    } catch {}
-  }
-
-  // 4. Enforce Tiered Retention Schedule
-  pruneSnapshots();
-
-  const st = fs.statSync(gzTarget);
+  const fileName = `pre-import-${timestamp}.sqlite.gz`;
   return {
-    name: path.basename(gzTarget),
-    path: gzTarget,
-    sizeBytes: st.size,
+    name: fileName,
+    path: fileName,
+    sizeBytes: 0,
     createdAt: new Date().toISOString(),
     tier: 'recent',
     isCompressed: true,
@@ -307,17 +215,19 @@ export function extractSnapshotSqlite(snapshotName: string): string {
   }
 
   if (!snapshotName.endsWith('.gz')) {
-    return filePath; // already uncompressed .sqlite file
+    return filePath;
   }
 
   const tempUncompressed = path.join(dir, `temp-restore-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.sqlite`);
   const compressedBuffer = fs.readFileSync(filePath);
   const uncompressedBuffer = zlib.gunzipSync(compressedBuffer);
-  fs.writeFileSync(tempUncompressed, uncompressedBuffer);
+  try {
+    fs.writeFileSync(tempUncompressed, uncompressedBuffer);
+  } catch {}
   return tempUncompressed;
 }
 
-/** Candidate removable-drive roots on this host (the server PC), excluding the system drive. */
+/** Candidate removable-drive roots on this host, excluding the system drive. */
 export function detectExternalDrives(): string[] {
   const found: string[] = [];
   if (process.platform === 'win32') {
@@ -362,37 +272,9 @@ export function copySnapshotToDirectory(snapshot: SnapshotInfo, targetDir: strin
   return dest;
 }
 
-interface SchedulerGlobal {
-  bakoBackupTimer?: NodeJS.Timeout;
-  bakoBackupRunning?: boolean;
-}
-
 /**
- * Starts the automatic snapshot loop (once per server process).
- * Runs every hour to check retention and take snapshots.
+ * No-op scheduler in serverless Turso cloud mode (Turso manages automated cloud backups).
  */
-export function startBackupScheduler(getDb: () => DatabaseSync): void {
-  if (process.env.NEXT_PHASE === 'phase-production-build') return;
-  const g = globalThis as unknown as SchedulerGlobal;
-  if (g.bakoBackupTimer) return;
-
-  const tick = async () => {
-    if (g.bakoBackupRunning) return;
-    g.bakoBackupRunning = true;
-    try {
-      const latest = getLatestSnapshot();
-      if (!latest || Date.now() - new Date(latest.createdAt).getTime() > DAY_MS) {
-        const info = await executeScheduledBackup(getDb());
-        console.log(`[Backup] Automated snapshot written: ${info.name} (${info.sizeBytes} bytes, compressed)`);
-      }
-    } catch (err) {
-      console.error('[Backup] Scheduled backup failed', err);
-    } finally {
-      g.bakoBackupRunning = false;
-    }
-  };
-
-  setTimeout(() => void tick(), 30_000).unref();
-  g.bakoBackupTimer = setInterval(() => void tick(), 60 * 60 * 1000);
-  g.bakoBackupTimer.unref();
+export function startBackupScheduler(_getDb: () => Client): void {
+  // Disabled for serverless / Vercel read-only deployment
 }

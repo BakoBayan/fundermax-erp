@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, snapshots });
     }
 
-    const backups = listDatabaseBackups();
+    const backups = await listDatabaseBackups();
     const snapshots = listSnapshots();
     const drives = detectExternalDrives();
 
@@ -84,12 +84,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = body.action || "create";
 
-    // 1-Click SQLite WAL snapshot via VACUUM INTO ? (Strictly read-only against source)
+    // 1-Click SQLite WAL snapshot
     if (action === "create_snapshot" || action === "snapshot") {
       try {
         const db = getDB();
         const snapshot = await executeScheduledBackup(db);
-        writeAuditLog(db, "BACKUP_CREATED", {
+        await writeAuditLog(db, "BACKUP_CREATED", {
           type: "sqlite_vacuum",
           snapshot: snapshot.name,
           sizeBytes: snapshot.sizeBytes,
@@ -115,19 +115,21 @@ export async function POST(req: NextRequest) {
         const dbPath = getDatabasePath();
         const sizeBefore = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
 
-        // Run non-destructive PASSIVE checkpoint first (does not block active concurrent readers/writers)
         try {
-          db.exec("PRAGMA wal_checkpoint(PASSIVE);");
+          await db.execute("PRAGMA wal_checkpoint(PASSIVE);");
         } catch (cpErr) {
           console.warn("[Optimize] PASSIVE checkpoint notice:", cpErr);
         }
 
-        // Execute safe defragmentation and SQLite internal optimizer
-        db.exec("VACUUM;");
-        db.exec("PRAGMA optimize;");
+        try {
+          await db.execute("VACUUM;");
+          await db.execute("PRAGMA optimize;");
+        } catch (vacErr) {
+          console.warn("[Optimize] VACUUM/optimize notice:", vacErr);
+        }
 
         const sizeAfter = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
-        writeAuditLog(db, "DB_OPTIMIZED", {
+        await writeAuditLog(db, "DB_OPTIMIZED", {
           sizeBefore,
           sizeAfter,
           savedBytes: Math.max(0, sizeBefore - sizeAfter),
@@ -198,7 +200,7 @@ export async function POST(req: NextRequest) {
 
         // Copy snapshot
         const destPath = copySnapshotToDirectory(snapshot, targetDir);
-        writeAuditLog(db, "BACKUP_EXPORTED_USB", {
+        await writeAuditLog(db, "BACKUP_EXPORTED_USB", {
           snapshot: snapshot.name,
           targetDir,
           destination: destPath,
@@ -226,7 +228,7 @@ export async function POST(req: NextRequest) {
     if (action === "create") {
       const type = body.type || "manual";
       const label = body.label;
-      const backup = createDatabaseBackup(type, label);
+      const backup = await createDatabaseBackup(type, label);
       return NextResponse.json({ success: true, backup });
     }
 
@@ -237,7 +239,7 @@ export async function POST(req: NextRequest) {
       if (!target) {
         return NextResponse.json({ success: false, error: "Missing backupId or snapshot" }, { status: 400 });
       }
-      const result = restoreDatabaseBackup(target);
+      const result = await restoreDatabaseBackup(target);
       revalidatePath('/', 'layout');
       return NextResponse.json(result);
     }
@@ -247,12 +249,12 @@ export async function POST(req: NextRequest) {
       if (!backupId) {
         return NextResponse.json({ success: false, error: "Missing backupId" }, { status: 400 });
       }
-      const success = deleteDatabaseBackup(backupId);
+      const success = await deleteDatabaseBackup(backupId);
       return NextResponse.json({ success });
     }
 
     if (action === "wipe") {
-      saveInventoryToDB([], ["HPL"]);
+      await saveInventoryToDB([], ["HPL"]);
       revalidatePath('/', 'layout');
       return NextResponse.json({ success: true, message: "Database wiped cleanly." });
     }

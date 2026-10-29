@@ -12,8 +12,9 @@
  * 5. Completely non-destructive to admin accounts and system settings.
  */
 
-import { DatabaseSync } from 'node:sqlite';
+import { createClient, type Client } from '@libsql/client';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { runInTransaction, writeAuditLog } from './dbSafety';
@@ -533,14 +534,11 @@ export function parseJSONData(content: string): MigrationParsedData {
 /**
  * 3. Parse Legacy SQLite Database File
  */
-export function parseSQLiteData(buffer: Buffer): MigrationParsedData {
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-  const tempFile = path.join(dataDir, `temp-migrate-${crypto.randomBytes(8).toString('hex')}.sqlite`);
+export async function parseSQLiteData(buffer: Buffer): Promise<MigrationParsedData> {
+  const tempFile = path.join(os.tmpdir(), `temp-migrate-${crypto.randomBytes(8).toString('hex')}.sqlite`);
   fs.writeFileSync(tempFile, buffer);
 
-  let tempDB: DatabaseSync | null = null;
+  let tempDB: Client | null = null;
   const result: MigrationParsedData = {
     format: 'sqlite',
     materials: [],
@@ -550,23 +548,23 @@ export function parseSQLiteData(buffer: Buffer): MigrationParsedData {
   };
 
   try {
-    tempDB = new DatabaseSync(tempFile);
+    tempDB = createClient({ url: `file:${tempFile}` });
 
     // Enumerate tables
-    const tables = tempDB
-      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';`)
-      .all() as Array<{ name: string }>;
-
-    const tableNames = tables.map((t) => t.name.toLowerCase());
+    const tablesRes = await tempDB.execute(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';`
+    );
+    const tables = tablesRes.rows as unknown as Array<{ name: string }>;
 
     // 1. Inspect Materials / Panels
     const materialTable = tables.find((t) =>
-      ['materials', 'panels', 'inventory', 'wood', 'products'].some((k) => t.name.toLowerCase() === k)
+      ['materials', 'panels', 'inventory', 'wood', 'products'].some((k) => String(t.name).toLowerCase() === k)
     );
 
     if (materialTable) {
       try {
-        const rows = tempDB.prepare(`SELECT * FROM ${materialTable.name};`).all() as Record<string, unknown>[];
+        const rowsRes = await tempDB.execute(`SELECT * FROM ${materialTable.name};`);
+        const rows = rowsRes.rows as unknown as Record<string, unknown>[];
         for (const row of rows) {
           const name = String(row.name || row.panel_name || row.material || row.title || '').trim();
           if (!name) continue;
@@ -599,12 +597,13 @@ export function parseSQLiteData(buffer: Buffer): MigrationParsedData {
 
     // 2. Inspect Shipments / FunderMax Payables
     const shipmentTable = tables.find((t) =>
-      ['shipments', 'inbound_shipments', 'inbound', 'fundermax', 'suppliers'].some((k) => t.name.toLowerCase() === k)
+      ['shipments', 'inbound_shipments', 'inbound', 'fundermax', 'suppliers'].some((k) => String(t.name).toLowerCase() === k)
     );
 
     if (shipmentTable) {
       try {
-        const rows = tempDB.prepare(`SELECT * FROM ${shipmentTable.name};`).all() as Record<string, unknown>[];
+        const rowsRes = await tempDB.execute(`SELECT * FROM ${shipmentTable.name};`);
+        const rows = rowsRes.rows as unknown as Record<string, unknown>[];
         for (const row of rows) {
           const batchCode = String(
             row.batch_code || row.batchCode || row.tracking_code || row.container || row.ref || `BATCH-${Date.now().toString(36)}`
@@ -639,12 +638,13 @@ export function parseSQLiteData(buffer: Buffer): MigrationParsedData {
 
     // 3. Inspect Transactions & Invoices
     const txTable = tables.find((t) =>
-      ['transactions', 'invoices', 'sales'].some((k) => t.name.toLowerCase() === k)
+      ['transactions', 'invoices', 'sales'].some((k) => String(t.name).toLowerCase() === k)
     );
 
     if (txTable) {
       try {
-        const rows = tempDB.prepare(`SELECT * FROM ${txTable.name};`).all() as Record<string, unknown>[];
+        const rowsRes = await tempDB.execute(`SELECT * FROM ${txTable.name};`);
+        const rows = rowsRes.rows as unknown as Record<string, unknown>[];
         for (const row of rows) {
           const client = String(row.client || row.seller || row.customer || '').trim();
           if (!client) continue;
@@ -683,12 +683,13 @@ export function parseSQLiteData(buffer: Buffer): MigrationParsedData {
 
     // 4. Inspect Dedicated Customers Table if present
     const customerTable = tables.find((t) =>
-      ['customers', 'clients', 'contacts'].some((k) => t.name.toLowerCase() === k)
+      ['customers', 'clients', 'contacts'].some((k) => String(t.name).toLowerCase() === k)
     );
 
     if (customerTable) {
       try {
-        const rows = tempDB.prepare(`SELECT * FROM ${customerTable.name};`).all() as Record<string, unknown>[];
+        const rowsRes = await tempDB.execute(`SELECT * FROM ${customerTable.name};`);
+        const rows = rowsRes.rows as unknown as Record<string, unknown>[];
         for (const row of rows) {
           const name = String(row.name || row.client_name || row.customer_name || '').trim();
           if (!name) continue;
@@ -718,7 +719,7 @@ export function parseSQLiteData(buffer: Buffer): MigrationParsedData {
 /**
  * Universal Ingestion Entry Point
  */
-export function parseLegacyData(buffer: Buffer, fileName: string): MigrationParsedData {
+export async function parseLegacyData(buffer: Buffer, fileName: string): Promise<MigrationParsedData> {
   const ext = path.extname(fileName).toLowerCase();
 
   // SQLite files check magic header: SQLite format 3\000
@@ -726,7 +727,7 @@ export function parseLegacyData(buffer: Buffer, fileName: string): MigrationPars
     buffer.length >= 16 && buffer.toString('utf8', 0, 15) === 'SQLite format 3';
 
   if (isSqliteMagic || ext === '.sqlite' || ext === '.db') {
-    return parseSQLiteData(buffer);
+    return await parseSQLiteData(buffer);
   }
 
   const textContent = buffer.toString('utf8');
@@ -808,7 +809,7 @@ export function generateAuditSummary(
 // ============================================================================
 
 export async function commitMigration(
-  db: DatabaseSync,
+  db: Client,
   data: MigrationParsedData,
   actor: string = 'Super Admin'
 ): Promise<MigrationCommitResult> {
@@ -823,60 +824,67 @@ export async function commitMigration(
   let invoicesInserted = 0;
   let customersAdded = 0;
 
-  // 2. Execute Entire Migration Inside an Atomic SQLite Transaction
+  // 2. Execute Entire Migration Inside an Atomic Transaction
   try {
-    runInTransaction(db, () => {
+    await runInTransaction(db, async () => {
       const nowIso = new Date().toISOString();
 
-      // Prepared Statements for Materials
-      const checkMaterialStmt = db.prepare(`SELECT id, total_stock, available_stock FROM materials WHERE id = ? OR name = ? LIMIT 1;`);
-      const insertMaterialStmt = db.prepare(`
+      // SQL Statements for Materials
+      const checkMaterialSql = `SELECT id, total_stock, available_stock FROM materials WHERE id = ? OR name = ? LIMIT 1;`;
+      const insertMaterialSql = `
         INSERT INTO materials (
           id, code, name, type, length, width, thickness, unit,
           formatted_dimensions, total_stock, allocated_stock, available_stock,
           notes, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?);
-      `);
-      const updateMaterialStockStmt = db.prepare(`
+      `;
+      const updateMaterialStockSql = `
         UPDATE materials
         SET total_stock = total_stock + ?,
             available_stock = available_stock + ?,
             updated_at = ?
         WHERE id = ?;
-      `);
+      `;
 
       for (const mat of data.materials) {
         const matId = mat.id || generateDeterministicId('mat', `${mat.name}-${mat.length}-${mat.width}-${mat.thickness}`);
-        const existing = checkMaterialStmt.get(matId, mat.name) as { id: string; total_stock: number; available_stock: number } | undefined;
+        const existingRes = await db.execute({ sql: checkMaterialSql, args: [matId, mat.name] });
+        const existing = existingRes.rows[0] as unknown as { id: string; total_stock: number; available_stock: number } | undefined;
 
         if (existing) {
-          updateMaterialStockStmt.run(mat.stockQuantity, mat.stockQuantity, nowIso, existing.id);
+          await db.execute({
+            sql: updateMaterialStockSql,
+            args: [mat.stockQuantity, mat.stockQuantity, nowIso, String(existing.id)],
+          });
           materialsUpdated++;
         } else {
           const formattedDim = `${mat.length} × ${mat.width} × ${mat.thickness} ${mat.unit || 'mm'}`;
-          insertMaterialStmt.run(
-            matId,
-            mat.code || `PL-${mat.name.slice(0, 3).toUpperCase()}`,
-            mat.name,
-            mat.type || 'MDF',
-            mat.length || 2440,
-            mat.width || 1220,
-            mat.thickness || 18,
-            mat.unit || 'mm',
-            formattedDim,
-            mat.stockQuantity,
-            mat.stockQuantity,
-            mat.notes ? `${mat.notes} | Legacy Ingested` : 'Legacy Ingested',
-            nowIso,
-            nowIso
-          );
+          await db.execute({
+            sql: insertMaterialSql,
+            args: [
+              matId,
+              mat.code || `PL-${mat.name.slice(0, 3).toUpperCase()}`,
+              mat.name,
+              mat.type || 'MDF',
+              mat.length || 2440,
+              mat.width || 1220,
+              mat.thickness || 18,
+              mat.unit || 'mm',
+              formattedDim,
+              mat.stockQuantity,
+              mat.stockQuantity,
+              mat.notes ? `${mat.notes} | Legacy Ingested` : 'Legacy Ingested',
+              nowIso,
+              nowIso,
+            ],
+          });
           materialsInserted++;
         }
       }
 
-      // Prepared Statements for Transactions / Sales Invoices
-      const checkTxStmt = db.prepare(`SELECT id FROM transactions WHERE id = ? LIMIT 1;`);
-      const insertTxStmt = db.prepare(`
+      // SQL Statements for Transactions / Sales Invoices
+      const checkTxSql = `SELECT id FROM transactions WHERE id = ? LIMIT 1;`;
+      const insertTxSql = `
         INSERT INTO transactions (
           id, code, timestamp, panel_type, material, quantity, unit, selling_type,
           seller, bank, payment_type, currency, currency_rate, selling_amount,
@@ -892,70 +900,76 @@ export async function commitMigration(
           0, 0, ?, '[]', ?,
           ?, ?, ?, ?
         );
-      `);
+      `;
 
       for (const inv of data.invoices) {
         const txId = inv.id || generateDeterministicId('tx', `${inv.clientName}-${inv.invoiceDate}-${inv.sellingAmount}`);
-        const exists = checkTxStmt.get(txId);
-        if (!exists) {
+        const existsRes = await db.execute({ sql: checkTxSql, args: [txId] });
+        if (existsRes.rows.length === 0) {
           const status = inv.amountOwed <= 0 ? 'completed' : inv.amountPaidNow > 0 ? 'partial' : 'debt';
-          insertTxStmt.run(
-            txId,
-            inv.code || `INV-${txId.slice(-6)}`,
-            inv.invoiceDate || nowIso,
-            'Imported Goods',
-            inv.lineItemsSummary || 'Historical Legacy Invoice Item',
-            1,
-            'units',
-            'Wholesale',
-            inv.seller || 'Bako',
-            'Main Ledger',
-            'Cash',
-            inv.currency,
-            inv.sellingAmount,
-            inv.sellingAmount,
-            inv.amountPaidNow,
-            inv.amountOwed,
-            inv.amountOwed,
-            inv.notes ? `${inv.notes} | Phone: ${inv.clientPhone || 'N/A'}` : `Migrated legacy invoice. Phone: ${inv.clientPhone || 'N/A'}`,
-            inv.lineItemsJson || '[]',
-            status,
-            nowIso,
-            inv.sellingAmount,
-            inv.currency
-          );
+          await db.execute({
+            sql: insertTxSql,
+            args: [
+              txId,
+              inv.code || `INV-${txId.slice(-6)}`,
+              inv.invoiceDate || nowIso,
+              'Imported Goods',
+              inv.lineItemsSummary || 'Historical Legacy Invoice Item',
+              1,
+              'units',
+              'Wholesale',
+              inv.seller || 'Bako',
+              'Main Ledger',
+              'Cash',
+              inv.currency,
+              inv.sellingAmount,
+              inv.sellingAmount,
+              inv.amountPaidNow,
+              inv.amountOwed,
+              inv.amountOwed,
+              inv.notes ? `${inv.notes} | Phone: ${inv.clientPhone || 'N/A'}` : `Migrated legacy invoice. Phone: ${inv.clientPhone || 'N/A'}`,
+              inv.lineItemsJson || '[]',
+              status,
+              nowIso,
+              inv.sellingAmount,
+              inv.currency,
+            ],
+          });
           invoicesInserted++;
         }
       }
 
-      // Prepared Statements for Shipments
-      const checkShipmentStmt = db.prepare(`SELECT id FROM shipments WHERE id = ? OR tracking_code = ? LIMIT 1;`);
-      const insertShipmentStmt = db.prepare(`
+      // SQL Statements for Shipments
+      const checkShipmentSql = `SELECT id FROM shipments WHERE id = ? OR tracking_code = ? LIMIT 1;`;
+      const insertShipmentSql = `
         INSERT INTO shipments (
           id, tracking_code, destination, item_summary, quantity, status, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?);
-      `);
+      `;
 
       for (const ship of data.shipments) {
         const shipId = ship.id || generateDeterministicId('shp', `${ship.batchCode}-${ship.supplier}`);
-        const exists = checkShipmentStmt.get(shipId, ship.batchCode);
-        if (!exists) {
+        const existsRes = await db.execute({ sql: checkShipmentSql, args: [shipId, ship.batchCode] });
+        if (existsRes.rows.length === 0) {
           const itemSummary = `${ship.supplier} (${ship.batchCode}) - Balance: ${ship.currency} ${ship.remainingBalance}`;
-          insertShipmentStmt.run(
-            shipId,
-            ship.batchCode,
-            `Erbil Central Vault (${ship.originCountry})`,
-            itemSummary,
-            1,
-            'delivered',
-            ship.arrivalDate || nowIso
-          );
+          await db.execute({
+            sql: insertShipmentSql,
+            args: [
+              shipId,
+              ship.batchCode,
+              `Erbil Central Vault (${ship.originCountry})`,
+              itemSummary,
+              1,
+              'delivered',
+              ship.arrivalDate || nowIso,
+            ],
+          });
           shipmentsInserted++;
         }
       }
 
       // Ingest Shipments into Warehouse Operations Meta State
-      const rawWarehouseOps = getWarehouseOpsRawFromDB();
+      const rawWarehouseOps = await getWarehouseOpsRawFromDB();
       let warehouseOpsState: { shipments: InboundShipment[]; locations: unknown[]; allocations: unknown[]; transfers: unknown[]; updatedAt: number } = {
         shipments: [],
         locations: [],
@@ -999,10 +1013,11 @@ export async function commitMigration(
         }
       }
       warehouseOpsState.updatedAt = Date.now();
-      saveWarehouseOpsRawToDB(JSON.stringify(warehouseOpsState));
+      await saveWarehouseOpsRawToDB(JSON.stringify(warehouseOpsState));
 
       // Ingest Customers into Dropdown Presets (Non-destructive to existing settings)
-      const presetsRow = db.prepare(`SELECT value FROM meta WHERE key = 'dropdown_presets'`).get() as { value: string } | undefined;
+      const presetsRes = await db.execute(`SELECT value FROM meta WHERE key = 'dropdown_presets'`);
+      const presetsRow = presetsRes.rows[0] as unknown as { value: string } | undefined;
       let presets: DropdownPresets = {
         savedTypes: [],
         savedProducts: [],
@@ -1014,7 +1029,7 @@ export async function commitMigration(
 
       if (presetsRow?.value) {
         try {
-          presets = JSON.parse(presetsRow.value);
+          presets = JSON.parse(String(presetsRow.value));
         } catch {}
       }
 
@@ -1034,10 +1049,13 @@ export async function commitMigration(
         }
       }
 
-      db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('dropdown_presets', ?)`).run(JSON.stringify(presets));
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('dropdown_presets', ?)`,
+        args: [JSON.stringify(presets)],
+      });
 
       // Record Tamper-Evident Audit Log
-      writeAuditLog(
+      await writeAuditLog(
         db,
         'LEGACY_DATA_MIGRATED',
         {

@@ -17,8 +17,8 @@ export const fetchCache = 'force-no-store';
 export async function GET() {
   noStore();
   try {
-    const data = getUnifiedDataFromDB();
-    const health = getDatabaseHealth();
+    const data = await getUnifiedDataFromDB();
+    const health = await getDatabaseHealth();
     return NextResponse.json(
       { ...data, health },
       {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Viewer role without explicit permissions is strictly forbidden from mutations
     if (role === "Viewer" && (!permissions || Object.keys(permissions).length === 0)) {
       const db = getDB();
-      writeAuditLog(db, "PERMISSION_VIOLATION", {
+      await writeAuditLog(db, "PERMISSION_VIOLATION", {
         actor,
         role,
         attempt: "Viewer attempted mutation",
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         role !== "Admin"
       ) {
         const db = getDB();
-        writeAuditLog(db, "PERMISSION_VIOLATION", {
+        await writeAuditLog(db, "PERMISSION_VIOLATION", {
           actor,
           role,
           attempt: "Unauthorized sales mutation",
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
         role !== "Admin"
       ) {
         const db = getDB();
-        writeAuditLog(db, "PERMISSION_VIOLATION", {
+        await writeAuditLog(db, "PERMISSION_VIOLATION", {
           actor,
           role,
           attempt: "Unauthorized panels mutation",
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         role !== "Admin"
       ) {
         const db = getDB();
-        writeAuditLog(db, "PERMISSION_VIOLATION", {
+        await writeAuditLog(db, "PERMISSION_VIOLATION", {
           actor,
           role,
           attempt: "Unauthorized warehouse stock mutation",
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const result = withActor(actor, () => saveUnifiedDataToDB(body));
+    const result = await withActor(actor, () => saveUnifiedDataToDB(body));
     revalidatePath('/', 'layout');
     return NextResponse.json(result, {
       headers: {

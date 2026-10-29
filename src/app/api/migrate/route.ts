@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     // 1. Ingestion Parser
     let parsedData;
     try {
-      parsedData = parseLegacyData(buffer, file.name);
+      parsedData = await parseLegacyData(buffer, file.name);
     } catch (parseErr) {
       return NextResponse.json(
         {
