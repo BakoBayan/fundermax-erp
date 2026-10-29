@@ -39,3 +39,12 @@ next-env.d.ts
 /backups/
 *.sqlite
 *.sqlite.gz
+
+# Environment files
+.env
+.env*.local
+
+# Local databases
+*.db
+*.sqlite
+data/
