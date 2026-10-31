@@ -3,28 +3,76 @@
 import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import { InventoryProvider, useInventory } from '@/context/InventoryContext';
 import { Header } from '@/components/Header';
 import { ModuleHub } from '@/components/ModuleHub';
-import { ExcelGrid } from '@/components/ExcelGrid';
-import { MobileView } from '@/components/MobileView';
-import { OrdersSection } from '@/components/OrdersSection';
-import { SalesSection } from '@/components/SalesSection';
-import { WarehouseGoodsSection } from '@/components/WarehouseGoodsSection';
-import { ShippingPipeline } from '@/components/ShippingPipeline';
-import { AuditBackupsSection } from '@/components/AuditBackupsSection';
-import { MaterialModal, OrderModal } from '@/components/Modals';
-import { ImageViewerModal } from '@/components/ImageViewerModal';
-import { OrderDetailsModal } from '@/components/OrderDetailsModal';
-import { ConfirmModal } from '@/components/ConfirmModal';
 import { LoginScreen } from '@/components/LoginScreen';
-import { BatchPrintModal, PrintQueueItem } from '@/components/BatchPrintModal';
-import { VisualChartsModal } from '@/components/VisualChartsModal';
-import { CopyrightModal } from '@/components/CopyrightModal';
-import { UnifiedPrintMount } from '@/components/UnifiedPrintEngine';
 import { FooterAttribution } from '@/components/FooterAttribution';
-import { ExecutiveProfitSuite } from '@/components/ExecutiveProfitSuite';
+import type { PrintQueueItem } from '@/components/BatchPrintModal';
 import { PanelMaterial, OrderAllocation } from '@/types/inventory';
+
+const ExcelGrid = dynamic(() => import('@/components/ExcelGrid').then((mod) => mod.ExcelGrid), {
+  loading: () => <p>Loading...</p>,
+});
+const MobileView = dynamic(() => import('@/components/MobileView').then((mod) => mod.MobileView), {
+  loading: () => <p>Loading...</p>,
+});
+const OrdersSection = dynamic(() => import('@/components/OrdersSection').then((mod) => mod.OrdersSection), {
+  loading: () => <p>Loading...</p>,
+});
+const SalesSection = dynamic(() => import('@/components/SalesSection').then((mod) => mod.SalesSection), {
+  loading: () => <p>Loading...</p>,
+});
+const WarehouseGoodsSection = dynamic(
+  () => import('@/components/WarehouseGoodsSection').then((mod) => mod.WarehouseGoodsSection),
+  { loading: () => <p>Loading...</p> }
+);
+const ShippingPipeline = dynamic(
+  () => import('@/components/ShippingPipeline').then((mod) => mod.ShippingPipeline),
+  { loading: () => <p>Loading...</p> }
+);
+const AuditBackupsSection = dynamic(
+  () => import('@/components/AuditBackupsSection').then((mod) => mod.AuditBackupsSection),
+  { loading: () => <p>Loading...</p> }
+);
+const ExecutiveProfitSuite = dynamic(
+  () => import('@/components/ExecutiveProfitSuite').then((mod) => mod.ExecutiveProfitSuite),
+  { loading: () => <p>Loading...</p> }
+);
+const MaterialModal = dynamic(() => import('@/components/Modals').then((mod) => mod.MaterialModal), {
+  loading: () => <p>Loading...</p>,
+});
+const OrderModal = dynamic(() => import('@/components/Modals').then((mod) => mod.OrderModal), {
+  loading: () => <p>Loading...</p>,
+});
+const ImageViewerModal = dynamic(
+  () => import('@/components/ImageViewerModal').then((mod) => mod.ImageViewerModal),
+  { loading: () => <p>Loading...</p> }
+);
+const OrderDetailsModal = dynamic(
+  () => import('@/components/OrderDetailsModal').then((mod) => mod.OrderDetailsModal),
+  { loading: () => <p>Loading...</p> }
+);
+const ConfirmModal = dynamic(() => import('@/components/ConfirmModal').then((mod) => mod.ConfirmModal), {
+  loading: () => <p>Loading...</p>,
+});
+const BatchPrintModal = dynamic(
+  () => import('@/components/BatchPrintModal').then((mod) => mod.BatchPrintModal),
+  { loading: () => <p>Loading...</p> }
+);
+const VisualChartsModal = dynamic(
+  () => import('@/components/VisualChartsModal').then((mod) => mod.VisualChartsModal),
+  { loading: () => <p>Loading...</p> }
+);
+const CopyrightModal = dynamic(
+  () => import('@/components/CopyrightModal').then((mod) => mod.CopyrightModal),
+  { loading: () => <p>Loading...</p> }
+);
+const UnifiedPrintMount = dynamic(
+  () => import('@/components/UnifiedPrintEngine').then((mod) => mod.UnifiedPrintMount),
+  { loading: () => <p>Loading...</p> }
+);
 import {
   Phone,
   ShieldCheck,

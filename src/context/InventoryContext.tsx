@@ -1468,64 +1468,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       window.addEventListener("offline", handleOffline);
     }
 
-    // Active heartbeat: every 5 seconds, attempt a lightweight fetch to /api/server-info with strict 2500ms timeout
-    const heartbeatInterval = setInterval(async () => {
-      if (typeof window === "undefined") return;
-      if (simulatedOffline) {
-        setIsOnline(false);
-        setSyncStatus("offline");
-        setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
-        return;
-      }
-
-      if (!navigator.onLine) {
-        setIsOnline(false);
-        setSyncStatus("offline");
-        setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
-        return;
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
-      const start = Date.now();
-
-      try {
-        const res = await fetch("/api/server-info", {
-          signal: controller.signal,
-          cache: "no-store",
-          next: { revalidate: 0 } as any,
-          headers: {
-            "Pragma": "no-cache",
-            "Cache-Control": "no-store, max-age=0",
-          },
-        });
-        clearTimeout(timeoutId);
-        const elapsed = Math.max(1, Date.now() - start);
-
-        if (res.ok && res.status === 200) {
-          setIsOnline(true);
-          setSyncStatus((s) => (s === "offline" ? "synced" : s));
-          setWalHealth((w) => ({
-            ...w,
-            isLiveConnected: true,
-            latencyMs: elapsed,
-          }));
-        } else {
-          setIsOnline(false);
-          setSyncStatus("offline");
-          setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
-        }
-      } catch {
-        clearTimeout(timeoutId);
-        setIsOnline(false);
-        setSyncStatus("offline");
-        setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
-      }
-    }, 5000);
-
     return () => {
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      clearInterval(heartbeatInterval);
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
@@ -1603,10 +1547,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  // Initial pull and periodic sync heartbeat
+  // Initial pull on mount and local cross-tab sync listener
   useEffect(() => {
     pullFromServer();
-    const interval = setInterval(pullFromServer, 10000);
 
     let bc: BroadcastChannel | null = null;
     if (typeof window !== "undefined" && "BroadcastChannel" in window) {
@@ -1619,7 +1562,6 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     return () => {
-      clearInterval(interval);
       if (bc) bc.close();
     };
   }, [pullFromServer]);

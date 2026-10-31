@@ -112,17 +112,16 @@ const ToggleSwitch: React.FC<{
   return (
     <label
       htmlFor={inputId}
-      className={`flex items-center justify-between p-3.5 rounded-xl border transition-all select-none cursor-pointer ${
-        disabled
+      className={`flex items-center justify-between p-3.5 rounded-xl border transition-all select-none cursor-pointer ${disabled
           ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
           : checked
-          ? danger
-            ? 'bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 hover:border-rose-500/60 shadow-xs'
-            : highlight
-            ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/40 hover:border-amber-500/60 shadow-xs'
-            : 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500/60 shadow-xs'
-          : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-      }`}
+            ? danger
+              ? 'bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 hover:border-rose-500/60 shadow-xs'
+              : highlight
+                ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/40 hover:border-amber-500/60 shadow-xs'
+                : 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500/60 shadow-xs'
+            : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+        }`}
     >
       <input
         type="checkbox"
@@ -141,15 +140,14 @@ const ToggleSwitch: React.FC<{
           <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{label}</span>
           {badge && (
             <span
-              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                checked
+              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${checked
                   ? danger
                     ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200'
                     : highlight
-                    ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'
-                    : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200'
+                      ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'
+                      : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
+                }`}
             >
               {badge}
             </span>
@@ -158,14 +156,12 @@ const ToggleSwitch: React.FC<{
         {description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{description}</p>}
       </div>
       <div
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out pointer-events-none ${
-          checked ? (danger ? 'bg-rose-600' : highlight ? 'bg-amber-500' : 'bg-emerald-600') : 'bg-slate-300 dark:bg-slate-700'
-        }`}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out pointer-events-none ${checked ? (danger ? 'bg-rose-600' : highlight ? 'bg-amber-500' : 'bg-emerald-600') : 'bg-slate-300 dark:bg-slate-700'
+          }`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
-            checked ? 'translate-x-6' : 'translate-x-1'
-          }`}
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${checked ? 'translate-x-6' : 'translate-x-1'
+            }`}
         />
       </div>
     </label>
@@ -337,7 +333,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const isDark = propDark ?? theme === 'dark';
   const viewMode = propViewMode || (deviceMode as any) || 'auto';
   const onChangeViewMode = propOnChangeViewMode || ((mode: any) => setDeviceMode(mode));
-  const onToast = propOnToast || (() => {});
+  const onToast = propOnToast || (() => { });
 
   // 4 Streamlined Executive Pillars
   const [activeTab, setActiveTab] = useState<'users' | 'database' | 'exports' | 'network'>('users');
@@ -478,7 +474,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         if (Array.isArray(data.snapshots)) setWalSnapshots(data.snapshots);
         if (Array.isArray(data.drives)) setUsbDrives(data.drives);
       }
-    } catch {}
+    } catch { }
   };
 
   // Fetch Server Network Info
@@ -495,7 +491,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       });
       const data = await res.json();
       setServerInfo(data);
-    } catch {} finally {
+    } catch { } finally {
       setLoadingServerInfo(false);
     }
   };
@@ -903,7 +899,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-2 sm:p-4 overflow-hidden select-none animate-in fade-in duration-200">
       <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col h-[90vh] max-h-[90vh] overflow-hidden box-border">
-        
+
         {/* ========================================================================= */}
         {/* HEADER BAR: Executive Title, Quick Status Chips & Close Button            */}
         {/* ========================================================================= */}
@@ -956,11 +952,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'users'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${activeTab === 'users'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50'
-            }`}
+              }`}
           >
             <Users className="w-4 h-4" />
             <span>{lang === 'en' ? 'Team & Permissions' : 'تیم و دەسەڵاتەکان'}</span>
@@ -972,11 +967,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('database')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'database'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${activeTab === 'database'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50'
-            }`}
+              }`}
           >
             <Database className="w-4 h-4" />
             <span>{lang === 'en' ? 'Database & Backups' : 'داتابەیس و باکئەپ'}</span>
@@ -990,11 +984,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('exports')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'exports'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${activeTab === 'exports'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50'
-            }`}
+              }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>{lang === 'en' ? 'Data Exports & Logs' : 'دەرکردنی داتا و ڕاپۆرت'}</span>
@@ -1003,11 +996,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('network')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'network'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 cursor-pointer ${activeTab === 'network'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50'
-            }`}
+              }`}
           >
             <Wifi className="w-4 h-4" />
             <span>{lang === 'en' ? 'Network & Console' : 'تۆڕ و ئامێرەکان'}</span>
@@ -1024,7 +1016,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           {/* ======================================================================= */}
           {activeTab === 'users' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              
+
               {/* Top User Carousel / Selector Strip */}
               <div className="bg-slate-50 dark:bg-slate-850 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1044,22 +1036,20 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           const matched = ROLE_PRESET_CARDS.find((p) => p.role === u.role);
                           if (matched) setSelectedPresetId(matched.id);
                         }}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          isSelected
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${isSelected
                             ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/30'
                             : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                        }`}
+                          }`}
                       >
                         <span className="w-2 h-2 rounded-full bg-emerald-400" />
                         <span>{u.displayName || u.username}</span>
                         <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded ${
-                            u.role?.toLowerCase() === 'owner'
+                          className={`text-[10px] px-1.5 py-0.2 rounded ${u.role?.toLowerCase() === 'owner'
                               ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-bold'
                               : isSelected
-                              ? 'bg-emerald-700/60 text-white font-normal'
-                              : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-normal'
-                          }`}
+                                ? 'bg-emerald-700/60 text-white font-normal'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-normal'
+                            }`}
                         >
                           {u.role?.toLowerCase() === 'owner' ? (lang === 'ku' ? 'خاوەن کار (Owner)' : 'Owner') : u.role}
                         </span>
@@ -1216,11 +1206,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   : `داڕشتەی "${preset.titleKu}" دیاریکرا. پاشەکەوت بکە بۆ جێبەجێکردن.`
                               );
                             }}
-                            className={`relative p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 min-h-[110px] ${
-                              isSelected
+                            className={`relative p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 min-h-[110px] ${isSelected
                                 ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
                                 : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div>
@@ -1232,11 +1221,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 </span>
                               </div>
                               <span
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider ${
-                                  isSelected
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider ${isSelected
                                     ? 'bg-emerald-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-750 text-slate-500 dark:text-slate-400'
-                                }`}
+                                  }`}
                               >
                                 {preset.badge}
                               </span>
@@ -1269,11 +1257,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           {activePreset.summary.map((item, idx) => (
                             <span
                               key={idx}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border ${
-                                item.allowed
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border ${item.allowed
                                   ? 'bg-emerald-50/90 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80'
                                   : 'bg-rose-50/80 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40'
-                              }`}
+                                }`}
                             >
                               {item.text}
                             </span>
@@ -1343,8 +1330,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                         ? 'Numbers are visible to this account across all cards.'
                                         : 'ژمارەکان دەبینرێن بۆ ئەم بەکارهێنەرە.'
                                       : lang === 'en'
-                                      ? '🛡️ Protected: Numbers & debts are shielded with a privacy padlock.'
-                                      : '🛡️ پارێزراوە: ژمارەکان و قەرزەکان بە تەواوی شاردراونەتەوە.'
+                                        ? '🛡️ Protected: Numbers & debts are shielded with a privacy padlock.'
+                                        : '🛡️ پارێزراوە: ژمارەکان و قەرزەکان بە تەواوی شاردراونەتەوە.'
                                   }
                                   badge={activeUserPerms.canViewRestrictedMetrics ? 'Visible' : 'Shielded'}
                                   checked={!!activeUserPerms.canViewRestrictedMetrics}
@@ -1633,8 +1620,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       {usbDrives.length > 0
                         ? `Detected: ${usbDrives.join(', ')}`
                         : lang === 'en'
-                        ? 'Auto-detects USB flash drives (E:\\, F:\\) for 1-click physical offsite vaulting.'
-                        : 'دەستنیشانکردنی خۆکاری فلاش بۆ پاراستنی دەرەکی داتابەیس.'}
+                          ? 'Auto-detects USB flash drives (E:\\, F:\\) for 1-click physical offsite vaulting.'
+                          : 'دەستنیشانکردنی خۆکاری فلاش بۆ پاراستنی دەرەکی داتابەیس.'}
                     </p>
                   </div>
                   <button
@@ -1701,11 +1688,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     if (file) handleSelectMigrationFile(file);
                   }}
                   onClick={() => migrationFileInputRef.current?.click()}
-                  className={`relative p-6 sm:p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-3 ${
-                    isDraggingMigration
+                  className={`relative p-6 sm:p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-3 ${isDraggingMigration
                       ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 scale-[0.99]'
                       : 'border-slate-300 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-500 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-purple-50/20'
-                  }`}
+                    }`}
                 >
                   <input
                     type="file"
@@ -1802,22 +1788,20 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setSnapshotCategoryFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      snapshotCategoryFilter === 'all'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${snapshotCategoryFilter === 'all'
                         ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-                    }`}
+                      }`}
                   >
                     All ({walSnapshots.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => setSnapshotCategoryFilter('recent')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      snapshotCategoryFilter === 'recent'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${snapshotCategoryFilter === 'recent'
                         ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-                    }`}
+                      }`}
                   >
                     <span>Recent (48h)</span>
                     <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono">
@@ -1827,11 +1811,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setSnapshotCategoryFilter('daily')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      snapshotCategoryFilter === 'daily'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${snapshotCategoryFilter === 'daily'
                         ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-                    }`}
+                      }`}
                   >
                     <span>Daily (30d)</span>
                     <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 font-mono">
@@ -1841,11 +1824,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setSnapshotCategoryFilter('weekly')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      snapshotCategoryFilter === 'weekly'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${snapshotCategoryFilter === 'weekly'
                         ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-                    }`}
+                      }`}
                   >
                     <span>Monthly / Archive (90d)</span>
                     <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-400 font-mono">
@@ -2068,7 +2050,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           {/* ======================================================================= */}
           {activeTab === 'exports' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              
+
               {/* CSV Entity Exporters Grid */}
               <div className="space-y-3">
                 <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -2261,7 +2243,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           {/* ======================================================================= */}
           {activeTab === 'network' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              
+
               {/* Wi-Fi LAN Connection Card */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center gap-6">
                 {/* QR Code */}
@@ -2281,7 +2263,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                   <div className="mt-4 flex flex-col items-center justify-center space-y-2">
                     {/* Assuming your QRCode component is here: <QRCode ... value="{networkUrl}"/> */}
-                    
+
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
                       {lang === 'en' ? 'Mobile URL:' : 'ناونیشانی مۆبایل:'}
                     </p>
@@ -2361,11 +2343,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           key={mode}
                           type="button"
                           onClick={() => onChangeViewMode(mode)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${
-                            viewMode === mode
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${viewMode === mode
                               ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                               : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                          }`}
+                            }`}
                         >
                           {mode}
                         </button>
@@ -2823,33 +2804,30 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <button
                           type="button"
                           onClick={() => setMigrationPreviewTab('materials')}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            migrationPreviewTab === 'materials'
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${migrationPreviewTab === 'materials'
                               ? 'bg-purple-600 text-white shadow-xs'
                               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
+                            }`}
                         >
                           Materials ({migrationSummary.sampleItems.materials.length})
                         </button>
                         <button
                           type="button"
                           onClick={() => setMigrationPreviewTab('shipments')}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            migrationPreviewTab === 'shipments'
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${migrationPreviewTab === 'shipments'
                               ? 'bg-purple-600 text-white shadow-xs'
                               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
+                            }`}
                         >
                           Shipments ({migrationSummary.sampleItems.shipments.length})
                         </button>
                         <button
                           type="button"
                           onClick={() => setMigrationPreviewTab('invoices')}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            migrationPreviewTab === 'invoices'
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${migrationPreviewTab === 'invoices'
                               ? 'bg-purple-600 text-white shadow-xs'
                               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
+                            }`}
                         >
                           Invoices ({migrationSummary.sampleItems.invoices.length})
                         </button>
@@ -3016,8 +2994,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         ? 'Absorbing Legacy Data...'
                         : 'خەریکی تێکەڵکردنی داتاکانە...'
                       : lang === 'en'
-                      ? 'Absorb & Integrate (1-Click)'
-                      : 'هاوردەکردن و تێکەڵکردن'}
+                        ? 'Absorb & Integrate (1-Click)'
+                        : 'هاوردەکردن و تێکەڵکردن'}
                   </span>
                 </button>
               )}

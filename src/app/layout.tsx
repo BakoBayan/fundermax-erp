@@ -3,9 +3,9 @@ import { unstable_noStore as noStore } from "next/cache";
 import "./globals.css";
 import { APP_CONFIG } from "@/config/appConfig";
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
+
+export const revalidate = 3600;
+
 
 export const metadata: Metadata = {
   title: `${APP_CONFIG.name} ${APP_CONFIG.version} - کۆمپانیای شاسوار ئەحمەد شاسوار`,

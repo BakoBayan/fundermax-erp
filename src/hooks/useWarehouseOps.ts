@@ -126,7 +126,6 @@ function init(): void {
   emit();
   void syncFromServer();
   window.addEventListener('online', () => void syncFromServer());
-  window.addEventListener('focus', () => void syncFromServer());
 }
 
 function commit(mutator: (s: WarehouseOpsState) => WarehouseOpsState): void {
