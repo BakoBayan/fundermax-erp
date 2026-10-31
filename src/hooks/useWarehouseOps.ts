@@ -549,6 +549,7 @@ export function useWarehouseOps() {
     addManualAllocation,
     transferStock,
     recordSupplierPayment,
+    syncFromServer,
   };
 }
 

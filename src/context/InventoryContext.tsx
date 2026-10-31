@@ -225,6 +225,7 @@ interface InventoryContextType {
     isLiveConnected: boolean;
   };
   pingHealthCheck: () => Promise<{ success: boolean; latencyMs: number; message: string }>;
+  pullFromServer: () => Promise<void>;
 
   // User Accounts & Role Permissions
   currentUser: UserAccount | null;
@@ -2740,6 +2741,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     toggleSimulatedOffline,
     walHealth,
     pingHealthCheck,
+    pullFromServer,
 
     currentUser,
     users,

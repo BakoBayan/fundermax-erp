@@ -59,6 +59,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     materials,
     setSalesStatusFilter,
     setSalesTimeframeFilter,
+    pullFromServer,
   } = useInventory();
 
   const [isSupplierPayablesOpen, setIsSupplierPayablesOpen] = useState(false);
@@ -128,10 +129,10 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           descKu: 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی تەختەکان و بڕینی پێنەدراوە.'
         },
         sales: {
-          en: 'Sales POS, Billing & Invoicing',
-          ku: 'فرۆشتن و پسوولەی کاش (POS)',
-          descEn: 'Your account does not have authorization to access Sales POS, Invoices & Debt Ledger.',
-          descKu: 'دەستپێگەیشتن ڕێگاپێدراو نییە. ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی فرۆشتن و پسوولەکانی پێنەدراوە.'
+          en: 'B2B Trade & Payables',
+          ku: 'بازرگانی B2B و قەرزی دابینکەران',
+          descEn: 'Your account does not have authorization to access the B2B Trade Ledger & Supplier Payables module.',
+          descKu: 'دەستپێگەیشتن ڕێگاپێدراو نییە. ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی بەشی بازرگانی و قەرزی دابینکەرانی پێنەدراوە.'
         },
         goods: {
           en: 'Purchases & Suppliers',
@@ -175,31 +176,35 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     openVisualCharts('all');
   };
 
-  // Key metrics
-  const totalInvoicesCount = transactions.length;
-  const totalUnpaidDebt = transactions.filter(tx => tx.isDeleted !== 1).reduce(
-    (sum, tx) => sum + (tx.combinedTotalDebt || tx.amountOwed || 0),
-    0
-  );
+  const warehouseOps = useWarehouseOps();
 
-  // Boss Mode: Today's Cash Intake & Active Orders Calculations
-  const todayDateStr = new Date().toISOString().split('T')[0];
-  const todayTxs = transactions.filter(tx => {
-    if (tx.isDeleted === 1) return false;
-    const dateStr = (tx.timestamp || '').split('T')[0];
-    return dateStr === todayDateStr;
-  });
-  let todayIqd = 0;
-  let todayUsd = 0;
-  todayTxs.forEach(tx => {
-    const cur = tx.currency || tx.chargedCurrency || 'USD';
-    const paid = typeof tx.amountPaidNow === 'number' ? tx.amountPaidNow : 0;
-    if (cur === 'IQD') todayIqd += paid;
-    else todayUsd += paid;
-  });
-  const debtIntake = getTodayDebtPaymentIntake(activityLogs, transactions);
-  todayIqd += debtIntake.iqd;
-  todayUsd += debtIntake.usd;
+  useEffect(() => {
+    void pullFromServer();
+    void warehouseOps.syncFromServer?.();
+  }, []);
+
+  // Key B2B Supplier metrics calculated directly from warehouseOps.activeShipments
+  const totalInvoicesCount = warehouseOps.activeShipments.length;
+
+  const totalSupplierPaid = useMemo(() => {
+    return warehouseOps.activeShipments.reduce((acc, s) => {
+      if (s.isDeleted === 1) return acc;
+      return acc + Math.max(0, Number(s.amountPaidToSupplier) || 0);
+    }, 0);
+  }, [warehouseOps.activeShipments]);
+
+  const totalSupplierDebt = useMemo(() => {
+    return warehouseOps.activeShipments.reduce((acc, s) => {
+      if (s.isDeleted === 1) return acc;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt =
+        s.supplierDebtRemaining !== undefined
+          ? Number(s.supplierDebtRemaining)
+          : Math.max(0, invoiced - paid);
+      return acc + Math.max(0, debt);
+    }, 0);
+  }, [warehouseOps.activeShipments]);
 
   const activeCuttingOrdersCount = materials.reduce((acc, mat) => {
     return acc + (mat.activeOrders ? mat.activeOrders.filter((o: OrderAllocation) => o.status !== 'finalized').length : 0);
@@ -228,8 +233,6 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   const handleGlanceLowStock = () => {
     handleSelectDivision('panels', 'orders');
   };
-
-  const warehouseOps = useWarehouseOps();
   const customsShipmentsCount = warehouseOps.activeShipments.filter((s) => s.status === 'customs').length;
   const rackedUnitsCount = warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
 
@@ -426,44 +429,44 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           <div className="grid grid-cols-2 gap-2">
             {canViewFinances ? (
               <>
-                {/* 1. Today's Cash Intake */}
+                {/* 1. Paid to Suppliers */}
                 <button
                   type="button"
                   onClick={handleGlanceTodayCash}
                   className="p-3 rounded-xl bg-white/95 dark:bg-slate-850/95 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
-                  title="View Today's Cash Intake"
+                  title="View Supplier Settlements"
                 >
                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between w-full">
-                    <span>{isKu ? 'کاشی ئەمڕۆ' : "Today's Intake"}</span>
+                    <span>{isKu ? 'پارەی دراو بە دابینکەر' : 'Paid to Suppliers'}</span>
                     <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
                   </div>
                   <div>
                     <div className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 font-mono truncate">
-                      ${todayUsd.toLocaleString()}
+                      ${totalSupplierPaid.toLocaleString()}
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 font-mono truncate">
-                      {todayIqd > 0 ? `${todayIqd.toLocaleString()} د.ع` : (isKu ? 'کاش پاشەکەوت' : 'Cash Deposited')}
+                      {warehouseOps.activeShipments.length} {isKu ? 'پسوولەی دابینکەر' : 'Supplier Bills'}
                     </div>
                   </div>
                 </button>
 
-                {/* 2. Customer Debt (Receivables / قەرزی لای کڕیاران) */}
+                {/* 2. Total Supplier Debt (Payables) */}
                 <button
                   type="button"
                   onClick={handleGlanceDebts}
                   className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
-                  title="View Customer Debt (Receivables)"
+                  title="View Supplier Debt (Payables)"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
-                    <span>{isKu ? 'قەرزی لای کڕیاران' : 'Customers Owe Us'}</span>
+                    <span>{isKu ? 'قەرزی دابینکەران' : 'Total Supplier Debt'}</span>
                     <Coins className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
                   </div>
                   <div>
                     <div className="text-sm sm:text-base font-black text-rose-700 dark:text-rose-300 font-mono truncate">
-                      ${totalUnpaidDebt.toLocaleString()}
+                      ${totalSupplierDebt.toLocaleString()}
                     </div>
                     <div className="text-[10px] font-medium text-rose-600/80 dark:text-rose-400/80 truncate">
-                      {isKu ? 'قەرزی ماوە (وەرگیراو)' : 'Receivables'}
+                      {isKu ? 'قەرزی ماوە بۆ دابینکەر' : 'Supplier Payables'}
                     </div>
                   </div>
                 </button>
@@ -836,7 +839,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           </h1>
 
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 font-medium max-w-xl mx-auto leading-relaxed">
-            Unified industrial operations & sales platform. Each division is focused and self-contained; return here anytime via Main Menu.
+            Unified industrial operations &amp; B2B supplier payables platform. Each division is focused and self-contained; return here anytime via Main Menu.
           </p>
 
           {/* Client Commission Attribution Badge (Official System Licensure) */}
@@ -870,7 +873,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
                 <ReceiptText className="w-3.5 h-3.5 text-sky-500" />
                 <span className="font-bold text-slate-900 dark:text-white font-mono">{totalInvoicesCount}</span>
-                <span>Invoices</span>
+                <span>Supplier Bills</span>
               </div>
             )}
 
@@ -1205,12 +1208,12 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
               </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-                {isKu ? 'فرۆشتن و وەسڵ' : 'Sales POS & Invoices'}
+                {isKu ? 'بازرگانی B2B و قەرزی دابینکەران' : 'B2B Trade & Payables'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                 {isKu
-                  ? 'دەرهێنانی پسوولەی فرۆشتن بە چەند دراوێک (دۆلار، دینار، یۆرۆ)، بەڕێوەبردنی قەرز، و چاپکردنی وەسڵ.'
-                  : 'Multi-currency sales invoicing (USD, IQD, EUR), debt ledger tracking, customer receipts, and thermal POS.'}
+                  ? 'بەڕێوەبردنی پسوولەی دابینکەران، قەرزی کارگەی FunderMax، و دەفتەری بازرگانی فرە دراو (USD, IQD, EUR).'
+                  : 'Manage FunderMax factory debt, supplier bills, B2B trade ledger entries, and multi-currency settlements (USD, IQD, EUR).'}
               </p>
             </div>
 
@@ -1220,21 +1223,21 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
                   <div>
                     <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                      {totalInvoicesCount}
+                      {warehouseOps.activeShipments.length}
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولەی دابینکەر' : 'Supplier Bills'}</div>
                   </div>
                   <div className="border-x border-slate-200 dark:border-slate-800">
                     <div className="text-base sm:text-xl font-black text-rose-600 dark:text-rose-400 font-mono">
-                      ${totalUnpaidDebt.toLocaleString()}
+                      ${totalSupplierDebt.toLocaleString()}
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'قەرز' : 'Total Debt'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'قەرزی دابینکەر' : 'Supplier Debt'}</div>
                   </div>
                   <div>
-                    <div className="text-base sm:text-xl font-black text-sky-600 dark:text-sky-400 font-mono">
-                      3 Rates
+                    <div className="text-base sm:text-xl font-black text-slate-700 dark:text-slate-300 font-mono">
+                      ${totalSupplierPaid.toLocaleString()}
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">USD/IQD/EUR</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'کۆی پارەی دراو' : 'Total Paid'}</div>
                   </div>
                 </div>
               ) : (
@@ -1250,7 +1253,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   type="button"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white font-bold text-sm shadow-md shadow-sky-600/20 active:scale-98 transition-all"
                 >
-                  <span>{isKu ? 'کردنەوەی فرۆشتن' : 'Open Sales POS'}</span>
+                  <span>{isKu ? 'کردنەوەی دەفتەری بازرگانی' : 'Open Trade Ledger'}</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               ) : (

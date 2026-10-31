@@ -57,7 +57,7 @@ import { DEBT_PAYMENT_ACTION, buildDebtPaymentDetails, getTodayDebtPaymentIntake
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
 import SupplierPayablesModal from './SupplierPayablesModal';
 
-export const SalesSection: React.FC = () => {
+export const TradeLedgerSection: React.FC = () => {
   const {
     t,
     language,
@@ -92,6 +92,7 @@ export const SalesSection: React.FC = () => {
     logActivity,
     activityLogs,
     setCurrentModule,
+    pullFromServer,
   } = useInventory();
 
   const isDark = theme === 'dark';
@@ -189,6 +190,7 @@ export const SalesSection: React.FC = () => {
   const [showMoreInvoiceDetails, setShowMoreInvoiceDetails] = useState(false);
   const [showMobileCost, setShowMobileCost] = useState(false);
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
+  const [ledgerTimeFilter, setLedgerTimeFilter] = useState('all');
 
   useEffect(() => {
     if (!openActionDropdownId) return;
@@ -633,12 +635,53 @@ export const SalesSection: React.FC = () => {
     };
 
     const wasEditing = !!editingTxId;
-    if (editingTxId) {
-      editTransaction(editingTxId, txPayload);
-      setEditingTxId(null);
-    } else {
-      addTransaction(txPayload);
+    const shipmentCurrency: 'EUR' | 'USD' = cur === 'EUR' ? 'EUR' : 'USD';
+    const shipmentTotalInvoice =
+      cur === 'IQD'
+        ? roundMoney(convertCurrency(roundedNet + roundedOldDebt, 'IQD', 'USD'), 'USD')
+        : roundedNet + roundedOldDebt;
+    const shipmentPaidAmount =
+      cur === 'IQD'
+        ? roundMoney(convertCurrency(roundedPaid, 'IQD', 'USD'), 'USD')
+        : roundedPaid;
+
+    const shipmentResult = warehouseOps.addShipment({
+      supplier: posDraft.client.trim()
+        ? autoCapitalizeFirstLetter(posDraft.client.trim())
+        : 'FunderMax GmbH',
+      supplierContact: posDraft.clientPhone.trim() || '',
+      originCountry: posDraft.legacyInvoiceRef.trim()
+        ? autoCapitalizeFirstLetter(posDraft.legacyInvoiceRef.trim())
+        : 'Austria (EU)',
+      arrivalDate: new Date().toISOString().split('T')[0],
+      status: 'received',
+      notes: posDraft.notes ? autoCapitalizeFirstLetter(posDraft.notes) : '',
+      items: finalItems.map((item) => ({
+        description: item.product || item.type || 'Wood Panel Item',
+        unit: isKu ? 'دانە' : 'sheets',
+        expectedQty: Math.max(1, Number(item.quantity) || 1),
+        receivedQty: Math.max(1, Number(item.quantity) || 1),
+      })),
+      invoiceCurrency: shipmentCurrency,
+      totalInvoiceAmount: shipmentTotalInvoice,
+      amountPaidToSupplier: shipmentPaidAmount,
+      attachments: posDraft.images || [],
+    });
+
+    if (!shipmentResult.ok) {
+      requestAlert({
+        title: isKu ? 'ئاگاداری پسوولەی دابینکەر' : 'Supplier Bill Notice',
+        message: shipmentResult.error,
+        type: 'warning',
+      });
+      return;
     }
+
+    if (editingTxId) {
+      setEditingTxId(null);
+    }
+
+    void warehouseOps.syncFromServer?.();
 
     if (andPrint) {
       setPrintingTx(txPayload);
@@ -818,74 +861,12 @@ export const SalesSection: React.FC = () => {
     return Array.from(set).filter(Boolean).sort();
   }, [savedPaymentTypes, transactions]);
 
-  // Filtered and sorted transactions for the ledger
-  const filteredTransactions = useMemo(() => {
-    const list = transactions.filter((tx) => {
-      if (salesSearch.trim()) {
-        const q = salesSearch.toLowerCase();
-        const match =
-          (tx.code && tx.code.toLowerCase().includes(q)) ||
-          (tx.panelType && tx.panelType.toLowerCase().includes(q)) ||
-          (tx.material && tx.material.toLowerCase().includes(q)) ||
-          (tx.seller && tx.seller.toLowerCase().includes(q)) ||
-          (tx.bank && tx.bank.toLowerCase().includes(q)) ||
-          (tx.paymentType && tx.paymentType.toLowerCase().includes(q)) ||
-          (tx.notes && tx.notes.toLowerCase().includes(q));
-        if (!match) return false;
-      }
+  const warehouseOps = useWarehouseOps();
 
-      const debt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
-      const isPaidFull = debt <= 0;
-      const isDebt = debt > 0;
-      const isPartial = (tx.amountPaidNow || 0) > 0 && debt > 0;
-
-      if (salesStatusFilter === 'completed' && !isPaidFull) return false;
-      if (salesStatusFilter === 'debt' && !isDebt) return false;
-      if (salesStatusFilter === 'partial' && !isPartial) return false;
-
-      if (salesSellerFilter !== 'all' && (tx.seller || '').toLowerCase() !== salesSellerFilter.toLowerCase()) {
-        return false;
-      }
-
-      if (salesPaymentMethodFilter !== 'all' && (tx.paymentType || '').toLowerCase() !== salesPaymentMethodFilter.toLowerCase()) {
-        return false;
-      }
-
-      if (salesTimeframeFilter !== 'all') {
-        const txTime = new Date(tx.timestamp).getTime();
-        if (!isNaN(txTime) && txTime > 0) {
-          const now = Date.now();
-          const oneDay = 24 * 60 * 60 * 1000;
-          if (salesTimeframeFilter === 'today' && now - txTime > oneDay) return false;
-          if (salesTimeframeFilter === 'yesterday') {
-            const diff = now - txTime;
-            if (diff <= oneDay || diff > 2 * oneDay) return false;
-          }
-          if (salesTimeframeFilter === 'week' && now - txTime > 7 * oneDay) return false;
-          if (salesTimeframeFilter === 'month' && now - txTime > 30 * oneDay) return false;
-        }
-      }
-
-      return true;
-    });
-
-    list.sort((a, b) => {
-      if (salesSortBy === 'highestTotal') {
-        return (b.totalAfterDiscount || b.sellingAmount || 0) - (a.totalAfterDiscount || a.sellingAmount || 0);
-      }
-      if (salesSortBy === 'highestDebt') {
-        const debtA = a.combinedTotalDebt !== undefined ? a.combinedTotalDebt : (a.amountOwed || 0);
-        const debtB = b.combinedTotalDebt !== undefined ? b.combinedTotalDebt : (b.amountOwed || 0);
-        return debtB - debtA;
-      }
-      if (salesSortBy === 'oldest') {
-        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-      }
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-    });
-
-    return list;
-  }, [transactions, salesSearch, salesStatusFilter, salesSellerFilter, salesPaymentMethodFilter, salesTimeframeFilter, salesSortBy]);
+  useEffect(() => {
+    void pullFromServer();
+    void warehouseOps.syncFromServer?.();
+  }, []);
 
   const hasActiveSalesFilters = Boolean(
     salesSearch.trim() ||
@@ -905,42 +886,62 @@ export const SalesSection: React.FC = () => {
     setSalesSortBy('newest');
   };
 
-  // System-wide Total Debt & Sales aggregates in active currency
-  const totalSystemDebt = useMemo(() => {
-    return transactions.reduce((acc, tx) => {
-      const debt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
+  const filteredShipments = useMemo(() => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    return warehouseOps.activeShipments.filter((s) => {
+      if (s.isDeleted === 1) return false;
+      if (ledgerTimeFilter === 'all') return true;
+      const rawDate = s.createdAt || s.arrivalDate || '';
+      const txTime = rawDate ? new Date(rawDate).getTime() : NaN;
+      if (isNaN(txTime) || txTime <= 0) return false;
+      const diff = now - txTime;
+      if (ledgerTimeFilter === 'today') return diff <= oneDay;
+      if (ledgerTimeFilter === 'week') return diff <= 7 * oneDay;
+      if (ledgerTimeFilter === 'month') return diff <= 30 * oneDay;
+      if (ledgerTimeFilter === '3months') return diff <= 90 * oneDay;
+      if (ledgerTimeFilter === '6months') return diff <= 180 * oneDay;
+      if (ledgerTimeFilter === 'year') return diff <= 365 * oneDay;
+      return true;
+    });
+  }, [warehouseOps.activeShipments, ledgerTimeFilter]);
+
+  const totalSupplierInvoiced = useMemo(() => {
+    return filteredShipments.reduce((acc, s) => {
+      if (s.isDeleted === 1) return acc;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      if (invoiced <= 0) return acc;
+      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+      return acc + convertCurrency(invoiced, curr as CurrencyCode, posDraft.activeCurrency);
+    }, 0);
+  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
+
+  const totalSupplierPaid = useMemo(() => {
+    return filteredShipments.reduce((acc, s) => {
+      if (s.isDeleted === 1) return acc;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      if (paid <= 0) return acc;
+      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+      return acc + convertCurrency(paid, curr as CurrencyCode, posDraft.activeCurrency);
+    }, 0);
+  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
+
+  const fundermaxSupplierDebt = useMemo(() => {
+    return filteredShipments.reduce((acc, s) => {
+      if (s.isDeleted === 1) return acc;
+      const isFmax = !s.supplier || s.supplier.toLowerCase().includes('fundermax');
+      if (!isFmax) return acc;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
       if (debt <= 0) return acc;
-      const cur = tx.currency || 'USD';
-      return acc + convertCurrency(debt, cur, posDraft.activeCurrency);
+      const curr = s.invoiceCurrency || 'EUR';
+      return acc + convertCurrency(debt, curr as CurrencyCode, posDraft.activeCurrency);
     }, 0);
-  }, [transactions, convertCurrency, posDraft.activeCurrency]);
-
-  const debtorInvoicesCount = useMemo(() => {
-    return transactions.filter(
-      (tx) => (tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0)) > 0
-    ).length;
-  }, [transactions]);
-
-  const totalSystemSales = useMemo(() => {
-    return transactions.reduce((acc, tx) => {
-      const amount = tx.totalAfterDiscount || tx.sellingAmount || 0;
-      const cur = tx.currency || 'USD';
-      return acc + convertCurrency(amount, cur, posDraft.activeCurrency);
-    }, 0);
-  }, [transactions, convertCurrency, posDraft.activeCurrency]);
-
-  const totalSystemPaid = useMemo(() => {
-    return transactions.reduce((acc, tx) => {
-      const paid = tx.amountPaidNow || 0;
-      const cur = tx.currency || 'USD';
-      return acc + convertCurrency(paid, cur, posDraft.activeCurrency);
-    }, 0);
-  }, [transactions, convertCurrency, posDraft.activeCurrency]);
-
-  const warehouseOps = useWarehouseOps();
+  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
 
   const totalSupplierDebt = useMemo(() => {
-    return warehouseOps.activeShipments.reduce((acc, s) => {
+    return filteredShipments.reduce((acc, s) => {
       if (s.isDeleted === 1) return acc;
       const invoiced = Number(s.totalInvoiceAmount) || 0;
       const paid = Number(s.amountPaidToSupplier) || 0;
@@ -949,35 +950,20 @@ export const SalesSection: React.FC = () => {
       const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
       return acc + convertCurrency(debt, curr as CurrencyCode, posDraft.activeCurrency);
     }, 0);
-  }, [warehouseOps.activeShipments, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
 
   const supplierInvoicesWithDebtCount = useMemo(() => {
-    return warehouseOps.activeShipments.filter((s) => {
+    return filteredShipments.filter((s) => {
       if (s.isDeleted === 1) return false;
       const invoiced = Number(s.totalInvoiceAmount) || 0;
       const paid = Number(s.amountPaidToSupplier) || 0;
       const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
       return debt > 0;
     }).length;
-  }, [warehouseOps.activeShipments]);
+  }, [filteredShipments]);
 
-
-  const filteredTotalDebt = useMemo(() => {
-    return filteredTransactions.reduce((acc, tx) => {
-      const debt = tx.combinedTotalDebt !== undefined ? tx.combinedTotalDebt : (tx.amountOwed || 0);
-      if (debt <= 0) return acc;
-      const cur = tx.currency || 'USD';
-      return acc + convertCurrency(debt, cur, posDraft.activeCurrency);
-    }, 0);
-  }, [filteredTransactions, convertCurrency, posDraft.activeCurrency]);
-
-  const filteredTotalRevenue = useMemo(() => {
-    return filteredTransactions.reduce((acc, tx) => {
-      const amount = tx.totalAfterDiscount || tx.sellingAmount || 0;
-      const cur = tx.currency || 'USD';
-      return acc + convertCurrency(amount, cur, posDraft.activeCurrency);
-    }, 0);
-  }, [filteredTransactions, convertCurrency, posDraft.activeCurrency]);
+  const filteredTotalDebt = totalSupplierDebt;
+  const filteredTotalRevenue = totalSupplierInvoiced;
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-in fade-in duration-200">
@@ -987,13 +973,13 @@ export const SalesSection: React.FC = () => {
           <div className="flex items-center gap-2">
             <ReceiptText className="w-6 h-6 text-sky-600 dark:text-sky-400" />
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {t.salesInvoicing}
+              {isKu ? 'دەفتەری بازرگانی: کڕیاران و دابینکەران' : 'Trade Ledger: Clients & Suppliers'}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isKu
-              ? 'دروستکردنی پسوولەی فرۆشتن، دراوەکان، قەرز و چاپی پسوولەی فەرمی'
-              : 'Interactive Point-of-Sale invoicing, multi-currency engine, and debt manager'}
+              ? 'بەڕێوەبردنی یەکگرتووی مامەڵەی بازرگانی، قەرزی کڕیاران و قەرزی دابینکەران (FunderMax)'
+              : 'Unified B2B Trade Ledger for client receivables, sales invoicing, and supplier payables'}
           </p>
         </div>
 
@@ -1146,166 +1132,156 @@ export const SalesSection: React.FC = () => {
         </form>
       )}
 
-      {/* EXECUTIVE SALES POS KPI GRID (CUSTOMER INFLOW ONLY + SUPPLIER PAYABLES) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        {/* CARD 1: TOTAL INVOICED VOLUME (GROSS SALES VOLUME) */}
-        <div className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
-                {isKu ? 'کۆی فرۆشراو' : 'Total Invoiced Volume'}
-              </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
-                {isKu ? 'کۆی گشتی فرۆشراو (Gross Sales)' : 'Gross sales volume'}
+      {/* SUPPLIER PAYABLES B2B TRADE LEDGER KPI GRID */}
+      <div className="grid grid-cols-1 gap-6">
+        {/* SUPPLIER-FACING METRICS (PAYABLES / FUNDERMAX DEBT) */}
+        <div className="p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/50 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800/50">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <span className="text-xs font-black uppercase tracking-wider text-rose-900 dark:text-rose-300">
+                Supplier Payables & FunderMax Debt
               </span>
             </div>
-            <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
-              <ReceiptText className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
-              {formatMoney(totalSystemSales, posDraft.activeCurrency)}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1.5">
-              <span>{transactions.length} {isKu ? 'وەسڵی تۆمارکراو' : 'recorded invoices'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* CARD 2: CASH RECEIVED FROM CUSTOMERS */}
-        <div className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
-                {isKu ? 'پارەی وەرگیراو لە کڕیاران' : 'Cash Received from Customers'}
-              </span>
-              <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 font-medium block mt-0.5">
-                {isKu ? 'پارەی نەقدی وەرگیراو لە قاسە/بانک' : 'Actual cash collected into drawer/bank'}
-              </span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-              {formatMoney(totalSystemPaid, posDraft.activeCurrency)}
-            </div>
-            <div className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 font-medium mt-1.5">
-              {totalSystemSales > 0 ? Math.round((totalSystemPaid / totalSystemSales) * 100) : 0}% {isKu ? 'ڕێژەی وەرگیراو' : 'collection rate'}
-            </div>
-          </div>
-        </div>
-
-        {/* CARD 3: CUSTOMER DEBT / RECEIVABLES */}
-        <div 
-          onClick={() => setInspectingTxForMath(true)}
-          className="p-5 rounded-3xl border-2 border-rose-400/90 dark:border-rose-500/80 bg-gradient-to-br from-rose-50/90 via-white to-rose-50/50 dark:from-rose-950/40 dark:via-slate-850 dark:to-rose-950/20 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative overflow-hidden"
-          title={isKu ? 'کلیک بکە بۆ بینینی هەموو وردەکاری و یاسای هەژمارکردنی قەرز' : 'Click to inspect full transparent debt calculation & itemized formula'}
-        >
-          {/* Subtle Ambient Corner Accent */}
-          <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform" />
-          
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
-                {isKu ? 'قەرزی لای کڕیاران' : 'Customer Debt (Receivables)'}
-              </span>
-              <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80 font-medium block mt-0.5">
-                {isKu ? 'کۆی گشتی ئەو پارەیەی لای کڕیاران ماوەتەوە' : 'Unpaid balances customers owe us'}
-              </span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold shadow-md shadow-rose-500/25 group-hover:scale-110 transition-transform shrink-0">
-              <AlertCircle className="w-5 h-5" />
+            <div className="flex items-center gap-2.5">
+              <select
+                value={ledgerTimeFilter}
+                onChange={(e) => setLedgerTimeFilter(e.target.value)}
+                className="h-7 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                title={isKu ? 'فلتەری کات' : 'Time Filter'}
+              >
+                <option value="all">{isKu ? 'هەموو کاتێک' : 'All Time'}</option>
+                <option value="today">{isKu ? 'ئەمڕۆ' : 'Today'}</option>
+                <option value="week">{isKu ? 'ئەم هەفتەیە' : 'This Week'}</option>
+                <option value="month">{isKu ? 'ئەم مانگە' : 'This Month'}</option>
+                <option value="3months">{isKu ? '٣ مانگی ڕابردوو' : 'Last 3 Months'}</option>
+                <option value="6months">{isKu ? '٦ مانگی ڕابردوو' : 'Last 6 Months'}</option>
+                <option value="year">{isKu ? 'ئەمساڵ' : 'Last Year'}</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setIsSupplierPayablesOpen(true)}
+                className="text-[11px] font-bold text-rose-700 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 underline cursor-pointer"
+              >
+                {isKu ? 'کردنەوەی دەفتەری قەرز ←' : 'Open Payables Ledger ←'}
+              </button>
             </div>
           </div>
 
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 font-mono tracking-tight">
-              {formatMoney(totalSystemDebt, posDraft.activeCurrency)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* SUPPLIER CARD 1: TOTAL SUPPLIER INVOICED */}
+            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
+                    {isKu ? 'کۆی هاوردەکراوی دابینکەر' : 'Total Supplier Invoiced'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
+                    {isKu ? 'کۆی گشتی پسوولەی کارگە و دابینکەران' : 'Gross inbound supplier volume'}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center font-bold">
+                  <Building2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                  {formatMoney(totalSupplierInvoiced, posDraft.activeCurrency)}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <span>{filteredShipments.length} {isKu ? 'بارنامەی تۆمارکراو' : 'inbound shipments'}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-rose-700/80 dark:text-rose-300/80 font-medium mt-1.5">
-              <span>{debtorInvoicesCount} {isKu ? 'وەسڵی قەرزدار' : 'debtor invoices'}</span>
-              <span className="font-bold underline group-hover:text-rose-600">{isKu ? 'وردەکاری قەرز ←' : 'Inspect Math ←'}</span>
-            </div>
-          </div>
-        </div>
 
-        {/* CARD 4: CURRENT DRAFT DEBT */}
-        <div className={`p-5 rounded-3xl border shadow-xs flex flex-col justify-between transition-colors ${
-          combinedTotalDebt > 0
-            ? 'border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/30'
-            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850'
-        }`}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
-                {isKu ? 'قەرزی ئەم پسوولەیە' : 'Current Draft Debt'}
-              </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
-                {isKu ? 'قەرزی ماوەی سەر ئەم پسوولەیەی ئێستا' : 'Remaining debt on active draft'}
-              </span>
+            {/* SUPPLIER CARD 2: PAID TO SUPPLIERS */}
+            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
+                    {isKu ? 'پارەی دراو بە دابینکەران' : 'Paid to Suppliers'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
+                    {isKu ? 'کۆی حەواڵە و پارەی دراو بە کارگەکان' : 'Settled supplier wire transfers'}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center font-bold">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                  {formatMoney(totalSupplierPaid, posDraft.activeCurrency)}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  {totalSupplierInvoiced > 0 ? Math.round((totalSupplierPaid / totalSupplierInvoiced) * 100) : 0}% {isKu ? 'ڕێژەی دراو' : 'settlement rate'}
+                </div>
+              </div>
             </div>
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              combinedTotalDebt > 0
-                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}>
-              <Calculator className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <div className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
-              combinedTotalDebt > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'
-            }`}>
-              {combinedTotalDebt > 0 ? formatMoney(combinedTotalDebt, posDraft.activeCurrency) : formatMoney(0, posDraft.activeCurrency)}
-            </div>
-            <div className="text-[11px] font-medium mt-1.5">
-              {combinedTotalDebt > 0 ? (
-                <span className="text-amber-700 dark:text-amber-400 font-bold">{isKu ? 'قەرز لەسەر ئەم کڕینە' : 'Unpaid balance pending'}</span>
-              ) : (
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{isKu ? 'تەواو دراوە (بێ قەرز)' : 'Paid in full (zero debt)'}</span>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* CARD 5: WE OWE SUPPLIERS (PAYABLES) */}
-        <div
-          onClick={() => setIsSupplierPayablesOpen(true)}
-          className="p-5 rounded-3xl border-2 border-purple-200 dark:border-purple-800 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          title={isKu ? 'کلیک بکە بۆ بینینی دەفتەری قەرزی دابینکەران' : 'Click to inspect Supplier Payables Ledger'}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-xs font-black uppercase tracking-wider text-purple-700 dark:text-purple-300 block">
-                {isKu ? 'قەرزی سەر ئێمە بۆ دابینکەران' : 'WE OWE SUPPLIERS (PAYABLES)'}
-              </span>
-              <span className="text-[10px] text-purple-700/80 dark:text-purple-400/80 font-medium block mt-0.5">
-                {isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە' : 'Unpaid supplier payables'}
-              </span>
+            {/* SUPPLIER CARD 3: WE OWE SUPPLIERS (PAYABLES) */}
+            <div
+              onClick={() => setIsSupplierPayablesOpen(true)}
+              className="p-4 rounded-2xl border-2 border-rose-300 dark:border-rose-700 bg-rose-50/50 dark:bg-rose-950/30 hover:bg-rose-50 dark:hover:bg-rose-950/50 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+              title={isKu ? 'کلیک بکە بۆ بینینی دەفتەری قەرزی دابینکەران' : 'Click to inspect Supplier Payables Ledger'}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
+                    {isKu ? 'کۆی قەرزی دابینکەران' : 'Total Supplier Payables'}
+                  </span>
+                  <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80 font-medium block mt-0.5">
+                    {isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە' : 'Unpaid balances we owe suppliers'}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0">
+                  <Building2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-300 font-mono tracking-tight">
+                  {formatMoney(totalSupplierDebt, posDraft.activeCurrency)}
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-rose-700/80 dark:text-rose-400/80 font-medium mt-1">
+                  <span>{supplierInvoicesWithDebtCount} {isKu ? 'پسوولەی دابینکەر' : 'unpaid batches'}</span>
+                  <span className="font-bold underline">{isKu ? 'دەفتەری قەرز ←' : 'Open Ledger ←'}</span>
+                </div>
+              </div>
             </div>
-            <div className="w-9 h-9 rounded-xl bg-purple-500/10 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold group-hover:scale-110 transition-transform shrink-0">
-              <Building2 className="w-5 h-5" />
-            </div>
-          </div>
 
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-purple-700 dark:text-purple-300 font-mono tracking-tight">
-              {formatMoney(totalSupplierDebt, posDraft.activeCurrency)}
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-purple-700/80 dark:text-purple-400/80 font-medium mt-1.5">
-              <span>{supplierInvoicesWithDebtCount} {isKu ? 'پسوولەی دابینکەر' : 'supplier invoices'}</span>
-              <span className="font-bold underline group-hover:text-purple-800 dark:group-hover:text-purple-200">
-                {isKu ? 'دەفتەری قەرز ←' : 'Open Ledger ←'}
-              </span>
+            {/* SUPPLIER CARD 4: FUNDERMAX DEBT */}
+            <div
+              onClick={() => setIsSupplierPayablesOpen(true)}
+              className="p-4 rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/40 dark:bg-rose-950/20 hover:bg-rose-50/80 dark:hover:bg-rose-950/40 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
+                    {isKu ? 'قەرزی کارگەی FunderMax' : 'FunderMax Debt'}
+                  </span>
+                  <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80 font-medium block mt-0.5">
+                    {isKu ? 'قەرزی تایبەت بە کارگەی فۆندەرماکس' : 'Outstanding FunderMax factory balance'}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold shrink-0">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-300 font-mono tracking-tight">
+                  {formatMoney(fundermaxSupplierDebt, posDraft.activeCurrency)}
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-rose-700/80 dark:text-rose-400/80 font-medium mt-1">
+                  <span>{activeFundermaxBatches.length} {isKu ? 'بارنامەی چالاک' : 'active batches'}</span>
+                  <span className="font-bold underline">{isKu ? 'وردەکاری ←' : 'Manage ←'}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* POS INVOICE CREATOR FORM (Strictly unmounted unless canCreateSales or canEditSales) */}
+      {/* SUPPLIER BILL INTAKE FORM */}
       {(userPermissions?.canCreateSales || (editingTxId && userPermissions?.canEditSales)) ? (
       <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm space-y-6">
         {/* Prominent Edit Mode Warning Banner */}
@@ -1334,11 +1310,11 @@ export const SalesSection: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${editingTxId ? 'bg-amber-500 animate-pulse' : 'bg-sky-500'}`} />
+            <span className={`w-2.5 h-2.5 rounded-full ${editingTxId ? 'bg-amber-500 animate-pulse' : 'bg-purple-500'}`} />
             <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
               {editingTxId
                 ? (isKu ? `دەستکاریکردنی وەسڵ #${editingInvoiceCode}` : `Edit Invoice #${editingInvoiceCode}`)
-                : t.newInvoice}
+                : (isKu ? 'پسوولەی کڕینی دابینکەری نوێ' : 'New Supplier Purchase / Bill')}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -1382,10 +1358,10 @@ export const SalesSection: React.FC = () => {
                 />
               </div>
 
-              {/* Customer / Client Name */}
+              {/* Supplier / Factory Name */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {isKu ? 'کڕیار / پسوولە بۆ (Customer)' : 'Customer / Client'}
+                  {isKu ? 'دابینکەر / کارگە (Supplier)' : 'Supplier / Factory'}
                 </label>
                 <SearchableDropdown
                   options={clientOptions}
@@ -1393,16 +1369,18 @@ export const SalesSection: React.FC = () => {
                   onChange={handleCustomerSelect}
                   onAddNew={(v) => addToDropdownPresets('savedClients', v)}
                   onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
-                  placeholder={isKu ? 'ناوی کڕیار بنووسە یان هەڵبژێرە...' : 'Select or type customer name...'}
+                  placeholder={isKu ? 'ناوی دابینکەر یان کارگە هەڵبژێرە...' : 'Select or type supplier / factory...'}
                   allowDelete={!isViewer}
                   clearable={true}
                 />
               </div>
 
-              {/* Customer Phone */}
+              {/* Supplier Phone */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>{isKu ? 'ژمارەی مۆبایلی کڕیار' : 'Customer Phone'}</span>
+                  <span>
+                    {isKu ? 'ژمارەی مۆبایلی دابینکەر' : 'Supplier Phone'}
+                  </span>
                   <span className="text-[10px] text-slate-400 font-normal">WhatsApp Ready</span>
                 </label>
                 <div className="relative">
@@ -1486,22 +1464,6 @@ export const SalesSection: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {t.seller}
-                </label>
-                <SearchableDropdown
-                  options={savedSellers}
-                  value={posDraft.seller}
-                  onChange={(v) => setPosDraft({ ...posDraft, seller: v })}
-                  onAddNew={(v) => addToDropdownPresets('savedSellers', v)}
-                  onDeleteOption={(v) => removeFromDropdownPresets('savedSellers', v)}
-                  placeholder="Select Seller / فرۆشیار دیاری بکە..."
-                  allowDelete={!isViewer}
-                  clearable={true}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   {t.bank}
                 </label>
                 <SearchableDropdown
@@ -1550,10 +1512,10 @@ export const SalesSection: React.FC = () => {
 
         {/* Mobile Streamlined Business Header Inputs (Progressive Disclosure) */}
         <div className="block md:hidden space-y-3">
-          {/* 1. Customer */}
+          {/* 1. Supplier / Factory */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              {isKu ? 'کڕیار' : 'Customer'}
+              {isKu ? 'دابینکەر / کارگە' : 'Supplier / Factory'}
             </label>
             <SearchableDropdown
               options={clientOptions}
@@ -1561,16 +1523,18 @@ export const SalesSection: React.FC = () => {
               onChange={handleCustomerSelect}
               onAddNew={(v) => addToDropdownPresets('savedClients', v)}
               onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
-              placeholder={isKu ? 'ناوی کڕیار بنووسە یان هەڵبژێرە...' : 'Select or type customer name...'}
+              placeholder={isKu ? 'ناوی دابینکەر یان کارگە هەڵبژێرە...' : 'Select or type supplier / factory...'}
               allowDelete={!isViewer}
               clearable={true}
             />
           </div>
 
-          {/* 2. Customer Phone */}
+          {/* 2. Supplier Phone */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-              <span>{isKu ? 'ژمارەی مۆبایل' : 'Customer Phone'}</span>
+              <span>
+                {isKu ? 'ژمارەی مۆبایلی دابینکەر' : 'Supplier Phone'}
+              </span>
               <span className="text-[10px] text-slate-400 font-normal">WhatsApp Ready</span>
             </label>
             <div className="relative">
@@ -1710,23 +1674,6 @@ export const SalesSection: React.FC = () => {
                     onChange={(e) => setPosDraft({ ...posDraft, legacyInvoiceRef: e.target.value })}
                     placeholder="e.g. PO-842, Project Villa..."
                     className="w-full h-11 px-3.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs"
-                  />
-                </div>
-
-                {/* Seller */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {t.seller}
-                  </label>
-                  <SearchableDropdown
-                    options={savedSellers}
-                    value={posDraft.seller}
-                    onChange={(v) => setPosDraft({ ...posDraft, seller: v })}
-                    onAddNew={(v) => addToDropdownPresets('savedSellers', v)}
-                    onDeleteOption={(v) => removeFromDropdownPresets('savedSellers', v)}
-                    placeholder="Select Seller / فرۆشیار دیاری بکە..."
-                    allowDelete={!isViewer}
-                    clearable={true}
                   />
                 </div>
 
@@ -2270,11 +2217,11 @@ export const SalesSection: React.FC = () => {
             </span>
           </div>
 
-          {/* Cash Received from Customer */}
+          {/* Amount Paid to Supplier */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                {isKu ? 'پارەی وەرگیراو لە کڕیار' : 'Cash Received from Customer'} ({posDraft.activeCurrency})
+                {isKu ? 'بڕی پارەی دراو بە دابینکەر' : 'Amount Paid to Supplier'} ({posDraft.activeCurrency})
               </label>
               {typeof posDraft.amountPaidNow === 'number' && posDraft.amountPaidNow > 0 && (
                 <button
@@ -2389,10 +2336,10 @@ export const SalesSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Old Debt */}
+          {/* Prior Supplier Debt */}
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-              {isKu ? 'قەرزی پێشووی کڕیار (وەرگیراو)' : 'Prior Customer Debt (Receivable)'} ({posDraft.activeCurrency})
+              {isKu ? 'قەرزی پێشووی دابینکەر' : 'Prior Supplier Debt'} ({posDraft.activeCurrency})
             </label>
             <input
               type="number"
@@ -2424,7 +2371,7 @@ export const SalesSection: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-[11px] font-black uppercase tracking-wider block text-rose-800 dark:text-rose-300">
-                    {isKu ? 'قەرزی لای کڕیار (وەرگیراو):' : 'Customer Debt (Receivable):'}
+                    {isKu ? 'قەرزی ماوە بۆ دابینکەر:' : 'Supplier Debt (Payable):'}
                   </span>
                   <span className="text-2xl font-black font-mono text-rose-700 dark:text-rose-200 leading-tight">
                     {formatMoney(combinedTotalDebt, posDraft.activeCurrency)}
@@ -2456,14 +2403,14 @@ export const SalesSection: React.FC = () => {
                     className={`w-full py-3.5 px-4 text-sm font-bold rounded-xl active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2 ${
                       editingTxId
                         ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/25 ring-2 ring-amber-400/40'
-                        : 'bg-sky-600 hover:bg-sky-700 text-white shadow-lg shadow-sky-600/25'
+                        : 'bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-750 text-white border border-slate-700'
                     }`}
                   >
                     <ReceiptText className="w-4 h-4" />
                     <span>
                       {editingTxId
                         ? (isKu ? 'نوێکردنەوەی وەسڵ (Update Existing Invoice)' : 'Update Existing Invoice')
-                        : t.saveInvoice}
+                        : (isKu ? 'پاشەکەوت و تۆمارکردنی پسوولەی دابینکەر' : 'Save & Record Supplier Bill')}
                     </span>
                   </button>
 
@@ -2503,10 +2450,10 @@ export const SalesSection: React.FC = () => {
               {t.invoiceHistory}
             </h2>
             <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-              {hasActiveSalesFilters ? `${filteredTransactions.length} / ${transactions.length}` : `${transactions.length} invoices`}
+              {`${warehouseOps.activeShipments.length} entries`}
             </span>
             <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-              {isKu ? 'کۆی داهات:' : 'Sales:'} {formatMoney(filteredTotalRevenue, posDraft.activeCurrency)}
+              {isKu ? 'کۆی پسوولەکان:' : 'Invoiced:'} {formatMoney(filteredTotalRevenue, posDraft.activeCurrency)}
             </span>
             <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
               {isKu ? 'کۆی قەرز:' : 'Debt:'} {formatMoney(filteredTotalDebt, posDraft.activeCurrency)}
@@ -2516,8 +2463,8 @@ export const SalesSection: React.FC = () => {
           {userPermissions?.canExport !== false && (
             <button
               type="button"
-              onClick={() => exportTransactionsToCSV(filteredTransactions, language)}
-              disabled={filteredTransactions.length === 0}
+              onClick={() => exportTransactionsToCSV([], language)}
+              disabled={warehouseOps.activeShipments.length === 0}
               className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer self-start sm:self-auto shrink-0 disabled:opacity-50"
               title={isKu ? 'هەناردەکردنی فایلی Excel / CSV بۆ ژمێریاری و وردبینی' : 'Export filtered sales to Excel / CSV for accountant audit'}
             >
@@ -2702,23 +2649,92 @@ export const SalesSection: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-              {filteredTransactions.length === 0 ? (
+              {warehouseOps.activeShipments.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
-                    No sales invoices recorded yet.
+                    No ledger entries recorded yet.
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map((tx) => {
-                  const txCur = tx.currency || 'USD';
+                warehouseOps.activeShipments.map((s) => {
+                  const invoiced = Number(s.totalInvoiceAmount) || 0;
+                  const paid = Number(s.amountPaidToSupplier) || 0;
+                  const debt =
+                    s.supplierDebtRemaining !== undefined
+                      ? Number(s.supplierDebtRemaining)
+                      : Math.max(0, invoiced - paid);
+                  const status: 'completed' | 'partial' | 'debt' =
+                    debt <= 0 ? 'completed' : paid > 0 ? 'partial' : 'debt';
+                  const txCur: CurrencyCode =
+                    (s.invoiceCurrency as CurrencyCode) ||
+                    (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+                  const rawDate = s.createdAt || s.arrivalDate || '';
+                  const parsedDate = rawDate ? new Date(rawDate) : new Date(0);
+                  const timestamp = !isNaN(parsedDate.getTime())
+                    ? parsedDate.toISOString()
+                    : new Date(0).toISOString();
+                  const totalQty = (s.items || []).reduce(
+                    (sum, it) => sum + (Number(it.receivedQty || it.expectedQty) || 0),
+                    0
+                  );
+                  const firstDesc =
+                    s.items && s.items.length > 0
+                      ? s.items[0].description
+                      : s.originCountry || 'Inbound Batch';
+                  const firstUnit =
+                    s.items && s.items.length > 0 && s.items[0].unit ? s.items[0].unit : 'pcs';
+
+                  const tx: PanelTransaction = {
+                    id: s.id,
+                    code: s.batchCode || s.id.slice(-6),
+                    timestamp,
+                    panelType: 'Supplier Shipment',
+                    material: firstDesc,
+                    quantity: totalQty || 1,
+                    unit: firstUnit,
+                    sellingType: 'Supplier Purchase',
+                    seller: '—',
+                    bank: 'Supplier Wire / LC',
+                    paymentType: 'Supplier Bill',
+                    currency: txCur,
+                    sellingAmount: invoiced,
+                    costPrice: invoiced,
+                    discountDollars: 0,
+                    discountPercentage: 0,
+                    totalAfterDiscount: invoiced,
+                    amountPaidNow: paid,
+                    amountOwed: debt,
+                    oldUnpaidDebt: 0,
+                    combinedTotalDebt: debt,
+                    grossProfit: 0,
+                    profitMargin: 0,
+                    notes: s.notes || '',
+                    images: s.attachments || [],
+                    status,
+                    lastUpdated: s.updatedAt || timestamp,
+                    items: (s.items || []).map((it) => ({
+                      id: it.id,
+                      type: 'Inbound Batch',
+                      product: it.description,
+                      quantity: Number(it.receivedQty || it.expectedQty) || 0,
+                      sellingType: 'Supplier Purchase',
+                      price: 0,
+                      total: 0,
+                      fundermaxBatchRef: s.batchCode,
+                    })),
+                    client: s.supplier || s.supplierName || 'FunderMax GmbH',
+                    clientPhone: s.supplierContact || '',
+                    fundermaxBatchRef: s.batchCode,
+                  };
+
                   const isExpanded = expandedTxIds.has(tx.id);
-                  const isDebt = (tx.combinedTotalDebt || tx.amountOwed || 0) > 0;
+                  const isDebt = debt > 0;
 
                   return (
                     <React.Fragment key={tx.id}>
                       <tr
                         onClick={() => toggleExpandTx(tx.id)}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer select-none"
+                        className="transition-colors cursor-pointer select-none hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                       >
                         <td className="px-3.5 py-3">
                           <div className="flex items-center gap-2.5">
@@ -2735,7 +2751,7 @@ export const SalesSection: React.FC = () => {
                               />
                             ) : null}
                             <div className="min-w-0">
-                              <div className="font-bold text-slate-900 dark:text-white font-mono">
+                              <div className="font-bold font-mono text-slate-900 dark:text-white">
                                 {tx.code || tx.id.slice(-6)}
                               </div>
                               <div className="text-[11px] text-slate-500">
@@ -2745,8 +2761,13 @@ export const SalesSection: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-3.5 py-3">
-                          <div className="font-bold text-slate-900 dark:text-white">
-                            {tx.client || 'کڕیاری گشتی (General Customer)'}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 dark:text-white">
+                              {tx.client || 'FunderMax GmbH'}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              {isKu ? 'پسوولەی دابینکەر' : 'Supplier Bill'}
+                            </span>
                           </div>
                           {tx.clientPhone ? (
                             <a
@@ -2802,20 +2823,6 @@ export const SalesSection: React.FC = () => {
                               <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
                                 {formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
                               </span>
-                              {userPermissions?.canEditSales && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openDebtPayment(tx);
-                                  }}
-                                  className="px-2 py-0.5 rounded-md text-[11px] font-bold font-sans text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 active:scale-95 transition inline-flex items-center gap-1 cursor-pointer"
-                                  title={isKu ? 'وەرگرتنی پارە بۆ قەرزی ماوە' : 'Collect payment toward this balance'}
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  <span>{isKu ? 'پارەدان' : 'Pay'}</span>
-                                </button>
-                              )}
                             </div>
                           ) : (
                             <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
@@ -3169,28 +3176,104 @@ export const SalesSection: React.FC = () => {
             </div>
           </div>
 
-          {filteredTransactions.length === 0 ? (
+          {warehouseOps.activeShipments.length === 0 ? (
             <div className="p-8 text-center text-slate-500 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
-              {isKu ? 'هیچ پسوولەیەکی فرۆشتن نەدۆزرایەوە.' : 'No sales invoices recorded yet.'}
+              {isKu ? 'هیچ پسوولەیەک نەدۆزرایەوە.' : 'No ledger entries recorded yet.'}
             </div>
           ) : (
-            filteredTransactions.map((tx) => {
-              const txCur = tx.currency || 'USD';
-              const isDebt = (tx.combinedTotalDebt || tx.amountOwed || 0) > 0;
+            warehouseOps.activeShipments.map((s) => {
+              const invoiced = Number(s.totalInvoiceAmount) || 0;
+              const paid = Number(s.amountPaidToSupplier) || 0;
+              const debt =
+                s.supplierDebtRemaining !== undefined
+                  ? Number(s.supplierDebtRemaining)
+                  : Math.max(0, invoiced - paid);
+              const status: 'completed' | 'partial' | 'debt' =
+                debt <= 0 ? 'completed' : paid > 0 ? 'partial' : 'debt';
+              const txCur: CurrencyCode =
+                (s.invoiceCurrency as CurrencyCode) ||
+                (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+              const rawDate = s.createdAt || s.arrivalDate || '';
+              const parsedDate = rawDate ? new Date(rawDate) : new Date(0);
+              const timestamp = !isNaN(parsedDate.getTime())
+                ? parsedDate.toISOString()
+                : new Date(0).toISOString();
+              const totalQty = (s.items || []).reduce(
+                (sum, it) => sum + (Number(it.receivedQty || it.expectedQty) || 0),
+                0
+              );
+              const firstDesc =
+                s.items && s.items.length > 0
+                  ? s.items[0].description
+                  : s.originCountry || 'Inbound Batch';
+              const firstUnit =
+                s.items && s.items.length > 0 && s.items[0].unit ? s.items[0].unit : 'pcs';
+
+              const tx: PanelTransaction = {
+                id: s.id,
+                code: s.batchCode || s.id.slice(-6),
+                timestamp,
+                panelType: 'Supplier Shipment',
+                material: firstDesc,
+                quantity: totalQty || 1,
+                unit: firstUnit,
+                sellingType: 'Supplier Purchase',
+                seller: '—',
+                bank: 'Supplier Wire / LC',
+                paymentType: 'Supplier Bill',
+                currency: txCur,
+                sellingAmount: invoiced,
+                costPrice: invoiced,
+                discountDollars: 0,
+                discountPercentage: 0,
+                totalAfterDiscount: invoiced,
+                amountPaidNow: paid,
+                amountOwed: debt,
+                oldUnpaidDebt: 0,
+                combinedTotalDebt: debt,
+                grossProfit: 0,
+                profitMargin: 0,
+                notes: s.notes || '',
+                images: s.attachments || [],
+                status,
+                lastUpdated: s.updatedAt || timestamp,
+                items: (s.items || []).map((it) => ({
+                  id: it.id,
+                  type: 'Inbound Batch',
+                  product: it.description,
+                  quantity: Number(it.receivedQty || it.expectedQty) || 0,
+                  sellingType: 'Supplier Purchase',
+                  price: 0,
+                  total: 0,
+                  fundermaxBatchRef: s.batchCode,
+                })),
+                client: s.supplier || s.supplierName || 'FunderMax GmbH',
+                clientPhone: s.supplierContact || '',
+                fundermaxBatchRef: s.batchCode,
+              };
+
+              const isDebt = debt > 0;
 
               return (
                 <div
                   key={tx.id}
-                  className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs space-y-3"
+                  className="p-4 rounded-2xl border shadow-xs space-y-3 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                 >
-                  {/* Top row: Invoice #, Date, and Client Name */}
+                  {/* Top row: Invoice #, Date, and Supplier Name */}
                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-750 pb-2.5">
                     <div className="min-w-0">
-                      <div className="font-bold text-slate-900 dark:text-white text-sm sm:text-base truncate">
-                        {tx.client || (isKu ? 'کڕیاری گشتی' : 'General Customer')}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base truncate">
+                          {tx.client || 'FunderMax GmbH'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          {isKu ? 'پسوولەی دابینکەر' : 'Supplier Bill'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mt-0.5">
-                        <span className="font-bold text-sky-700 dark:text-sky-400">#{tx.code || tx.id.slice(-6)}</span>
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          #{tx.code || tx.id.slice(-6)}
+                        </span>
                         <span>•</span>
                         <span>{new Date(tx.timestamp).toLocaleDateString()}</span>
                       </div>
@@ -3237,17 +3320,7 @@ export const SalesSection: React.FC = () => {
                         <span className="font-mono text-xs font-bold text-rose-600 dark:text-rose-400">
                           ({formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)})
                         </span>
-                                             )}
-                       {isDebt && userPermissions?.canEditSales && (
-                         <button
-                           type="button"
-                           onClick={() => openDebtPayment(tx)}
-                           className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 active:scale-95 cursor-pointer"
-                         >
-                           <Plus className="w-3 h-3" />
-                           {isKu ? 'پارەدان' : 'Pay'}
-                         </button>
-                       )}
+                      )}
                     </div>
                   </div>
 
@@ -3884,4 +3957,5 @@ export const SalesSection: React.FC = () => {
   );
 };
 
-export default SalesSection;
+export const SalesSection = TradeLedgerSection;
+export default TradeLedgerSection;
