@@ -52,7 +52,8 @@ import DropdownManagerModal from './DropdownManagerModal';
 import { exportTransactionsToCSV } from '../utils/export';
 import { roundMoney, buildMoneySnapshot } from '../lib/money';
 import { autoCapitalizeFirstLetter } from '../utils/text';
-import { readImageFiles } from '../utils/imageUpload';
+import { readImageFiles, readImageFile } from '../utils/imageUpload';
+import { compressImage } from '../utils/compressImage';
 import { DEBT_PAYMENT_ACTION, buildDebtPaymentDetails, getTodayDebtPaymentIntake } from '../utils/debtPayments';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
 import SupplierPayablesModal from './SupplierPayablesModal';
@@ -270,21 +271,22 @@ export const TradeLedgerSection: React.FC = () => {
   };
 
   // Legacy Attachment Upload Handler (Requirement 2)
-  const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      if (result) {
+    try {
+      const compressed = await compressImage(file, { maxDimension: 1200, quality: 0.8 });
+      if (compressed.base64) {
         setPosDraft((prev) => ({
           ...prev,
-          images: [result, ...prev.images],
+          images: [compressed.base64, ...prev.images],
         }));
       }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    } catch (err) {
+      console.warn('[handleAttachmentUpload compression failed]', err);
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const [salesSearch, setSalesSearch] = useState('');
