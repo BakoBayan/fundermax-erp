@@ -56,8 +56,28 @@ import { readImageFiles } from '../utils/imageUpload';
 import { DEBT_PAYMENT_ACTION, buildDebtPaymentDetails, getTodayDebtPaymentIntake } from '../utils/debtPayments';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
 import SupplierPayablesModal from './SupplierPayablesModal';
+import { generateMasterPDF } from '@/actions/pdfActions';
+import toast, { Toaster } from 'react-hot-toast';
 
 export const TradeLedgerSection: React.FC = () => {
+  const pdfCache = useRef<Record<string, { base64: string; fileName: string; downloaded?: boolean }>>({});
+  const cachedLogoRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!cachedLogoRef.current) {
+      fetch(`${window.location.origin}/shaswar-ahmad-logo.png`)
+        .then(res => res.blob())
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            cachedLogoRef.current = reader.result as string;
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(e => console.warn("Logo preloading failed", e));
+    }
+  }, []);
+
   const {
     t,
     language,
@@ -295,6 +315,7 @@ export const TradeLedgerSection: React.FC = () => {
 
   // Expandable row state in ledger
   const [expandedTxIds, setExpandedTxIds] = useState<Set<string>>(new Set());
+  const [openShareMenuTxId, setOpenShareMenuTxId] = useState<string | null>(null);
 
   const toggleExpandTx = (id: string) => {
     setExpandedTxIds((prev) => {
@@ -645,7 +666,12 @@ export const TradeLedgerSection: React.FC = () => {
         ? roundMoney(convertCurrency(roundedPaid, 'IQD', 'USD'), 'USD')
         : roundedPaid;
 
+    const customBatchCode = posDraft.invoiceCode.trim()
+      ? autoCapitalizeFirstLetter(posDraft.invoiceCode.trim())
+      : undefined;
+
     const shipmentResult = warehouseOps.addShipment({
+      batchCode: customBatchCode,
       supplier: posDraft.client.trim()
         ? autoCapitalizeFirstLetter(posDraft.client.trim())
         : 'FunderMax GmbH',
@@ -678,47 +704,132 @@ export const TradeLedgerSection: React.FC = () => {
     }
 
     if (editingTxId) {
+      warehouseOps.softDeleteShipment(editingTxId);
       setEditingTxId(null);
     }
 
     void warehouseOps.syncFromServer?.();
 
-    if (andPrint) {
-      setPrintingTx(txPayload);
-    } else {
-      setCompletedInvoice({ tx: txPayload, isEdit: wasEditing });
-    }
+    setPrintingTx(txPayload);
 
     clearPosDraft();
   };
 
   const handleEditTx = (tx: PanelTransaction) => {
     setEditingTxId(tx.id);
+    const totalSelling = Number(tx.sellingAmount || tx.totalAfterDiscount || 0);
+    const rawItems = Array.isArray(tx.items) ? tx.items : [];
+    const normalizedItems: InvoiceItem[] = rawItems.map((it, idx) => {
+      const qty = Math.max(1, Number(it.quantity) || Number(tx.quantity) || 1);
+      const existingTotal = Number(it.total) || 0;
+      const existingPrice = Number(it.price) || 0;
+      const fallbackTotal =
+        existingTotal > 0
+          ? existingTotal
+          : idx === 0 && rawItems.every((r) => !(Number(r.total) > 0))
+          ? totalSelling
+          : 0;
+      const fallbackPrice =
+        existingPrice > 0
+          ? existingPrice
+          : fallbackTotal > 0
+          ? roundMoney(fallbackTotal / qty, tx.currency || 'USD')
+          : 0;
+      return {
+        ...it,
+        quantity: qty,
+        price: fallbackPrice,
+        total: fallbackTotal,
+      };
+    });
+
+    const singleItem = normalizedItems.length === 1 ? normalizedItems[0] : null;
+    const hasMultipleItems = normalizedItems.length > 1;
+    const defaultQty = singleItem
+      ? singleItem.quantity
+      : !hasMultipleItems
+      ? Number(tx.quantity) || 1
+      : 1;
+    const defaultPrice = singleItem
+      ? singleItem.price
+      : !hasMultipleItems && totalSelling > 0
+      ? roundMoney(totalSelling / Math.max(1, defaultQty), tx.currency || 'USD')
+      : '';
+
     setPosDraft({
       invoiceCode: tx.code || '',
-      seller: tx.seller || '',
+      seller: tx.seller && tx.seller !== '—' ? tx.seller : '',
       bank: tx.bank || '',
       paymentType: tx.paymentType || '',
       activeCurrency: tx.currency || 'USD',
-      items: tx.items && tx.items.length > 0 ? tx.items : [],
-      rowType: '',
-      rowProduct: '',
-      rowQuantity: 1,
-      rowSellingType: '',
-      rowPrice: '',
-      discountDollars: tx.discountDollars || '',
-      discountPercentage: tx.discountPercentage || '',
-      amountPaidNow: tx.amountPaidNow || '',
-      oldUnpaidDebt: tx.oldUnpaidDebt || '',
+      items: hasMultipleItems ? normalizedItems : [],
+      rowType: singleItem
+        ? singleItem.type || tx.panelType || ''
+        : !hasMultipleItems
+        ? tx.panelType || ''
+        : '',
+      rowProduct: singleItem
+        ? singleItem.product || tx.material || ''
+        : !hasMultipleItems
+        ? tx.material || ''
+        : '',
+      rowQuantity: defaultQty,
+      rowSellingType: singleItem
+        ? singleItem.sellingType || tx.sellingType || ''
+        : !hasMultipleItems
+        ? tx.sellingType || ''
+        : '',
+      rowPrice: defaultPrice !== '' ? defaultPrice : '',
+      discountDollars: tx.discountDollars ? tx.discountDollars : '',
+      discountPercentage: tx.discountPercentage ? tx.discountPercentage : '',
+      amountPaidNow:
+        tx.amountPaidNow !== undefined && tx.amountPaidNow !== null ? tx.amountPaidNow : '',
+      oldUnpaidDebt: tx.oldUnpaidDebt ? tx.oldUnpaidDebt : '',
       notes: tx.notes || '',
       images: tx.images || [],
       client: tx.client || '',
       clientPhone: tx.clientPhone || '',
       legacyInvoiceRef: tx.legacyInvoiceRef || '',
-      fundermaxBatchRef: tx.fundermaxBatchRef || '',
-      estimatedCost: tx.estimatedCost || '',
+      fundermaxBatchRef: tx.fundermaxBatchRef || tx.code || '',
+      estimatedCost:
+        tx.estimatedCost !== undefined && tx.estimatedCost !== null
+          ? tx.estimatedCost
+          : tx.costPrice !== undefined && tx.costPrice !== null
+          ? tx.costPrice
+          : '',
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById('sales-draft-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleDeleteTx = (tx: PanelTransaction) => {
+    warehouseOps.softDeleteShipment(tx.id);
+    deleteTransaction(tx.id);
+    void warehouseOps.syncFromServer?.();
+
+    toast(
+      (tObj) => (
+        <div className="flex items-center gap-3 text-xs font-semibold">
+          <span>
+            {isKu
+              ? `پسوولەی ${tx.code || tx.id} سڕایەوە`
+              : `Invoice ${tx.code || tx.id} deleted`}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              warehouseOps.restoreShipment(tx.id);
+              void warehouseOps.syncFromServer?.();
+              toast.dismiss(tObj.id);
+              toast.success(isKu ? 'پسوولەکە گەڕێندرایەوە!' : 'Invoice restored!');
+            }}
+            className="px-2.5 py-1 rounded-md bg-sky-600 hover:bg-sky-700 text-white font-bold uppercase tracking-wider cursor-pointer transition"
+          >
+            {isKu ? 'گەڕاندنەوە' : 'UNDO'}
+          </button>
+        </div>
+      ),
+      { duration: 5000 }
+    );
   };
 
   const handleCancelEdit = () => {
@@ -738,6 +849,89 @@ export const TradeLedgerSection: React.FC = () => {
 
   const handleEmailShare = (tx: PanelTransaction) => {
     openEmailReceipt(tx, formatMoney, receiptShareLang);
+  };
+
+  const handleShareInvoice = async (
+    tx: any,
+    platform: 'whatsapp' | 'viber' | 'email' | 'download'
+  ) => {
+    // Generate summary text and copy to clipboard immediately
+    const invoiceNum = tx.code || (typeof tx.id === 'string' ? tx.id.slice(-6) : 'INV');
+    const clientName = tx.client || tx.supplier || 'Valued Client';
+    const netAmount = formatMoney(tx.totalAfterDiscount ?? tx.totalInvoiceAmount ?? tx.sellingAmount ?? 0, tx.currency || tx.invoiceCurrency || 'USD');
+    const summaryText = `Official Invoice #${invoiceNum}\nClient: ${clientName}\nTotal Due: ${netAmount}\nIssued by Shaswar Ahmad Shaswar Co. (Bako's Master System ERP)`;
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(summaryText).catch(() => {});
+    }
+
+    const msg = encodeURIComponent(summaryText);
+
+    const cacheKey = tx?.id || tx?.code || 'draft-tx';
+
+    // 1. Open App / Copy Text
+    if (platform === 'whatsapp') {
+      window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
+      toast.success(isKu ? 'دەق کۆپی کرا و وەتسئەپ کرایەوە!' : 'Text copied & WhatsApp opened!');
+    } else if (platform === 'viber') {
+      window.location.href = `viber://forward?text=${msg}`;
+      toast.success(isKu ? 'دەق کۆپی کرا و ڤایبەر کرایەوە!' : 'Text copied & Viber opened!');
+    } else if (platform === 'email') {
+      window.open(`mailto:?subject=${encodeURIComponent(`Invoice #${invoiceNum}`)}&body=${msg}`, '_blank');
+    }
+
+    const attachments =
+      tx.images?.map((img: any) => ({
+        name: 'attachment',
+        data: typeof img === 'string' ? img : img.data,
+        type: typeof img === 'string' && img.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+      })) || [];
+
+    // 2. Cache & Generate PDF
+    let pdfBase64 = '';
+    let pdfFileName = '';
+    if (pdfCache.current[cacheKey]) {
+      pdfBase64 = pdfCache.current[cacheKey].base64;
+      pdfFileName = pdfCache.current[cacheKey].fileName;
+    } else {
+      const toastId = toast.loading(isKu ? 'ئامادەکردنی فایلی PDF...' : 'Generating PDF...');
+      try {
+        const brandLogoBase64 = cachedLogoRef.current || '';
+        const res = await generateMasterPDF(tx, attachments, brandLogoBase64);
+        if (res.success && res.base64) {
+          pdfBase64 = res.base64;
+          pdfFileName = res.fileName || `Invoice-${invoiceNum}.pdf`;
+          pdfCache.current[cacheKey] = { base64: pdfBase64, fileName: pdfFileName, downloaded: false };
+          toast.dismiss(toastId);
+        }
+      } catch (err) {
+        toast.dismiss(toastId);
+        return;
+      }
+    }
+
+    // 3. Trigger Download if not already downloaded for this invoice
+    if (platform === 'download' || !pdfCache.current[cacheKey]?.downloaded) {
+      const byteCharacters = atob(pdfBase64);
+      const byteNumbers = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const blob = new Blob([byteNumbers], { type: 'application/pdf' });
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = pdfFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+
+      if (pdfCache.current[cacheKey]) {
+        pdfCache.current[cacheKey].downloaded = true;
+      }
+      if (platform === 'download') toast.success(isKu ? 'فایلی PDF داگیرا!' : 'PDF Downloaded!');
+    }
   };
 
   // Muted live IQD equivalent shown under USD/EUR amounts
@@ -967,6 +1161,7 @@ export const TradeLedgerSection: React.FC = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-in fade-in duration-200">
+      <Toaster position="bottom-right" />
       {/* SECTION HEADER & CURRENCY TOOLBAR */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
@@ -1283,7 +1478,7 @@ export const TradeLedgerSection: React.FC = () => {
 
       {/* SUPPLIER BILL INTAKE FORM */}
       {(userPermissions?.canCreateSales || (editingTxId && userPermissions?.canEditSales)) ? (
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm space-y-6">
+      <div id="sales-draft-form" className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm space-y-6">
         {/* Prominent Edit Mode Warning Banner */}
         {editingTxId && (
           <div className="w-full bg-amber-500/15 border-2 border-amber-500 text-amber-900 dark:text-amber-200 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 animate-in fade-in duration-200">
@@ -1352,7 +1547,7 @@ export const TradeLedgerSection: React.FC = () => {
                 <input
                   type="text"
                   value={posDraft.invoiceCode}
-                  onChange={(e) => setPosDraft({ ...posDraft, invoiceCode: e.target.value })}
+                  onChange={(e) => setPosDraft((prev) => ({ ...prev, invoiceCode: e.target.value }))}
                   placeholder="e.g. INV-101"
                   className="w-full min-h-[42px] px-3.5 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                 />
@@ -1656,7 +1851,7 @@ export const TradeLedgerSection: React.FC = () => {
                   <input
                     type="text"
                     value={posDraft.invoiceCode}
-                    onChange={(e) => setPosDraft({ ...posDraft, invoiceCode: e.target.value })}
+                    onChange={(e) => setPosDraft((prev) => ({ ...prev, invoiceCode: e.target.value }))}
                     placeholder="e.g. INV-101"
                     className="w-full h-11 px-3.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                   />
@@ -2712,18 +2907,24 @@ export const TradeLedgerSection: React.FC = () => {
                     images: s.attachments || [],
                     status,
                     lastUpdated: s.updatedAt || timestamp,
-                    items: (s.items || []).map((it) => ({
-                      id: it.id,
-                      type: 'Inbound Batch',
-                      product: it.description,
-                      quantity: Number(it.receivedQty || it.expectedQty) || 0,
-                      sellingType: 'Supplier Purchase',
-                      price: 0,
-                      total: 0,
-                      fundermaxBatchRef: s.batchCode,
-                    })),
+                    items: (s.items || []).map((it, idx) => {
+                      const itemQty = Number(it.receivedQty || it.expectedQty) || 1;
+                      const lineTotal = idx === 0 ? invoiced : 0;
+                      const unitPrice = lineTotal > 0 ? roundMoney(lineTotal / Math.max(1, itemQty), txCur) : 0;
+                      return {
+                        id: it.id,
+                        type: 'Inbound Batch',
+                        product: it.description,
+                        quantity: itemQty,
+                        sellingType: 'Supplier Purchase',
+                        price: unitPrice,
+                        total: lineTotal,
+                        fundermaxBatchRef: s.batchCode,
+                      };
+                    }),
                     client: s.supplier || s.supplierName || 'FunderMax GmbH',
                     clientPhone: s.supplierContact || '',
+                    legacyInvoiceRef: s.originCountry || '',
                     fundermaxBatchRef: s.batchCode,
                   };
 
@@ -2845,44 +3046,77 @@ export const TradeLedgerSection: React.FC = () => {
                         </td>
                         <td className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1 min-w-max">
-                            {/* 1. Print */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPrintingTx(tx);
-                              }}
-                              className="p-1.5 rounded-md text-slate-600 hover:text-sky-600 dark:text-slate-300 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                              title={isKu ? 'چاپکردنی وەسڵ (Print Slip)' : 'Print Slip'}
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
+                            {/* Unified Share / Export Dropdown */}
+                            <div className="relative inline-block text-left">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenShareMenuTxId(openShareMenuTxId === tx.id ? null : tx.id);
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                title="Share / Export"
+                              >
+                                <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                                <span>{isKu ? 'هاوبەشکردن' : 'Share / Export'}</span>
+                                <ChevronDown className="w-3 h-3 text-slate-400" />
+                              </button>
 
-                            {/* 2. WhatsApp */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleWhatsAppShare(tx);
-                              }}
-                              className="p-1.5 rounded-md text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition cursor-pointer"
-                              title={isKu ? 'ناردن بۆ وەتسئەپ (Share WhatsApp)' : 'Share WhatsApp'}
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                            </button>
+                              {openShareMenuTxId === tx.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-0 z-30 mt-1 w-44 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-xl py-1 text-xs animate-in fade-in zoom-in-95 duration-150"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenShareMenuTxId(null);
+                                      handleShareInvoice(tx, 'download');
+                                    }}
+                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 font-semibold cursor-pointer"
+                                  >
+                                    <Download className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0"/>
+                                    <span>{isKu ? 'داگرتنی PDF' : 'Download PDF'}</span>
+                                  </button>
 
-                            {/* 3. Email Receipt (Indigo) */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEmailShare(tx);
-                              }}
-                              className="p-1.5 rounded-md text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition cursor-pointer"
-                              title={isKu ? 'ناردنی ئیمەیڵ (Email Receipt)' : 'Email Receipt'}
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenShareMenuTxId(null);
+                                      handleShareInvoice(tx, 'whatsapp');
+                                    }}
+                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold cursor-pointer"
+                                  >
+                                    <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0"/>
+                                    <span>WhatsApp</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenShareMenuTxId(null);
+                                      handleShareInvoice(tx, 'viber');
+                                    }}
+                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-semibold cursor-pointer"
+                                  >
+                                    <Phone className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0"/>
+                                    <span>Viber</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenShareMenuTxId(null);
+                                      handleShareInvoice(tx, 'email');
+                                    }}
+                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-semibold cursor-pointer"
+                                  >
+                                    <Mail className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0"/>
+                                    <span>Email</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
 
                             {/* 4. Inspect / View Details & Attachment */}
                             <button
@@ -2922,16 +3156,7 @@ export const TradeLedgerSection: React.FC = () => {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  requestConfirm({
-                                    title: isKu ? 'سڕینەوەی پسوولە' : 'Delete Sales Invoice',
-                                    message: isKu ? 'ئایا دڵنیایت لە سڕینەوەی ئەم پسوولەیە؟' : `Are you sure you want to delete invoice ${tx.code || tx.id}?`,
-                                    type: 'danger',
-                                    confirmLabel: isKu ? 'سڕینەوە' : 'Delete',
-                                    cancelLabel: isKu ? 'پەشیمانبوونەوە' : 'Cancel',
-                                    onConfirm: () => {
-                                      deleteTransaction(tx.id);
-                                    },
-                                  });
+                                  handleDeleteTx(tx);
                                 }}
                                 className="p-1.5 rounded-md text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition cursor-pointer"
                                 title={isKu ? 'سڕینەوەی پسوولە (Delete Invoice)' : 'Delete Invoice'}
@@ -3010,18 +3235,32 @@ export const TradeLedgerSection: React.FC = () => {
                                     </span>
                                   )}
 
-                                  {/* Indigo Email Receipt Action */}
+                                  {/* WhatsApp Action */}
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleEmailShare(tx);
+                                      handleShareInvoice(tx, 'whatsapp');
                                     }}
-                                    className="px-3 py-1 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                                    title={isKu ? 'ناردنی پسوولە بە ئیمەیڵ' : 'Email Invoice Receipt'}
+                                    className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-green-600 hover:bg-green-700 active:scale-95 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                    title={isKu ? 'ناردن بۆ وەتسئەپ (WhatsApp)' : 'Share via WhatsApp'}
                                   >
-                                    <Mail className="w-3.5 h-3.5" />
-                                    <span>{isKu ? 'ناردنی ئیمەیڵ' : 'Email Receipt'}</span>
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                    <span>WhatsApp</span>
+                                  </button>
+
+                                  {/* Viber Action */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleShareInvoice(tx, 'viber');
+                                    }}
+                                    className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                    title={isKu ? 'ناردن بۆ ڤایبەر (Viber)' : 'Share via Viber'}
+                                  >
+                                    <Phone className="w-3.5 h-3.5" />
+                                    <span>Viber</span>
                                   </button>
                                 </div>
                               </div>
@@ -3237,18 +3476,24 @@ export const TradeLedgerSection: React.FC = () => {
                 images: s.attachments || [],
                 status,
                 lastUpdated: s.updatedAt || timestamp,
-                items: (s.items || []).map((it) => ({
-                  id: it.id,
-                  type: 'Inbound Batch',
-                  product: it.description,
-                  quantity: Number(it.receivedQty || it.expectedQty) || 0,
-                  sellingType: 'Supplier Purchase',
-                  price: 0,
-                  total: 0,
-                  fundermaxBatchRef: s.batchCode,
-                })),
+                items: (s.items || []).map((it, idx) => {
+                  const itemQty = Number(it.receivedQty || it.expectedQty) || 1;
+                  const lineTotal = idx === 0 ? invoiced : 0;
+                  const unitPrice = lineTotal > 0 ? roundMoney(lineTotal / Math.max(1, itemQty), txCur) : 0;
+                  return {
+                    id: it.id,
+                    type: 'Inbound Batch',
+                    product: it.description,
+                    quantity: itemQty,
+                    sellingType: 'Supplier Purchase',
+                    price: unitPrice,
+                    total: lineTotal,
+                    fundermaxBatchRef: s.batchCode,
+                  };
+                }),
                 client: s.supplier || s.supplierName || 'FunderMax GmbH',
                 clientPhone: s.supplierContact || '',
+                legacyInvoiceRef: s.originCountry || '',
                 fundermaxBatchRef: s.batchCode,
               };
 
@@ -3918,15 +4163,142 @@ export const TradeLedgerSection: React.FC = () => {
         </div>
       )}
 
-      {/* PRINT INVOICE MODAL */}
+      {/* SUCCESS MODAL / SHARE POPUP */}
       {printingTx && (
-        <PrintInvoiceModal
-          tx={printingTx}
-          onClose={() => setPrintingTx(null)}
-          formatMoney={(amount, cur) => formatMoney(amount, cur || printingTx.currency || 'USD')}
-          lang={language}
-          isDark={isDark}
-        />
+        <div
+          onClick={() => setPrintingTx(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-white dark:bg-slate-850 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-750 p-6 space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 flex items-center justify-center shrink-0 shadow-sm">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
+                    {isKu ? 'وەسڵ بەسەرکەوتوویی تۆمارکرا' : 'Invoice Saved Successfully'}
+                  </h3>
+                  <span className="text-xs text-sky-600 dark:text-sky-400 font-mono font-bold block mt-0.5">
+                    #{printingTx.code || (typeof printingTx.id === 'string' ? printingTx.id.slice(-6) : 'INV')}
+                    {printingTx.client ? ` • ${printingTx.client}` : ''}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrintingTx(null)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                title={isKu ? 'داخستن' : 'Close'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Financial Summary Strip */}
+            <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 font-medium">
+                <span>{isKu ? 'کۆی گشتی پسوولە:' : 'Net Total:'}</span>
+                <span className="text-sm font-black font-mono text-slate-900 dark:text-white">
+                  {formatMoney(printingTx.totalAfterDiscount || printingTx.sellingAmount || 0, printingTx.currency || 'USD')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 font-medium">
+                <span>{isKu ? 'پارەی وەرگیراو:' : 'Amount Paid:'}</span>
+                <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                  {formatMoney(printingTx.amountPaidNow || 0, printingTx.currency || 'USD')}
+                </span>
+              </div>
+              {(printingTx.combinedTotalDebt || printingTx.amountOwed || 0) > 0 && (
+                <div className="flex justify-between items-center text-rose-700 dark:text-rose-400 pt-1.5 border-t border-slate-200 dark:border-slate-800 font-semibold">
+                  <span>{isKu ? 'قەرزی ماوە:' : 'Unpaid Debt:'}</span>
+                  <span className="font-black font-mono text-rose-600 dark:text-rose-400">
+                    {formatMoney(printingTx.combinedTotalDebt || printingTx.amountOwed || 0, printingTx.currency || 'USD')}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 4-Button Action Grid */}
+            <div className="space-y-2">
+              <span className="text-[11px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block">
+                {isKu ? 'هاوبەشکردن و داگرتن' : 'Quick Actions & Export'}
+              </span>
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* 1. Download PDF */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tx = printingTx;
+                    setPrintingTx(null);
+                    handleShareInvoice(tx, 'download');
+                  }}
+                  className="p-3 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span>{isKu ? 'داگرتنی PDF' : 'Download PDF'}</span>
+                </button>
+
+                {/* 2. WhatsApp */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tx = printingTx;
+                    setPrintingTx(null);
+                    handleShareInvoice(tx, 'whatsapp');
+                  }}
+                  className="p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4 shrink-0" />
+                  <span>WhatsApp</span>
+                </button>
+
+                {/* 3. Viber */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tx = printingTx;
+                    setPrintingTx(null);
+                    handleShareInvoice(tx, 'viber');
+                  }}
+                  className="p-3 rounded-2xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  <Phone className="w-4 h-4 shrink-0" />
+                  <span>Viber</span>
+                </button>
+
+                {/* 4. Email */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tx = printingTx;
+                    setPrintingTx(null);
+                    handleShareInvoice(tx, 'email');
+                  }}
+                  className="p-3 rounded-2xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  <Mail className="w-4 h-4 shrink-0" />
+                  <span>Email</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setPrintingTx(null)}
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+              >
+                {isKu ? 'داخستن' : 'Done'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MATH BREAKDOWN MODAL */}

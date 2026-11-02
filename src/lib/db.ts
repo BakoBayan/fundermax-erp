@@ -270,6 +270,49 @@ export async function initializeDatabase(db: Client = getDB()): Promise<void> {
       );
     `);
 
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS Entities (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        type TEXT NOT NULL,
+        contact_info TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS InventoryLogs (
+        id TEXT PRIMARY KEY,
+        inventory_id TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(entity_id) REFERENCES Entities(id)
+      );
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS DebtTracker (
+        id TEXT PRIMARY KEY,
+        entity_id TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        is_receivable INTEGER NOT NULL CHECK(is_receivable IN (0, 1)),
+        status TEXT DEFAULT 'pending',
+        is_deleted INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(entity_id) REFERENCES Entities(id)
+      );
+    `);
+
+    await db.execute(`
+      CREATE INDEX IF NOT EXISTS idx_debt_tracker_entity_id ON DebtTracker(entity_id);
+    `);
+
+    await db.execute(`
+      CREATE INDEX IF NOT EXISTS idx_debt_tracker_receivable_deleted ON DebtTracker(is_receivable, is_deleted);
+    `);
+
     // Auto-migration check: If orders.updated_at notnull is 1, relax it
     try {
       const ordersInfoRes = await db.execute("PRAGMA table_info(orders)");

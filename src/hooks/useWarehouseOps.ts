@@ -148,6 +148,7 @@ const getServerSnapshot = (): WarehouseOpsState => EMPTY_WAREHOUSE_STATE;
 export type OpResult = { ok: true } | { ok: false; error: string };
 
 export interface NewShipmentInput {
+  batchCode?: string;
   supplier: string;
   supplierContact: string;
   originCountry: string;
@@ -209,7 +210,7 @@ export function useWarehouseOps() {
     commit((s) => {
       const shipment: InboundShipment = {
         id: uid('inb'),
-        batchCode: nextBatchCode(s.shipments, input.arrivalDate),
+        batchCode: input.batchCode?.trim() || nextBatchCode(s.shipments, input.arrivalDate),
         supplier: input.supplier.trim(),
         supplierName: input.supplier.trim(),
         supplierContact: input.supplierContact.trim(),
