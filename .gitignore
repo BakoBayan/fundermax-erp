@@ -48,3 +48,6 @@ next-env.d.ts
 *.db
 *.sqlite
 data/
+
+node_modules/
+.next/
