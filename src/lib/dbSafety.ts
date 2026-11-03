@@ -78,6 +78,8 @@ export async function runSchemaMigrations(db: Client): Promise<void> {
   await addColumnIfMissing(db, 'transactions', 'client', 'TEXT');
   await addColumnIfMissing(db, 'transactions', 'client_phone', 'TEXT');
   await addColumnIfMissing(db, 'transactions', 'estimated_cost', 'REAL');
+  await addColumnIfMissing(db, 'transactions', 'is_receivable', 'INTEGER DEFAULT 0');
+  await addColumnIfMissing(db, 'transactions', 'phone_country_code', 'TEXT');
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS audit_logs (

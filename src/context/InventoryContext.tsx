@@ -1443,9 +1443,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   }, [pullFromServer]);
 
-  // Real Telemetry Heartbeat & Active Network Resilience (5-second polling with 2500ms abort timeout)
+  // Relaxed background synchronization & active tab telemetry (60s relaxed interval, active window only)
   useEffect(() => {
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    const performSyncIfFocused = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (simulatedOffline || !navigator.onLine) return;
+      pullFromServer().catch(() => {});
+    };
 
     const handleOnline = () => {
       if (simulatedOffline) return;
@@ -1453,7 +1460,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setSyncStatus("syncing");
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       reconnectTimeout = setTimeout(() => {
-        pullFromServer().catch(() => {});
+        performSyncIfFocused();
       }, 500);
     };
 
@@ -1464,16 +1471,30 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
     };
 
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        performSyncIfFocused();
+      }
+    };
+
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
       window.addEventListener("offline", handleOffline);
+      window.addEventListener("focus", handleVisibilityOrFocus);
+      document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+
+      // Relaxed 60-second polling interval, only active when tab is focused
+      pollInterval = setInterval(performSyncIfFocused, 60000);
     }
 
     return () => {
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (pollInterval) clearInterval(pollInterval);
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
+        window.removeEventListener("focus", handleVisibilityOrFocus);
+        document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       }
     };
   }, [simulatedOffline, pullFromServer]);

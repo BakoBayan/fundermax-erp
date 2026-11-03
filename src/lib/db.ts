@@ -238,6 +238,8 @@ export async function initializeDatabase(db: Client = getDB()): Promise<void> {
         legacy_invoice_ref TEXT,
         fundermax_batch_ref TEXT,
         estimated_cost REAL DEFAULT 0,
+        is_receivable INTEGER DEFAULT 0,
+        phone_country_code TEXT,
         last_updated TEXT NOT NULL
       );
     `);
@@ -984,6 +986,11 @@ export async function getTransactionsFromDB(): Promise<PanelTransaction[]> {
         r.exchange_rate_applied === null || r.exchange_rate_applied === undefined ? undefined : Number(r.exchange_rate_applied),
       baseUsdEquivalent:
         r.base_usd_equivalent === null || r.base_usd_equivalent === undefined ? undefined : Number(r.base_usd_equivalent),
+      isReceivable:
+        r.is_receivable !== null && r.is_receivable !== undefined
+          ? Boolean(r.is_receivable)
+          : (r.payment_type !== 'Supplier Bill' && r.selling_type !== 'Supplier Purchase'),
+      phoneCountryCode: r.phone_country_code ? String(r.phone_country_code) : undefined,
     };
   });
 }
@@ -995,6 +1002,7 @@ const TX_COLUMNS = [
   "gross_profit", "profit_margin", "notes", "images_json", "items_json", "status", "last_updated",
   "charged_amount", "charged_currency", "exchange_rate_applied", "base_usd_equivalent",
   "legacy_invoice_ref", "fundermax_batch_ref", "client", "client_phone", "estimated_cost",
+  "is_receivable", "phone_country_code",
 ] as const;
 
 
@@ -1119,6 +1127,8 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
             tx.client ? autoCapitalizeFirstLetter(tx.client) : "",
             tx.clientPhone ? tx.clientPhone.trim() : "",
             tx.estimatedCost || 0,
+            tx.isReceivable ? 1 : 0,
+            tx.phoneCountryCode ? tx.phoneCountryCode.trim() : null,
           ],
         });
       }

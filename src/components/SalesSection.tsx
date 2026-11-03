@@ -79,8 +79,25 @@ import {
 } from 'recharts';
 
 const WeChatIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 1024 1024" fill="currentColor" className={className}>
-    <path d="M682.667 341.333c-18.773 0-37.547 1.707-55.467 4.267C587.093 213.333 446.293 128 277.333 128 124.587 128 0 231.253 0 358.4c0 73.387 38.4 140.8 100.693 186.027l-26.453 80.213 93.013-46.08c35.84 10.24 73.387 15.36 110.08 15.36 18.773 0 37.547-1.707 55.467-4.267-40.107 132.267 99.84 217.6 268.8 217.6 152.747 0 277.333-103.253 277.333-230.4S753.493 341.333 682.667 341.333z m-470.187-54.613c-23.893 0-42.667-18.773-42.667-42.667s18.773-42.667 42.667-42.667 42.667 18.773 42.667 42.667-18.773 42.667-42.667 42.667z m214.187 0c-23.893 0-42.667-18.773-42.667-42.667s18.773-42.667 42.667-42.667 42.667 18.773 42.667 42.667-18.773 42.667-42.667 42.667z m315.733 162.133c-17.067 0-31.147-13.653-31.147-31.147s13.653-31.147 31.147-31.147 31.147 13.653 31.147 31.147-13.653 31.147-31.147 31.147z m170.667 0c-17.067 0-31.147-13.653-31.147-31.147s13.653-31.147 31.147-31.147 31.147 13.653 31.147 31.147-13.653 31.147-31.147 31.147z" />
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    {/* Primary speech bubble */}
+    <path d="M8.5 3C4.36 3 1 5.91 1 9.5c0 1.96.98 3.73 2.5 4.96L2.5 18l4.08-1.36c.61.23 1.25.36 1.92.36 4.14 0 7.5-2.91 7.5-6.5S12.64 3 8.5 3z" />
+    <circle cx="6.5" cy="9" r="0.75" fill="currentColor" stroke="none" />
+    <circle cx="10.5" cy="9" r="0.75" fill="currentColor" stroke="none" />
+
+    {/* Secondary speech bubble */}
+    <path d="M16 11c3.31 0 6 2.24 6 5 0 1.45-.75 2.75-1.94 3.65L21 22.5l-3.08-1.03c-.6.2-1.24.31-1.92.31-1.68 0-3.2-.58-4.28-1.55" />
+    <circle cx="14" cy="15.5" r="0.75" fill="currentColor" stroke="none" />
+    <circle cx="17.5" cy="15.5" r="0.75" fill="currentColor" stroke="none" />
   </svg>
 );
 
@@ -676,18 +693,26 @@ export const TradeLedgerSection: React.FC = () => {
 
     const moneySnap = buildMoneySnapshot(roundedNet, cur, exchangeRates);
 
+    const isAR = txFormMode === 'AR';
+    const invoiceId = editingTxId || `tx-${Date.now()}`;
+    const autoCode = posDraft.invoiceCode.trim()
+      ? autoCapitalizeFirstLetter(posDraft.invoiceCode.trim())
+      : `${isAR ? 'INV' : 'BILL'}-${Date.now().toString().slice(-6)}`;
+
     const txPayload: PanelTransaction = {
-      id: editingTxId || `tx-${Date.now()}`,
-      code: posDraft.invoiceCode.trim() ? autoCapitalizeFirstLetter(posDraft.invoiceCode.trim()) : undefined,
+      id: invoiceId,
+      code: autoCode,
       timestamp: new Date().toISOString(),
       panelType: autoCapitalizeFirstLetter(finalItems[0]?.type || 'Panel'),
       material: finalItems.length === 1 ? autoCapitalizeFirstLetter(finalItems[0].product) : `${finalItems.length} Products (${totalQty} units)`,
       quantity: totalQty,
       unit: isKu ? 'دانە' : 'sheets',
-      sellingType: autoCapitalizeFirstLetter(finalItems[0]?.sellingType || 'Wholesale (کۆ)'),
+      sellingType: isAR ? 'Customer Sale' : 'Supplier Purchase',
       seller: posDraft.seller.trim() ? autoCapitalizeFirstLetter(posDraft.seller.trim()) : undefined,
       bank: posDraft.bank.trim() ? autoCapitalizeFirstLetter(posDraft.bank.trim()) : undefined,
-      paymentType: posDraft.paymentType.trim() ? autoCapitalizeFirstLetter(posDraft.paymentType.trim()) : undefined,
+      paymentType: posDraft.paymentType.trim()
+        ? autoCapitalizeFirstLetter(posDraft.paymentType.trim())
+        : (isAR ? 'Cash' : 'Supplier Bill'),
       currency: cur,
       currencyRate:
         cur === 'IQD'
@@ -729,7 +754,7 @@ export const TradeLedgerSection: React.FC = () => {
       chargedCurrency: moneySnap.chargedCurrency,
       exchangeRateApplied: moneySnap.exchangeRateApplied,
       baseUsdEquivalent: moneySnap.baseUsdEquivalent,
-      isReceivable: editingTxId ? (transactions.find(t => t.id === editingTxId)?.isReceivable ?? (txFormMode === 'AR')) : (txFormMode === 'AR'),
+      isReceivable: isAR,
     };
 
     const wasEditing = !!editingTxId;
@@ -743,15 +768,14 @@ export const TradeLedgerSection: React.FC = () => {
         ? roundMoney(convertCurrency(roundedPaid, 'IQD', 'USD'), 'USD')
         : roundedPaid;
 
-    const customBatchCode = posDraft.invoiceCode.trim()
-      ? autoCapitalizeFirstLetter(posDraft.invoiceCode.trim())
-      : undefined;
+    const customBatchCode = autoCode;
 
     const shipmentResult = warehouseOps.addShipment({
+      id: invoiceId,
       batchCode: customBatchCode,
       supplier: posDraft.client.trim()
         ? autoCapitalizeFirstLetter(posDraft.client.trim())
-        : 'FunderMax GmbH',
+        : (isAR ? 'Walk-in Customer' : 'FunderMax GmbH'),
       supplierContact: txPayload.clientPhone || '',
       originCountry: posDraft.legacyInvoiceRef.trim()
         ? autoCapitalizeFirstLetter(posDraft.legacyInvoiceRef.trim())
@@ -797,6 +821,7 @@ export const TradeLedgerSection: React.FC = () => {
 
   const handleEditTx = (tx: PanelTransaction) => {
     setEditingTxId(tx.id);
+    setTxFormMode(tx.isReceivable ? 'AR' : 'AP');
     const totalSelling = Number(tx.sellingAmount || tx.totalAfterDiscount || 0);
     const rawItems = Array.isArray(tx.items) ? tx.items : [];
     const normalizedItems: InvoiceItem[] = rawItems.map((it, idx) => {
@@ -1251,8 +1276,8 @@ export const TradeLedgerSection: React.FC = () => {
       link.rel = 'icon';
       document.head.appendChild(link);
     }
-    // High-end dynamic SVG favicon matching the ERP's primary sky-blue branding
-    link.href = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%230284c7"/><text x="50%25" y="54%25" font-size="65" font-weight="900" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" fill="%23ffffff">B</text></svg>';
+    // High-end dynamic SVG favicon matching Bako Master System green isometric brandmark
+    link.href = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="%23064e3b"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="%2310b981" stroke-width="2" stroke-opacity="0.4"/><g transform="translate(8, 8) scale(2)" fill="none" stroke="%2334d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 7 4-7 4-7-4 7-4Z"/><path d="M12 10.5V21"/><path d="M5 6.5V17l7 4"/><path d="m5 12 7 4"/><path d="M12 10.5h4a2.75 2.75 0 0 1 0 5.5H12"/><path d="M12 16h4.5a2.5 2.5 0 0 1 0 5H12"/></g></svg>';
   }, []);
 
   const hasActiveSalesFilters = Boolean(
@@ -3716,28 +3741,28 @@ export const TradeLedgerSection: React.FC = () => {
                 id: s.id,
                 code: s.batchCode || s.id.slice(-6),
                 timestamp,
-                panelType: 'Supplier Shipment',
+                panelType: matchedTx?.panelType || 'Supplier Shipment',
                 material: firstDesc,
                 quantity: totalQty || 1,
                 unit: firstUnit,
-                sellingType: 'Supplier Purchase',
-                seller: '—',
-                bank: 'Supplier Wire / LC',
-                paymentType: 'Supplier Bill',
+                sellingType: matchedTx?.sellingType || 'Supplier Purchase',
+                seller: matchedTx?.seller || '—',
+                bank: matchedTx?.bank || 'Supplier Wire / LC',
+                paymentType: matchedTx?.paymentType || 'Supplier Bill',
                 currency: txCur,
                 sellingAmount: invoiced,
                 costPrice: invoiced,
-                discountDollars: 0,
-                discountPercentage: 0,
+                discountDollars: matchedTx?.discountDollars || 0,
+                discountPercentage: matchedTx?.discountPercentage || 0,
                 totalAfterDiscount: invoiced,
                 amountPaidNow: paid,
                 amountOwed: debt,
-                oldUnpaidDebt: 0,
+                oldUnpaidDebt: matchedTx?.oldUnpaidDebt || 0,
                 combinedTotalDebt: debt,
                 grossProfit: 0,
                 profitMargin: 0,
-                notes: s.notes || '',
-                images: s.attachments || [],
+                notes: s.notes || matchedTx?.notes || '',
+                images: s.attachments || matchedTx?.images || [],
                 status,
                 lastUpdated: s.updatedAt || timestamp,
                 items: (s.items || []).map((it, idx) => {
@@ -3749,7 +3774,7 @@ export const TradeLedgerSection: React.FC = () => {
                     type: 'Inbound Batch',
                     product: it.description,
                     quantity: itemQty,
-                    sellingType: 'Supplier Purchase',
+                    sellingType: matchedTx?.sellingType || 'Supplier Purchase',
                     price: unitPrice,
                     total: lineTotal,
                     fundermaxBatchRef: s.batchCode,
@@ -3760,6 +3785,7 @@ export const TradeLedgerSection: React.FC = () => {
                 phoneCountryCode: matchedTx?.phoneCountryCode,
                 legacyInvoiceRef: s.originCountry || matchedTx?.legacyInvoiceRef || '',
                 fundermaxBatchRef: s.batchCode,
+                isReceivable: matchedTx?.isReceivable,
               };
 
               const isDebt = debt > 0;
@@ -3778,8 +3804,12 @@ export const TradeLedgerSection: React.FC = () => {
                         <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base truncate">
                           {tx.client || 'FunderMax GmbH'}
                         </span>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                          {isKu ? 'پسوولەی دابینکەر' : 'Supplier Bill'}
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                          tx.isReceivable
+                            ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                        }`}>
+                          {tx.isReceivable ? (isKu ? 'فرۆشتنی کڕیار' : 'Customer Sale') : (isKu ? 'پسوولەی دابینکەر' : 'Supplier Bill')}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mt-0.5">
