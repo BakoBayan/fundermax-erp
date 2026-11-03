@@ -13,7 +13,7 @@ export interface CompressImageResult {
 
 /**
  * Bulletproof global client-side image compression & normalization utility.
- * Features multi-layered fallbacks to guarantee zero UI crashes in production.
+ * Features multi-layered fallbacks and yields to prevent UI freezes.
  */
 export async function compressImage(
   file: File,
@@ -37,10 +37,10 @@ export async function compressImage(
 
   try {
     const rawDataUrl = await readFileAsDataURL(file);
-    
+
     return await new Promise<CompressImageResult>((resolve) => {
       const img = new Image();
-      
+
       // Fallback 2: If image fails to decode (corrupted file/unsupported format)
       img.onerror = () => {
         resolve({
@@ -79,6 +79,13 @@ export async function compressImage(
             return;
           }
 
+          // FIX 1: Prevent transparent PNGs from turning black when converting to JPEG.
+          // Fill the canvas with white before drawing the image.
+          if (mimeType === 'image/jpeg') {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+          }
+
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
@@ -89,7 +96,7 @@ export async function compressImage(
             (blob) => {
               const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
               const cleanFileName = file.name.replace(/\.[^/.]+$/, '') + `.${extension}`;
-              
+
               // Fallback 3: If blob creation fails, use the raw file
               const compressedFile = blob
                 ? new File([blob], cleanFileName, { type: mimeType, lastModified: Date.now() })
@@ -132,14 +139,21 @@ function readFileAsDataURL(file: File): Promise<string> {
   });
 }
 
+// FIX 2: Prevent Main-Thread UI Freezes during bulk image processing
+// Helper to yield to the main thread so the browser can update the UI (spinners, etc.)
+const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
+
 export async function compressImages(
   files: FileList | File[],
   options?: CompressImageOptions
 ): Promise<CompressImageResult[]> {
   const fileArray = Array.from(files);
   const results: CompressImageResult[] = [];
+
   for (const f of fileArray) {
     try {
+      // Yield before processing each image so the UI doesn't lock up
+      await yieldToMain();
       const res = await compressImage(f, options);
       results.push(res);
     } catch (e) {

@@ -210,6 +210,7 @@ export interface PanelTransaction {
   baseUsdEquivalent?: number;
   isDeleted?: 0 | 1;
   deletedAt?: string | null;
+  isReceivable?: boolean;
 }
 
 export interface Product {

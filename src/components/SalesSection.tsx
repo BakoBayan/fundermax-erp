@@ -41,7 +41,10 @@ import {
   MoreVertical,
   FileText,
   Clock,
-  Truck
+  Truck,
+  ArrowUpRight,
+  ArrowDownRight,
+  HelpCircle
 } from 'lucide-react';
 import { CurrencyCode, PanelTransaction, InvoiceItem, ExchangeRates } from '../types/inventory';
 import { openWhatsAppReceipt, openEmailReceipt } from '@/lib/receiptFormatter';
@@ -212,6 +215,32 @@ export const TradeLedgerSection: React.FC = () => {
   const [showMobileCost, setShowMobileCost] = useState(false);
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
   const [ledgerTimeFilter, setLedgerTimeFilter] = useState('all');
+  const [txFormMode, setTxFormMode] = useState<'AR' | 'AP'>('AP');
+
+  // Math calculator local states for line items
+  const [rowPriceStr, setRowPriceStr] = useState<string>('');
+  const [costPriceStr, setCostPriceStr] = useState<string>('');
+
+  const evaluateMath = (input: string): number | '' => {
+    if (!input || !input.trim()) return '';
+    try {
+      const sanitized = input.replace(/[^0-9+\-*/.()]/g, '');
+      if (!sanitized) return '';
+      // eslint-disable-next-line no-new-func
+      const result = new Function(`return ${sanitized}`)();
+      return isNaN(result) || !isFinite(result) ? '' : Number(result);
+    } catch {
+      return '';
+    }
+  };
+
+  useEffect(() => {
+    setRowPriceStr(posDraft.rowPrice === '' || posDraft.rowPrice === undefined ? '' : String(posDraft.rowPrice));
+  }, [posDraft.rowPrice]);
+
+  useEffect(() => {
+    setCostPriceStr(posDraft.estimatedCost === '' || posDraft.estimatedCost === undefined ? '' : String(posDraft.estimatedCost));
+  }, [posDraft.estimatedCost]);
 
   useEffect(() => {
     if (!openActionDropdownId) return;
@@ -487,38 +516,7 @@ export const TradeLedgerSection: React.FC = () => {
 
   // Distinct Payment Methods handler with checkout behavior
   const handlePaymentMethodSelect = (method: string) => {
-    const isDebt = method.includes('قەرز') || method.includes('Debt');
-    const isStoreCredit = method.includes('ڕەسیدی کڕیار') || method.includes('Store Credit');
-    const isCash = method.includes('کاش') || method.includes('Cash');
-    const isBank = method.includes('بانک') || method.includes('Bank') || method.includes('حەواڵە');
-
-    setPosDraft((prev) => {
-      let nextPaid = prev.amountPaidNow;
-      if (isDebt) {
-        // Deferred payment terms: assign to debt by setting cash collected to 0
-        nextPaid = 0;
-      } else if (isStoreCredit || isCash || isBank) {
-        // If switching to Cash or Store Credit, default to full amount if currently 0
-        if (nextPaid === 0 || nextPaid === '') {
-          nextPaid = totalAfterDiscount;
-        }
-      }
-      return {
-        ...prev,
-        paymentType: method,
-        amountPaidNow: nextPaid,
-      };
-    });
-
-    if (isStoreCredit && !posDraft.seller.trim()) {
-      requestAlert({
-        title: isKu ? 'ڕەسیدی کڕیار' : 'Store Credit',
-        message: isKu
-          ? 'تکایە ناوی کڕیار دیاریبکە بۆ لێدەرکردنی بڕی پارەکە لە ڕەسیدی پێشەکی کڕیار.'
-          : 'Please select a customer account to deduct from their prepaid store credit balance.',
-        type: 'info',
-      });
-    }
+    setPosDraft((prev) => ({ ...prev, paymentType: method }));
   };
 
   // Save Transaction
@@ -655,6 +653,7 @@ export const TradeLedgerSection: React.FC = () => {
       chargedCurrency: moneySnap.chargedCurrency,
       exchangeRateApplied: moneySnap.exchangeRateApplied,
       baseUsdEquivalent: moneySnap.baseUsdEquivalent,
+      isReceivable: editingTxId ? (transactions.find(t => t.id === editingTxId)?.isReceivable ?? (txFormMode === 'AR')) : (txFormMode === 'AR'),
     };
 
     const wasEditing = !!editingTxId;
@@ -873,10 +872,19 @@ export const TradeLedgerSection: React.FC = () => {
 
     // 1. Open App / Copy Text
     if (platform === 'whatsapp') {
-      window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
+      let cleanPhone = tx.clientPhone ? tx.clientPhone.replace(/\D/g, '') : '';
+      if (cleanPhone.startsWith('07')) cleanPhone = '964' + cleanPhone.substring(1);
+      const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${msg}` : `https://api.whatsapp.com/send?text=${msg}`;
+      window.open(waUrl, '_blank');
       toast.success(isKu ? 'دەق کۆپی کرا و وەتسئەپ کرایەوە!' : 'Text copied & WhatsApp opened!');
     } else if (platform === 'viber') {
-      window.location.href = `viber://forward?text=${msg}`;
+      let cleanPhone = tx.clientPhone ? tx.clientPhone.replace(/\D/g, '') : '';
+      if (cleanPhone.startsWith('07')) cleanPhone = '964' + cleanPhone.substring(1);
+      if (cleanPhone) {
+        window.location.href = `viber://chat?number=${cleanPhone}&draft=${msg}`;
+      } else {
+        window.location.href = `viber://forward?text=${msg}`;
+      }
       toast.success(isKu ? 'دەق کۆپی کرا و ڤایبەر کرایەوە!' : 'Text copied & Viber opened!');
     } else if (platform === 'email') {
       window.open(`mailto:?subject=${encodeURIComponent(`Invoice #${invoiceNum}`)}&body=${msg}`, '_blank');
@@ -1148,6 +1156,31 @@ export const TradeLedgerSection: React.FC = () => {
     }, 0);
   }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
 
+  // Derived arrays for AR (Customer Sales) vs AP (Supplier Payables)
+  const activeCustomerSales = useMemo(() => {
+    return transactions.filter(tx => tx.isDeleted !== 1 && tx.isReceivable === true);
+  }, [transactions]);
+
+  // KPI Calculations for Accounts Receivable (Customer Debt)
+  const totalCustomerInvoiced = useMemo(() => {
+    return activeCustomerSales.reduce((acc, tx) => {
+      return acc + convertCurrency(tx.sellingAmount || 0, tx.currency || 'USD', posDraft.activeCurrency);
+    }, 0);
+  }, [activeCustomerSales, convertCurrency, posDraft.activeCurrency]);
+
+  const totalCustomerPaid = useMemo(() => {
+    return activeCustomerSales.reduce((acc, tx) => {
+      return acc + convertCurrency(tx.amountPaidNow || 0, tx.currency || 'USD', posDraft.activeCurrency);
+    }, 0);
+  }, [activeCustomerSales, convertCurrency, posDraft.activeCurrency]);
+
+  const totalCustomerDebt = useMemo(() => {
+    return activeCustomerSales.reduce((acc, tx) => {
+      const debt = tx.combinedTotalDebt || tx.amountOwed || 0;
+      return acc + convertCurrency(debt, tx.currency || 'USD', posDraft.activeCurrency);
+    }, 0);
+  }, [activeCustomerSales, convertCurrency, posDraft.activeCurrency]);
+
   const supplierInvoicesWithDebtCount = useMemo(() => {
     return filteredShipments.filter((s) => {
       if (s.isDeleted === 1) return false;
@@ -1329,149 +1362,85 @@ export const TradeLedgerSection: React.FC = () => {
         </form>
       )}
 
-      {/* SUPPLIER PAYABLES B2B TRADE LEDGER KPI GRID */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* SUPPLIER-FACING METRICS (PAYABLES / FUNDERMAX DEBT) */}
-        <div className="p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/50 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800/50">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              <span className="text-xs font-black uppercase tracking-wider text-rose-900 dark:text-rose-300">
-                Supplier Payables & FunderMax Debt
-              </span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <select
-                value={ledgerTimeFilter}
-                onChange={(e) => setLedgerTimeFilter(e.target.value)}
-                className="h-7 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-                title={isKu ? 'فلتەری کات' : 'Time Filter'}
-              >
-                <option value="all">{isKu ? 'هەموو کاتێک' : 'All Time'}</option>
-                <option value="today">{isKu ? 'ئەمڕۆ' : 'Today'}</option>
-                <option value="week">{isKu ? 'ئەم هەفتەیە' : 'This Week'}</option>
-                <option value="month">{isKu ? 'ئەم مانگە' : 'This Month'}</option>
-                <option value="3months">{isKu ? '٣ مانگی ڕابردوو' : 'Last 3 Months'}</option>
-                <option value="6months">{isKu ? '٦ مانگی ڕابردوو' : 'Last 6 Months'}</option>
-                <option value="year">{isKu ? 'ئەمساڵ' : 'Last Year'}</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => setIsSupplierPayablesOpen(true)}
-                className="text-[11px] font-bold text-rose-700 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 underline cursor-pointer"
-              >
-                {isKu ? 'کردنەوەی دەفتەری قەرز ←' : 'Open Payables Ledger ←'}
-              </button>
+      {/* THE "GOD VIEW" EXECUTIVE DASHBOARD (Split AR vs AP) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* ACCOUNTS RECEIVABLE (MONEY OWED TO US) */}
+        <div className="p-5 sm:p-6 rounded-3xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+          
+          <div className="flex items-center justify-between mb-5 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <ArrowDownRight className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-widest text-emerald-900 dark:text-emerald-400">
+                  Accounts Receivable
+                </h2>
+                <p className="text-[11px] text-emerald-700/70 dark:text-emerald-500/70 font-bold mt-0.5">
+                  Customer Debt (Owed to Us)
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* SUPPLIER CARD 1: TOTAL SUPPLIER INVOICED */}
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
-                    {isKu ? 'کۆی هاوردەکراوی دابینکەر' : 'Total Supplier Invoiced'}
-                  </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
-                    {isKu ? 'کۆی گشتی پسوولەی کارگە و دابینکەران' : 'Gross inbound supplier volume'}
-                  </span>
-                </div>
-                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center font-bold">
-                  <Building2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
-                  {formatMoney(totalSupplierInvoiced, posDraft.activeCurrency)}
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
-                  <span>{filteredShipments.length} {isKu ? 'بارنامەی تۆمارکراو' : 'inbound shipments'}</span>
-                </div>
+          <div className="grid grid-cols-2 gap-4 relative z-10">
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-900/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Total Sales</span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                {formatMoney(totalCustomerInvoiced, posDraft.activeCurrency)}
               </div>
             </div>
-
-            {/* SUPPLIER CARD 2: PAID TO SUPPLIERS */}
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
-                    {isKu ? 'پارەی دراو بە دابینکەران' : 'Paid to Suppliers'}
-                  </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
-                    {isKu ? 'کۆی حەواڵە و پارەی دراو بە کارگەکان' : 'Settled supplier wire transfers'}
-                  </span>
-                </div>
-                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center font-bold">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
-                  {formatMoney(totalSupplierPaid, posDraft.activeCurrency)}
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
-                  {totalSupplierInvoiced > 0 ? Math.round((totalSupplierPaid / totalSupplierInvoiced) * 100) : 0}% {isKu ? 'ڕێژەی دراو' : 'settlement rate'}
-                </div>
+            
+            <div className="p-4 rounded-2xl bg-emerald-600 dark:bg-emerald-900/80 border border-emerald-500 dark:border-emerald-700 text-white shadow-md shadow-emerald-600/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-100 block mb-1">Unpaid Receivables</span>
+              <div className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
+                {formatMoney(totalCustomerDebt, posDraft.activeCurrency)}
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* SUPPLIER CARD 3: WE OWE SUPPLIERS (PAYABLES) */}
-            <div
+        {/* ACCOUNTS PAYABLE (MONEY WE OWE) */}
+        <div className="p-5 sm:p-6 rounded-3xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+          
+          <div className="flex items-center justify-between mb-5 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                <ArrowUpRight className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-widest text-rose-900 dark:text-rose-400">
+                  Accounts Payable
+                </h2>
+                <p className="text-[11px] text-rose-700/70 dark:text-rose-500/70 font-bold mt-0.5">
+                  Supplier Debt (We Owe)
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
               onClick={() => setIsSupplierPayablesOpen(true)}
-              className="p-4 rounded-2xl border-2 border-rose-300 dark:border-rose-700 bg-rose-50/50 dark:bg-rose-950/30 hover:bg-rose-50 dark:hover:bg-rose-950/50 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-              title={isKu ? 'کلیک بکە بۆ بینینی دەفتەری قەرزی دابینکەران' : 'Click to inspect Supplier Payables Ledger'}
+              className="text-xs font-bold text-rose-700 dark:text-rose-400 hover:text-rose-900 dark:hover:text-rose-300 underline underline-offset-4 cursor-pointer"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
-                    {isKu ? 'کۆی قەرزی دابینکەران' : 'Total Supplier Payables'}
-                  </span>
-                  <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80 font-medium block mt-0.5">
-                    {isKu ? 'کۆی قەرزی نەدراوی کڕینی کەلوپەل و تەختە' : 'Unpaid balances we owe suppliers'}
-                  </span>
-                </div>
-                <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0">
-                  <Building2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-300 font-mono tracking-tight">
-                  {formatMoney(totalSupplierDebt, posDraft.activeCurrency)}
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-rose-700/80 dark:text-rose-400/80 font-medium mt-1">
-                  <span>{supplierInvoicesWithDebtCount} {isKu ? 'پسوولەی دابینکەر' : 'unpaid batches'}</span>
-                  <span className="font-bold underline">{isKu ? 'دەفتەری قەرز ←' : 'Open Ledger ←'}</span>
-                </div>
+              Ledger →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 relative z-10">
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-rose-100 dark:border-rose-900/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Total Sourced</span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                {formatMoney(totalSupplierInvoiced, posDraft.activeCurrency)}
               </div>
             </div>
-
-            {/* SUPPLIER CARD 4: FUNDERMAX DEBT */}
-            <div
-              onClick={() => setIsSupplierPayablesOpen(true)}
-              className="p-4 rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/40 dark:bg-rose-950/20 hover:bg-rose-50/80 dark:hover:bg-rose-950/40 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
-                    {isKu ? 'قەرزی کارگەی FunderMax' : 'FunderMax Debt'}
-                  </span>
-                  <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80 font-medium block mt-0.5">
-                    {isKu ? 'قەرزی تایبەت بە کارگەی فۆندەرماکس' : 'Outstanding FunderMax factory balance'}
-                  </span>
-                </div>
-                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold shrink-0">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-300 font-mono tracking-tight">
-                  {formatMoney(fundermaxSupplierDebt, posDraft.activeCurrency)}
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-rose-700/80 dark:text-rose-400/80 font-medium mt-1">
-                  <span>{activeFundermaxBatches.length} {isKu ? 'بارنامەی چالاک' : 'active batches'}</span>
-                  <span className="font-bold underline">{isKu ? 'وردەکاری ←' : 'Manage ←'}</span>
-                </div>
+            
+            <div className="p-4 rounded-2xl bg-rose-600 dark:bg-rose-900/80 border border-rose-500 dark:border-rose-700 text-white shadow-md shadow-rose-600/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-100 block mb-1">Unpaid Payables</span>
+              <div className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
+                {formatMoney(totalSupplierDebt, posDraft.activeCurrency)}
               </div>
             </div>
           </div>
@@ -1480,7 +1449,8 @@ export const TradeLedgerSection: React.FC = () => {
 
       {/* SUPPLIER BILL INTAKE FORM */}
       {(userPermissions?.canCreateSales || (editingTxId && userPermissions?.canEditSales)) ? (
-      <div id="sales-draft-form" className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm space-y-6">
+      <div id="sales-draft-form" className={`p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border-2 shadow-xl shadow-slate-200/40 dark:shadow-none space-y-8 relative transition-colors duration-300 ${txFormMode === 'AR' ? 'border-sky-500/50 dark:border-sky-500/30' : 'border-rose-500/50 dark:border-rose-500/30'}`}>
+        <div className={`absolute top-0 left-0 right-0 h-2 rounded-t-3xl bg-gradient-to-r ${txFormMode === 'AR' ? 'from-sky-500 to-emerald-500' : 'from-rose-500 to-amber-500'}`} />
         {/* Prominent Edit Mode Warning Banner */}
         {editingTxId && (
           <div className="w-full bg-amber-500/15 border-2 border-amber-500 text-amber-900 dark:text-amber-200 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 animate-in fade-in duration-200">
@@ -1507,14 +1477,24 @@ export const TradeLedgerSection: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${editingTxId ? 'bg-amber-500 animate-pulse' : 'bg-purple-500'}`} />
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+            <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+              <span className={`w-3 h-3 rounded-full ${editingTxId ? 'bg-amber-500 animate-pulse' : 'bg-sky-500'}`} />
               {editingTxId
-                ? (isKu ? `دەستکاریکردنی وەسڵ #${editingInvoiceCode}` : `Edit Invoice #${editingInvoiceCode}`)
-                : (isKu ? 'پسوولەی کڕینی دابینکەری نوێ' : 'New Supplier Purchase / Bill')}
+                ? `Edit Record #${editingInvoiceCode}`
+                : (txFormMode === 'AR' ? 'Log Customer Sale (AR)' : 'Log Supplier Purchase (AP)')}
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            {!editingTxId && (
+              <div className="flex p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 mr-4">
+                <button type="button" onClick={() => setTxFormMode('AR')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${txFormMode === 'AR' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+                  Customer Sale
+                </button>
+                <button type="button" onClick={() => setTxFormMode('AP')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${txFormMode === 'AP' ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+                  Supplier Bill
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setIsDropdownManagerOpen(true)}
@@ -1541,138 +1521,61 @@ export const TradeLedgerSection: React.FC = () => {
           {/* LEFT / MAIN COLUMN (70% width): Business Inputs, Line Items & Notes */}
           <div className="w-full lg:w-[68%] xl:w-[70%] space-y-6">
             {/* Desktop Business Header Inputs: Code, Customer, Phone, Legacy Bridge, Attachment, Seller, Bank */}
-            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {t.invoiceCode}
-                </label>
-                <input
-                  type="text"
-                  value={posDraft.invoiceCode}
-                  onChange={(e) => setPosDraft((prev) => ({ ...prev, invoiceCode: e.target.value }))}
-                  placeholder="e.g. INV-101"
-                  className="w-full min-h-[42px] px-3.5 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-750">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Invoice Code</label>
+                <input type="text" value={posDraft.invoiceCode} onChange={(e) => setPosDraft((prev) => ({ ...prev, invoiceCode: e.target.value }))} placeholder="e.g. INV-101" className="w-full h-11 px-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-shadow" />
               </div>
-
-              {/* Supplier / Factory Name */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {isKu ? 'دابینکەر / کارگە (Supplier)' : 'Supplier / Factory'}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  {txFormMode === 'AR' ? 'Customer' : 'Supplier / Factory'}
                 </label>
-                <SearchableDropdown
-                  options={clientOptions}
-                  value={posDraft.client}
-                  onChange={handleCustomerSelect}
-                  onAddNew={(v) => addToDropdownPresets('savedClients', v)}
-                  onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)}
-                  placeholder={isKu ? 'ناوی دابینکەر یان کارگە هەڵبژێرە...' : 'Select or type supplier / factory...'}
-                  allowDelete={!isViewer}
-                  clearable={true}
-                />
+                <SearchableDropdown options={clientOptions} value={posDraft.client} onChange={handleCustomerSelect} onAddNew={(v) => addToDropdownPresets('savedClients', v)} onDeleteOption={(v) => removeFromDropdownPresets('savedClients', v)} placeholder="Select or type..." allowDelete={!isViewer} clearable={true} />
               </div>
-
-              {/* Supplier Phone */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>
-                    {isKu ? 'ژمارەی مۆبایلی دابینکەر' : 'Supplier Phone'}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex justify-between items-center">
+                  <span>Phone Number</span>
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                    <HelpCircle className="w-3 h-3" /> WhatsApp & Viber (Optional)
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">WhatsApp Ready</span>
                 </label>
                 <div className="relative">
-                  <Phone className="w-3.5 h-3.5 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    type="tel"
-                    value={posDraft.clientPhone}
-                    onChange={(e) => setPosDraft({ ...posDraft, clientPhone: e.target.value })}
-                    placeholder="0750 000 0000"
-                    className="w-full min-h-[42px] ps-9 pe-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
-                  />
+                  <Phone className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="tel" value={posDraft.clientPhone} onChange={(e) => setPosDraft((prev) => ({ ...prev, clientPhone: e.target.value }))} placeholder="0750 000 0000" className="w-full h-11 pl-10 pr-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500 transition-shadow" />
                 </div>
               </div>
-
-              {/* Commercial Reference / PO # (Optional) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>{isKu ? 'ژمارەی ئاماژە / داواکاری (دڵخواز)' : 'Reference / PO # (Optional)'}</span>
-                  <span className="text-[10px] text-slate-400 font-normal">{isKu ? 'ئارەزوومەندانە' : 'Optional'}</span>
-                </label>
-                <input
-                  type="text"
-                  value={posDraft.legacyInvoiceRef}
-                  onChange={(e) => setPosDraft({ ...posDraft, legacyInvoiceRef: e.target.value })}
-                  placeholder="e.g. PO-842, Project Villa..."
-                  className="w-full min-h-[42px] px-3.5 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono placeholder:text-slate-400 text-xs"
-                  title={isKu ? 'ژمارەی ئاماژە یان کۆدی داواکاری کڕیار' : 'Reference / Purchase Order #'}
-                />
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Drawer / Bank</label>
+                <SearchableDropdown options={savedBanks} value={posDraft.bank} onChange={(v) => setPosDraft({ ...posDraft, bank: v })} onAddNew={(v) => addToDropdownPresets('savedBanks', v)} onDeleteOption={(v) => removeFromDropdownPresets('savedBanks', v)} placeholder="Select Drawer..." allowDelete={!isViewer} clearable={true} />
               </div>
 
-              {/* Legacy Attachment Upload (Slip / Transfer Photo) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+              <div className="md:col-span-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Paperclip className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                    <span>{isKu ? 'هاوپێچ / Attachment' : 'Attachment (Slip / Photo)'}</span>
+                    <Paperclip className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    <span>Attachment (Slip / Photo)</span>
                   </span>
-                  {posDraft.images && posDraft.images.length > 0 && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                      {posDraft.images.length} {isKu ? 'هاوپێچ' : 'attached'}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-md">
+                    <HelpCircle className="w-3 h-3" /> Optional
+                  </span>
                 </label>
-                <div className="flex items-center gap-2">
-                  <label className="flex-1 min-h-[42px] px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 h-12 px-4 text-xs font-bold rounded-xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-sky-500 dark:hover:border-sky-400 text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 cursor-pointer transition-colors">
                     <Paperclip className="w-4 h-4 text-slate-400" />
-                    <span className="truncate">
-                      {posDraft.images && posDraft.images.length > 0
-                        ? (isKu ? 'زیادکردنی تر' : 'Add Photo')
-                        : (isKu ? 'هەڵبژاردنی وەسڵ' : 'Upload Slip')}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={handleAttachmentUpload}
-                      className="hidden"
-                    />
+                    <span className="truncate">{posDraft.images && posDraft.images.length > 0 ? 'Add Another Photo' : 'Upload File / Photo'}</span>
+                    <input type="file" accept="image/*,.pdf" onChange={handleAttachmentUpload} className="hidden" />
                   </label>
                   {posDraft.images && posDraft.images.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setZoomedImage({ url: posDraft.images[0], title: 'Attachment Slip' })}
-                        className="w-[42px] h-[42px] rounded-xl overflow-hidden border border-sky-400 dark:border-sky-600 relative group cursor-pointer shrink-0"
-                        title="Preview attachment"
-                      >
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setZoomedImage({ url: posDraft.images[0], title: 'Attachment Slip' })} className="w-12 h-12 rounded-xl overflow-hidden border-2 border-sky-400 relative group cursor-pointer shrink-0">
                         <img src={posDraft.images[0]} alt="Attachment preview" className="w-full h-full object-cover" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setPosDraft((prev) => ({ ...prev, images: [] }))}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
-                        title="Remove attachment"
-                      >
-                        <X className="w-4 h-4" />
+                      <button type="button" onClick={() => setPosDraft((prev) => ({ ...prev, images: [] }))} className="p-2 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/50 rounded-xl cursor-pointer transition">
+                        <X className="w-5 h-5" />
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {t.bank}
-                </label>
-                <SearchableDropdown
-                  options={savedBanks}
-                  value={posDraft.bank}
-                  onChange={(v) => setPosDraft({ ...posDraft, bank: v })}
-                  onAddNew={(v) => addToDropdownPresets('savedBanks', v)}
-                  onDeleteOption={(v) => removeFromDropdownPresets('savedBanks', v)}
-                  placeholder="Select Drawer / قاسە یان بانک..."
-                  allowDelete={!isViewer}
-                  clearable={true}
-                />
               </div>
 
               {/* Bilingual Payment Method Pills (Desktop) - Replaces redundant dropdown */}
@@ -1693,11 +1596,7 @@ export const TradeLedgerSection: React.FC = () => {
                         key={pill.value}
                         type="button"
                         onClick={() => handlePaymentMethodSelect(isSelected ? '' : pill.value)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                          isSelected
-                            ? 'bg-sky-600 border-sky-700 text-white shadow-xs scale-[1.02]'
-                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
-                        }`}
+                        className={`h-12 px-5 rounded-xl text-sm font-bold transition-all border cursor-pointer ${isSelected ? 'bg-sky-600 border-sky-700 text-white shadow-md scale-105' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                       >
                         {pill.label}
                       </button>
@@ -1863,7 +1762,7 @@ export const TradeLedgerSection: React.FC = () => {
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                     <span>{isKu ? 'ژمارەی ئاماژە / داواکاری (دڵخواز)' : 'Reference / PO # (Optional)'}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">{isKu ? 'ئارەزوومەندانە' : 'Optional'}</span>
+                    <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md"><HelpCircle className="w-3 h-3" /> Optional</span>
                   </label>
                   <input
                     type="text"
@@ -1895,161 +1794,49 @@ export const TradeLedgerSection: React.FC = () => {
           </div>
         </div>
 
-        {/* DESKTOP ACTIVE LINE ITEM INPUT ROW (Rapid Entry with Keyboard Flow) */}
-        <div className="hidden md:block p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
-          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'تۆمارکردنی کاڵا / دەرگا / پانێڵ' : 'Active Line Item (Panels & Custom Doors)'}</span>
-            <span className="text-[11px] font-normal text-sky-600 dark:text-sky-400">
-              {isKu ? 'Enter: ڕۆشتن بۆ خانەی دواتر / زیادکردن' : 'Press Enter on Qty/Price to rapid-add'}
+        {/* DESKTOP ACTIVE LINE ITEM INPUT ROW (Clean Command Console) */}
+        <div className="hidden md:block p-5 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-750 shadow-sm space-y-4">
+          <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
+            <span className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-sky-500" />
+              {isKu ? 'تۆمارکردنی کاڵا / دەرگا / پانێڵ' : 'Active Line Item Console'}
+            </span>
+            <span className="text-[10px] font-bold px-2 py-1 rounded bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+              {isKu ? 'Enter: خێرا تۆمارکردن' : 'Tab/Enter to calculate & add'}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-2.5">
-            <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {isKu ? 'جۆر' : 'Type'}
-              </label>
-              <SearchableDropdown
-                options={savedTypes}
-                value={posDraft.rowType}
-                onChange={(v) => setPosDraft({ ...posDraft, rowType: v })}
-                onAddNew={(v) => addToDropdownPresets('savedTypes', v)}
-                onDeleteOption={(v) => removeFromDropdownPresets('savedTypes', v)}
-                placeholder="Type..."
-                allowDelete={!isViewer}
-                compact={true}
-                clearable={true}
-              />
+          <div className="grid grid-cols-12 gap-3 items-end">
+            <div className="col-span-2">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'جۆر' : 'Type'}</label>
+              <SearchableDropdown options={savedTypes} value={posDraft.rowType} onChange={(v) => setPosDraft({ ...posDraft, rowType: v })} onAddNew={(v) => addToDropdownPresets('savedTypes', v)} onDeleteOption={(v) => removeFromDropdownPresets('savedTypes', v)} placeholder="Type..." allowDelete={!isViewer} compact={true} clearable={true} />
             </div>
-
-            {/* Product / Door expanded to 2 columns (Requirement 1) */}
-            <div className="sm:col-span-2 lg:col-span-2">
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {isKu ? 'کاڵا / دەرگا' : 'Product / Door'}
-              </label>
-              <SearchableDropdown
-                options={savedProducts}
-                value={posDraft.rowProduct}
-                onChange={(v) => setPosDraft({ ...posDraft, rowProduct: v })}
-                onAddNew={(v) => addToDropdownPresets('savedProducts', v)}
-                onDeleteOption={(v) => removeFromDropdownPresets('savedProducts', v)}
-                placeholder="Product..."
-                allowDelete={!isViewer}
-                compact={true}
-                clearable={true}
-              />
+            <div className="col-span-3">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'کاڵا' : 'Product'}</label>
+              <SearchableDropdown options={savedProducts} value={posDraft.rowProduct} onChange={(v) => setPosDraft({ ...posDraft, rowProduct: v })} onAddNew={(v) => addToDropdownPresets('savedProducts', v)} onDeleteOption={(v) => removeFromDropdownPresets('savedProducts', v)} placeholder="Product..." allowDelete={!isViewer} compact={true} clearable={true} />
             </div>
-
-            {/* Selling Type using standardized bilingual options (Requirement 3) */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {isKu ? 'جۆری فرۆشتن' : 'Selling Type'}
-              </label>
-              <SearchableDropdown
-                options={sellingTypeOptions}
-                value={posDraft.rowSellingType}
-                onChange={(v) => setPosDraft({ ...posDraft, rowSellingType: v })}
-                onAddNew={(v) => addToDropdownPresets('savedSellingTypes', v)}
-                onDeleteOption={(v) => removeFromDropdownPresets('savedSellingTypes', v)}
-                placeholder="Wholesale..."
-                allowDelete={!isViewer}
-                compact={true}
-                clearable={true}
-              />
+            <div className="col-span-2">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'فرۆشتن' : 'Method'}</label>
+              <SearchableDropdown options={sellingTypeOptions} value={posDraft.rowSellingType} onChange={(v) => setPosDraft({ ...posDraft, rowSellingType: v })} onAddNew={(v) => addToDropdownPresets('savedSellingTypes', v)} onDeleteOption={(v) => removeFromDropdownPresets('savedSellingTypes', v)} placeholder="Wholesale..." allowDelete={!isViewer} compact={true} clearable={true} />
             </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {isKu ? 'بڕ (دانە)' : 'Qty'}
-              </label>
-              <input
-                ref={quantityInputRef}
-                type="number"
-                inputMode="decimal"
-                pattern="[0-9]*"
-                min="1"
-                step="any"
-                value={posDraft.rowQuantity}
-                onChange={(e) => setPosDraft({ ...posDraft, rowQuantity: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    priceInputRef.current?.focus();
-                  }
-                }}
-                className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
-              />
+            <div className="col-span-1">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'بڕ' : 'Qty'}</label>
+              <input ref={quantityInputRef} type="number" min="1" step="any" value={posDraft.rowQuantity} onChange={(e) => setPosDraft({ ...posDraft, rowQuantity: e.target.value === '' ? '' : parseFloat(e.target.value) })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); priceInputRef.current?.focus(); } }} className="w-full h-[38px] px-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-center focus:ring-2 focus:ring-sky-500" />
             </div>
-
-            <div>
-              <label
-                className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1"
-                title="Selling Price ($) / نرخی فرۆشتن ($)"
-              >
-                {isKu ? 'نرخی فرۆشتن ($)' : 'Selling Price ($)'}
-              </label>
-              <input
-                ref={priceInputRef}
-                type="number"
-                inputMode="decimal"
-                pattern="[0-9]*"
-                step="any"
-                value={posDraft.rowPrice}
-                onChange={(e) => setPosDraft({ ...posDraft, rowPrice: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (costInputRef.current) {
-                      costInputRef.current.focus();
-                    } else {
-                      handleAddLineItem();
-                    }
-                  }
-                }}
-                placeholder="0.00"
-                className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
-              />
+            <div className="col-span-2 relative">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'نرخ' : 'Price ($)'}</label>
+              <input ref={priceInputRef} type="text" value={rowPriceStr} onChange={(e) => setRowPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); if (e.key === 'Enter') { e.preventDefault(); if (costInputRef.current) costInputRef.current.focus(); else handleAddLineItem(); } } }} placeholder="150+45" className="w-full h-[38px] pl-2 pr-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
+              <Calculator className="w-3 h-3 absolute right-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
             </div>
-
-            {/* Our Cost + Add Item (expanded cleanly across 2 columns in lg:grid-cols-8) */}
-            <div className="sm:col-span-2 md:col-span-3 lg:col-span-2 flex items-end gap-2">
-              <div className="flex-1 min-w-0">
-                <label
-                  className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 truncate"
-                  title="Internal wholesale cost for profit tracking (hidden from customer invoice) / تێچووی کڕین بۆ کۆمپانیا"
-                >
-                  {isKu ? 'تێچووی لەسەرمان ($)' : 'Our Cost ($)'}
-                </label>
-                <input
-                  ref={costInputRef}
-                  type="number"
-                  inputMode="decimal"
-                  pattern="[0-9]*"
-                  step="any"
-                  value={posDraft.estimatedCost}
-                  onChange={(e) => setPosDraft({ ...posDraft, estimatedCost: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddLineItem();
-                    }
-                  }}
-                  placeholder="0.00"
-                  title="Internal wholesale cost for profit tracking (hidden from customer invoice) / تێچووی کڕین بۆ کۆمپانیا"
-                  className="w-full min-h-[38px] px-3 py-1.5 text-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
-                />
-              </div>
-
-              <button
-                ref={addRowBtnRef}
-                type="button"
-                onClick={handleAddLineItem}
-                disabled={!posDraft.rowType && !posDraft.rowProduct && currentRowPrice === 0}
-                className="flex items-center justify-center min-h-[38px] px-3.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-xs disabled:opacity-50 transition-all cursor-pointer shrink-0"
-                title={isKu ? 'زیادکردنی بابەت' : 'Add Item'}
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden xl:inline ml-1">{isKu ? 'زیادکردن' : 'Add'}</span>
+            <div className="col-span-2 relative">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider truncate" title="Internal Cost">{isKu ? 'تێچوو' : 'Cost ($)'}</label>
+              <input ref={costInputRef} type="text" value={costPriceStr} onChange={(e) => setCostPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); if (e.key === 'Enter') { e.preventDefault(); setTimeout(() => handleAddLineItem(), 50); } } }} placeholder="120" className="w-full h-[38px] pl-2 pr-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
+              <Calculator className="w-3 h-3 absolute right-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
+            </div>
+            <div className="col-span-12 mt-1">
+              <button ref={addRowBtnRef} type="button" onClick={handleAddLineItem} disabled={!posDraft.rowProduct || currentRowPrice === 0} className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-500 text-white font-black tracking-widest text-sm shadow-md disabled:opacity-40 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                <Plus className="w-5 h-5" />
+                {isKu ? 'زیادکردن بۆ وەسڵ' : 'ADD TO INVOICE'}
               </button>
             </div>
           </div>
@@ -2219,7 +2006,7 @@ export const TradeLedgerSection: React.FC = () => {
             {/* Desktop Table */}
             <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4 border border-slate-200 dark:border-slate-750 rounded-2xl">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   <tr>
                     <th className="px-4 py-2.5">{isKu ? 'کاڵا' : 'Item'}</th>
                     <th className="px-4 py-2.5">{isKu ? 'جۆر' : 'Type'}</th>
@@ -2326,7 +2113,7 @@ export const TradeLedgerSection: React.FC = () => {
         )}
 
         {/* CLEAR TRANSACTION NOTES AREA (Requirement 3.2) */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xs">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400" />
@@ -2335,11 +2122,11 @@ export const TradeLedgerSection: React.FC = () => {
             <span className="text-[10px] text-slate-400 font-normal">{isKu ? 'ئارەزوومەندانە' : 'Optional'}</span>
           </label>
           <textarea
-            rows={2}
+            rows={4}
             value={posDraft.notes || ''}
             onChange={(e) => setPosDraft({ ...posDraft, notes: e.target.value })}
             placeholder={isKu ? 'تێبینی بنووسە دەربارەی ئەم پسوولەیە (کڕیار، گەیاندن، ڕێککەوتن)...' : 'Add invoice notes (delivery terms, customer instructions, agreements)...'}
-            className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 transition-all font-sans"
+            className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 transition-all font-sans"
           />
         </div>
       </div>
@@ -2347,7 +2134,7 @@ export const TradeLedgerSection: React.FC = () => {
 
       {/* RIGHT COLUMN (30% width / Sticky Card): Order Financial Summary & Actions */}
       <div className="w-full lg:w-[32%] xl:w-[30%] lg:sticky lg:top-20 space-y-4">
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-sm space-y-4">
+        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
           {/* Card Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
@@ -2356,9 +2143,17 @@ export const TradeLedgerSection: React.FC = () => {
                 {isKu ? 'پوختەی دارایی و حیساب' : 'Order Financial Summary'}
               </h3>
             </div>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
-              {posDraft.activeCurrency}
-            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const next = posDraft.activeCurrency === 'USD' ? 'EUR' : posDraft.activeCurrency === 'EUR' ? 'IQD' : 'USD';
+                handleCurrencyChange(next);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 text-xs font-black font-mono shadow-sm tracking-widest cursor-pointer transition active:scale-95"
+              title="Click to cycle currency (USD → EUR → IQD)"
+            >
+              {posDraft.activeCurrency} ↻
+            </button>
           </div>
 
           {/* Gross Total */}
@@ -2387,7 +2182,7 @@ export const TradeLedgerSection: React.FC = () => {
                   handleDiscountDollarsChange(e.target.value === '' ? '' : parseFloat(e.target.value))
                 }
                 placeholder="Amt"
-                className="w-full px-2.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono"
+                className="w-full px-2.5 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono"
               />
               <input
                 type="number"
@@ -2399,7 +2194,7 @@ export const TradeLedgerSection: React.FC = () => {
                   handleDiscountPercentChange(e.target.value === '' ? '' : parseFloat(e.target.value))
                 }
                 placeholder="%"
-                className="w-full px-2.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono"
+                className="w-full px-2.5 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono"
               />
             </div>
           </div>
@@ -2417,8 +2212,8 @@ export const TradeLedgerSection: React.FC = () => {
           {/* Amount Paid to Supplier */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                {isKu ? 'بڕی پارەی دراو بە دابینکەر' : 'Amount Paid to Supplier'} ({posDraft.activeCurrency})
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                {txFormMode === 'AR' ? 'Amount Received Now' : 'Amount Paid Now'}
               </label>
               {typeof posDraft.amountPaidNow === 'number' && posDraft.amountPaidNow > 0 && (
                 <button
@@ -2443,7 +2238,7 @@ export const TradeLedgerSection: React.FC = () => {
                 })
               }
               placeholder="0.00"
-              className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold"
+              className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold"
             />
             {/* Quick-Cash Shortcut Pills */}
             <div className="pt-1 flex flex-wrap items-center gap-1.5">
@@ -2535,8 +2330,8 @@ export const TradeLedgerSection: React.FC = () => {
 
           {/* Prior Supplier Debt */}
           <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-              {isKu ? 'قەرزی پێشووی دابینکەر' : 'Prior Supplier Debt'} ({posDraft.activeCurrency})
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+              {txFormMode === 'AR' ? 'Prior Customer Debt' : 'Prior Supplier Debt'}
             </label>
             <input
               type="number"
@@ -2551,7 +2346,7 @@ export const TradeLedgerSection: React.FC = () => {
                 })
               }
               placeholder="0.00"
-              className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+              className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono"
             />
           </div>
 
@@ -2568,7 +2363,7 @@ export const TradeLedgerSection: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-[11px] font-black uppercase tracking-wider block text-rose-800 dark:text-rose-300">
-                    {isKu ? 'قەرزی ماوە بۆ دابینکەر:' : 'Supplier Debt (Payable):'}
+                    {txFormMode === 'AR' ? 'Customer Debt (Receivable):' : 'Supplier Debt (Payable):'}
                   </span>
                   <span className="text-2xl font-black font-mono text-rose-700 dark:text-rose-200 leading-tight">
                     {formatMoney(combinedTotalDebt, posDraft.activeCurrency)}
@@ -2595,20 +2390,11 @@ export const TradeLedgerSection: React.FC = () => {
               {((editingTxId && userPermissions.canEditSales) || (!editingTxId && userPermissions.canCreateSales)) && (
                 <>
                   <button
-                    type="button"
                     onClick={() => handleSaveInvoice(false)}
-                    className={`w-full py-3.5 px-4 text-sm font-bold rounded-xl active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                      editingTxId
-                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/25 ring-2 ring-amber-400/40'
-                        : 'bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-750 text-white border border-slate-700'
-                    }`}
+                    className={`w-full h-14 rounded-2xl text-white font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-transform active:scale-95 ${txFormMode === 'AR' ? 'bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-500' : 'bg-slate-900 hover:bg-slate-800 dark:bg-rose-600 dark:hover:bg-rose-500'}`}
                   >
-                    <ReceiptText className="w-4 h-4" />
-                    <span>
-                      {editingTxId
-                        ? (isKu ? 'نوێکردنەوەی وەسڵ (Update Existing Invoice)' : 'Update Existing Invoice')
-                        : (isKu ? 'پاشەکەوت و تۆمارکردنی پسوولەی دابینکەر' : 'Save & Record Supplier Bill')}
-                    </span>
+                    <ReceiptText className="w-5 h-5" />
+                    {txFormMode === 'AR' ? 'Save Customer Sale' : 'Save Supplier Bill'}
                   </button>
 
                   <button
@@ -3915,7 +3701,7 @@ export const TradeLedgerSection: React.FC = () => {
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[92vh] overflow-y-auto p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl space-y-4"
+              className="w-full max-w-md max-h-[92vh] overflow-y-auto p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -3968,7 +3754,7 @@ export const TradeLedgerSection: React.FC = () => {
                     setPayError('');
                   }}
                   autoFocus
-                  className="w-full px-3 py-2.5 text-base rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold"
+                  className="w-full px-3 py-2.5 text-base rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold"
                 />
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                   <button
@@ -3991,7 +3777,7 @@ export const TradeLedgerSection: React.FC = () => {
                 <select
                   value={payDrawer}
                   onChange={(e) => setPayDrawer(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
                 >
                   {drawerOptions.map((d) => (
                     <option key={d} value={d}>{d}</option>
@@ -4062,7 +3848,7 @@ export const TradeLedgerSection: React.FC = () => {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+            className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
           >
             {/* Header with success badge */}
             <div className="flex items-start gap-4">
@@ -4169,23 +3955,22 @@ export const TradeLedgerSection: React.FC = () => {
       {printingTx && (
         <div
           onClick={() => setPrintingTx(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 select-none"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200 select-none"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-white dark:bg-slate-850 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-750 p-6 space-y-5 animate-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 animate-in zoom-in-95 duration-200"
           >
-            {/* Header */}
             <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 flex items-center justify-center shrink-0 shadow-sm">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0 shadow-inner">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
-                    {isKu ? 'وەسڵ بەسەرکەوتوویی تۆمارکرا' : 'Invoice Saved Successfully'}
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                    {isKu ? 'وەسڵ بەسەرکەوتوویی تۆمارکرا' : 'Record Saved Successfully'}
                   </h3>
-                  <span className="text-xs text-sky-600 dark:text-sky-400 font-mono font-bold block mt-0.5">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-mono font-bold block mt-0.5">
                     #{printingTx.code || (typeof printingTx.id === 'string' ? printingTx.id.slice(-6) : 'INV')}
                     {printingTx.client ? ` • ${printingTx.client}` : ''}
                   </span>
@@ -4194,94 +3979,68 @@ export const TradeLedgerSection: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPrintingTx(null)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                title={isKu ? 'داخستن' : 'Close'}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Financial Summary Strip */}
-            <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 space-y-2 text-xs">
-              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 font-medium">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/50 border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs font-medium">
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
                 <span>{isKu ? 'کۆی گشتی پسوولە:' : 'Net Total:'}</span>
                 <span className="text-sm font-black font-mono text-slate-900 dark:text-white">
                   {formatMoney(printingTx.totalAfterDiscount || printingTx.sellingAmount || 0, printingTx.currency || 'USD')}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 font-medium">
-                <span>{isKu ? 'پارەی وەرگیراو:' : 'Amount Paid:'}</span>
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>{isKu ? 'پارەی وەرگیراو:' : 'Amount Settled:'}</span>
                 <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
                   {formatMoney(printingTx.amountPaidNow || 0, printingTx.currency || 'USD')}
                 </span>
               </div>
               {(printingTx.combinedTotalDebt || printingTx.amountOwed || 0) > 0 && (
-                <div className="flex justify-between items-center text-rose-700 dark:text-rose-400 pt-1.5 border-t border-slate-200 dark:border-slate-800 font-semibold">
-                  <span>{isKu ? 'قەرزی ماوە:' : 'Unpaid Debt:'}</span>
-                  <span className="font-black font-mono text-rose-600 dark:text-rose-400">
+                <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 pt-2 border-t border-slate-200 dark:border-slate-800 font-bold">
+                  <span>{isKu ? 'قەرزی ماوە:' : 'Remaining Balance:'}</span>
+                  <span className="font-black font-mono">
                     {formatMoney(printingTx.combinedTotalDebt || printingTx.amountOwed || 0, printingTx.currency || 'USD')}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* 4-Button Action Grid */}
             <div className="space-y-2">
-              <span className="text-[11px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block">
-                {isKu ? 'هاوبەشکردن و داگرتن' : 'Quick Actions & Export'}
+              <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 block px-1">
+                {isKu ? 'کردارە خێراکان' : 'Quick Actions & Export'}
               </span>
               <div className="grid grid-cols-2 gap-2.5">
-                {/* 1. Download PDF */}
                 <button
                   type="button"
-                  onClick={() => {
-                    const tx = printingTx;
-                    setPrintingTx(null);
-                    handleShareInvoice(tx, 'download');
-                  }}
-                  className="p-3 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  onClick={() => { const tx = printingTx; setPrintingTx(null); handleShareInvoice(tx, 'download'); }}
+                  className="h-11 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                 >
                   <Download className="w-4 h-4 shrink-0" />
-                  <span>{isKu ? 'داگرتنی PDF' : 'Download PDF'}</span>
+                  <span>PDF Export</span>
                 </button>
-
-                {/* 2. WhatsApp */}
                 <button
                   type="button"
-                  onClick={() => {
-                    const tx = printingTx;
-                    setPrintingTx(null);
-                    handleShareInvoice(tx, 'whatsapp');
-                  }}
-                  className="p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  onClick={() => { const tx = printingTx; setPrintingTx(null); handleShareInvoice(tx, 'whatsapp'); }}
+                  className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4 shrink-0" />
                   <span>WhatsApp</span>
                 </button>
-
-                {/* 3. Viber */}
                 <button
                   type="button"
-                  onClick={() => {
-                    const tx = printingTx;
-                    setPrintingTx(null);
-                    handleShareInvoice(tx, 'viber');
-                  }}
-                  className="p-3 rounded-2xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  onClick={() => { const tx = printingTx; setPrintingTx(null); handleShareInvoice(tx, 'viber'); }}
+                  className="h-11 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                 >
                   <Phone className="w-4 h-4 shrink-0" />
                   <span>Viber</span>
                 </button>
-
-                {/* 4. Email */}
                 <button
                   type="button"
-                  onClick={() => {
-                    const tx = printingTx;
-                    setPrintingTx(null);
-                    handleShareInvoice(tx, 'email');
-                  }}
-                  className="p-3 rounded-2xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  onClick={() => { const tx = printingTx; setPrintingTx(null); handleShareInvoice(tx, 'email'); }}
+                  className="h-11 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                 >
                   <Mail className="w-4 h-4 shrink-0" />
                   <span>Email</span>
@@ -4289,16 +4048,13 @@ export const TradeLedgerSection: React.FC = () => {
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setPrintingTx(null)}
-                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
-              >
-                {isKu ? 'داخستن' : 'Done'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setPrintingTx(null)}
+              className="w-full h-12 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+            >
+              {isKu ? 'داخستن / بەردەوامبوون' : 'Done / New Entry'}
+            </button>
           </div>
         </div>
       )}
