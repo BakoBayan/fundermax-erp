@@ -188,8 +188,8 @@ interface InventoryContextType {
   clearPosDraft: () => void;
   salesStatusFilter: 'all' | 'completed' | 'debt' | 'partial';
   setSalesStatusFilter: (f: 'all' | 'completed' | 'debt' | 'partial') => void;
-  salesTimeframeFilter: 'all' | 'today' | 'yesterday' | 'week' | 'month';
-  setSalesTimeframeFilter: (f: 'all' | 'today' | 'yesterday' | 'week' | 'month') => void;
+  salesTimeframeFilter: string;
+  setSalesTimeframeFilter: (f: string) => void;
 
   // Multi-Currency
   exchangeRates: ExchangeRates;
@@ -846,7 +846,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   const [salesStatusFilter, setSalesStatusFilter] = useState<'all' | 'completed' | 'debt' | 'partial'>('all');
-  const [salesTimeframeFilter, setSalesTimeframeFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>('all');
+  const [salesTimeframeFilter, setSalesTimeframeFilter] = useState<string>('all');
 
   const [products, setProducts] = useState<Product[]>(() => {
     if (typeof window === "undefined") return [];

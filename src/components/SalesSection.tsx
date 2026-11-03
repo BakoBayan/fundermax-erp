@@ -62,6 +62,27 @@ import { useWarehouseOps } from '../hooks/useWarehouseOps';
 import SupplierPayablesModal from './SupplierPayablesModal';
 import { generateMasterPDF } from '@/actions/pdfActions';
 import toast, { Toaster } from 'react-hot-toast';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
+
+const WeChatIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 1024 1024" fill="currentColor" className={className}>
+    <path d="M682.667 341.333c-18.773 0-37.547 1.707-55.467 4.267C587.093 213.333 446.293 128 277.333 128 124.587 128 0 231.253 0 358.4c0 73.387 38.4 140.8 100.693 186.027l-26.453 80.213 93.013-46.08c35.84 10.24 73.387 15.36 110.08 15.36 18.773 0 37.547-1.707 55.467-4.267-40.107 132.267 99.84 217.6 268.8 217.6 152.747 0 277.333-103.253 277.333-230.4S753.493 341.333 682.667 341.333z m-470.187-54.613c-23.893 0-42.667-18.773-42.667-42.667s18.773-42.667 42.667-42.667 42.667 18.773 42.667 42.667-18.773 42.667-42.667 42.667z m214.187 0c-23.893 0-42.667-18.773-42.667-42.667s18.773-42.667 42.667-42.667 42.667 18.773 42.667 42.667-18.773 42.667-42.667 42.667z m315.733 162.133c-17.067 0-31.147-13.653-31.147-31.147s13.653-31.147 31.147-31.147 31.147 13.653 31.147 31.147-13.653 31.147-31.147 31.147z m170.667 0c-17.067 0-31.147-13.653-31.147-31.147s13.653-31.147 31.147-31.147 31.147 13.653 31.147 31.147-13.653 31.147-31.147 31.147z" />
+  </svg>
+);
 
 export const TradeLedgerSection: React.FC = () => {
   const pdfCache = useRef<Record<string, { base64: string; fileName: string; downloaded?: boolean }>>({});
@@ -128,6 +149,20 @@ export const TradeLedgerSection: React.FC = () => {
     { label: 'Debt Sale (قەرز)', value: 'Debt Sale (قەرز)' },
     { label: 'Store Credit (ڕەسیدی کڕیار)', value: 'Store Credit (ڕەسیدی کڕیار)' },
     { label: 'Bank Transfer (حەواڵە / بانک)', value: 'Bank Transfer (حەواڵە / بانک)' },
+  ];
+
+  const COUNTRY_CODE_OPTIONS = [
+    { label: '🇮🇶 Iraq (+964)', value: '+964' },
+    { label: '🇨🇳 China (+86)', value: '+86' },
+    { label: '🇩🇪 Germany (+49)', value: '+49' },
+    { label: '🇦🇹 Austria (+43)', value: '+43' },
+    { label: '🇺🇸 US (+1)', value: '+1' },
+    { label: '🇬🇧 UK (+44)', value: '+44' },
+    { label: '🇦🇪 UAE (+971)', value: '+971' },
+    { label: '🇸🇦 Saudi (+966)', value: '+966' },
+    { label: '🇹🇷 Turkey (+90)', value: '+90' },
+    { label: '🇫🇷 France (+33)', value: '+33' },
+    { label: '🇮🇹 Italy (+39)', value: '+39' },
   ];
 
   const BILINGUAL_SELLING_TYPES = [
@@ -210,12 +245,17 @@ export const TradeLedgerSection: React.FC = () => {
   // Local UI state
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [inspectingTx, setInspectingTx] = useState<PanelTransaction | null>(null);
-  const [receiptShareLang, setReceiptShareLang] = useState<'ku' | 'en'>(language === 'en' ? 'en' : 'ku');
+  const [receiptShareLang, setReceiptShareLang] = useState<'ku' | 'en' | 'ar'>(language === 'en' ? 'en' : 'ku');
+  const [phoneCountryCode, setPhoneCountryCode] = useState<string>('+964');
   const [showMoreInvoiceDetails, setShowMoreInvoiceDetails] = useState(false);
   const [showMobileCost, setShowMobileCost] = useState(false);
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
   const [ledgerTimeFilter, setLedgerTimeFilter] = useState('all');
   const [txFormMode, setTxFormMode] = useState<'AR' | 'AP'>('AP');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'AR' | 'AP'>('all');
+  const [arTimeFilter, setArTimeFilter] = useState('all');
+  const [apTimeFilter, setApTimeFilter] = useState('all');
+  const [isExecutiveAnalyticsOpen, setIsExecutiveAnalyticsOpen] = useState(false);
 
   // Math calculator local states for line items
   const [rowPriceStr, setRowPriceStr] = useState<string>('');
@@ -291,12 +331,39 @@ export const TradeLedgerSection: React.FC = () => {
     const pastTxWithPhone = transactions.find(
       (t) => !t.isDeleted && (t.client || '').trim().toLowerCase() === clientName.trim().toLowerCase() && t.clientPhone
     );
-    setPosDraft((prev) => ({
-      ...prev,
-      client: clientName,
-      clientPhone: prev.clientPhone ? prev.clientPhone : (pastTxWithPhone?.clientPhone || ''),
-      oldUnpaidDebt: debt > 0 ? debt : '',
-    }));
+    if (pastTxWithPhone) {
+      let clientPhone = pastTxWithPhone.clientPhone || '';
+      let code = pastTxWithPhone.phoneCountryCode;
+      if (!code && clientPhone) {
+        const trimmed = clientPhone.trim();
+        const rawDigits = trimmed.replace(/\D/g, '');
+        if (trimmed.startsWith('+86') || rawDigits.startsWith('86') || rawDigits.startsWith('086')) {
+          code = '+86';
+        } else {
+          const matched = COUNTRY_CODE_OPTIONS.find((c) => trimmed.startsWith(c.value));
+          if (matched) code = matched.value;
+          else if (trimmed.startsWith('+964') || rawDigits.startsWith('964')) code = '+964';
+        }
+      }
+      if (code) {
+        setPhoneCountryCode(code);
+        if (clientPhone.startsWith(code)) {
+          clientPhone = clientPhone.slice(code.length).trim();
+        }
+      }
+      setPosDraft((prev) => ({
+        ...prev,
+        client: clientName,
+        clientPhone: prev.clientPhone ? prev.clientPhone : clientPhone,
+        oldUnpaidDebt: debt > 0 ? debt : '',
+      }));
+    } else {
+      setPosDraft((prev) => ({
+        ...prev,
+        client: clientName,
+        oldUnpaidDebt: debt > 0 ? debt : '',
+      }));
+    }
   };
 
   // Legacy Attachment Upload Handler (Requirement 2)
@@ -645,7 +712,16 @@ export const TradeLedgerSection: React.FC = () => {
       lastUpdated: new Date().toISOString(),
       items: finalItems,
       client: posDraft.client.trim() ? autoCapitalizeFirstLetter(posDraft.client.trim()) : undefined,
-      clientPhone: posDraft.clientPhone.trim() || undefined,
+      clientPhone: (() => {
+        const raw = posDraft.clientPhone.trim();
+        if (!raw) return undefined;
+        if (raw.startsWith('+')) return raw;
+        const digits = raw.replace(/\D/g, '');
+        const codeDigits = phoneCountryCode.replace(/\D/g, '');
+        if (digits.startsWith(codeDigits)) return `+${digits}`;
+        return `${phoneCountryCode} ${raw}`;
+      })(),
+      phoneCountryCode: phoneCountryCode,
       legacyInvoiceRef: posDraft.legacyInvoiceRef.trim() ? autoCapitalizeFirstLetter(posDraft.legacyInvoiceRef.trim()) : undefined,
       fundermaxBatchRef: posDraft.fundermaxBatchRef.trim() ? autoCapitalizeFirstLetter(posDraft.fundermaxBatchRef.trim()) : undefined,
       estimatedCost: typeof posDraft.estimatedCost === 'number' && posDraft.estimatedCost > 0 ? posDraft.estimatedCost : undefined,
@@ -676,7 +752,7 @@ export const TradeLedgerSection: React.FC = () => {
       supplier: posDraft.client.trim()
         ? autoCapitalizeFirstLetter(posDraft.client.trim())
         : 'FunderMax GmbH',
-      supplierContact: posDraft.clientPhone.trim() || '',
+      supplierContact: txPayload.clientPhone || '',
       originCountry: posDraft.legacyInvoiceRef.trim()
         ? autoCapitalizeFirstLetter(posDraft.legacyInvoiceRef.trim())
         : 'Austria (EU)',
@@ -705,8 +781,11 @@ export const TradeLedgerSection: React.FC = () => {
     }
 
     if (editingTxId) {
+      editTransaction(editingTxId, txPayload);
       warehouseOps.softDeleteShipment(editingTxId);
       setEditingTxId(null);
+    } else {
+      addTransaction(txPayload);
     }
 
     void warehouseOps.syncFromServer?.();
@@ -757,6 +836,37 @@ export const TradeLedgerSection: React.FC = () => {
       ? roundMoney(totalSelling / Math.max(1, defaultQty), tx.currency || 'USD')
       : '';
 
+    let extractedPhone = tx.clientPhone || '';
+    let extractedCode = tx.phoneCountryCode || '+964';
+
+    if (tx.phoneCountryCode) {
+      extractedCode = tx.phoneCountryCode;
+    } else if (tx.clientPhone) {
+      const trimmedPhone = tx.clientPhone.trim();
+      const rawDigits = trimmedPhone.replace(/\D/g, '');
+      if (trimmedPhone.startsWith('+86') || rawDigits.startsWith('86') || rawDigits.startsWith('086')) {
+        extractedCode = '+86';
+      } else {
+        const matched = COUNTRY_CODE_OPTIONS.find((c) => trimmedPhone.startsWith(c.value));
+        if (matched) {
+          extractedCode = matched.value;
+        } else if (trimmedPhone.startsWith('+964') || rawDigits.startsWith('964') || trimmedPhone.startsWith('07')) {
+          extractedCode = '+964';
+        }
+      }
+    }
+
+    if (extractedPhone.startsWith(extractedCode)) {
+      extractedPhone = extractedPhone.slice(extractedCode.length).trim();
+    } else if (extractedPhone.startsWith('+')) {
+      const matched = COUNTRY_CODE_OPTIONS.find((c) => extractedPhone.startsWith(c.value));
+      if (matched) {
+        extractedPhone = extractedPhone.slice(matched.value.length).trim();
+      }
+    }
+
+    setPhoneCountryCode(extractedCode);
+
     setPosDraft({
       invoiceCode: tx.code || '',
       seller: tx.seller && tx.seller !== '—' ? tx.seller : '',
@@ -789,7 +899,7 @@ export const TradeLedgerSection: React.FC = () => {
       notes: tx.notes || '',
       images: tx.images || [],
       client: tx.client || '',
-      clientPhone: tx.clientPhone || '',
+      clientPhone: extractedPhone,
       legacyInvoiceRef: tx.legacyInvoiceRef || '',
       fundermaxBatchRef: tx.fundermaxBatchRef || tx.code || '',
       estimatedCost:
@@ -845,22 +955,46 @@ export const TradeLedgerSection: React.FC = () => {
   const editingInvoiceCode = editingTransaction?.code || posDraft.invoiceCode || (editingTxId ? editingTxId.replace(/^tx-/, '') : '');
 
   const handleWhatsAppShare = (tx: PanelTransaction) => {
-    openWhatsAppReceipt(tx, formatMoney, receiptShareLang);
+    void handleShareInvoice(tx, 'whatsapp');
   };
 
   const handleEmailShare = (tx: PanelTransaction) => {
-    openEmailReceipt(tx, formatMoney, receiptShareLang);
+    void handleShareInvoice(tx, 'email');
   };
 
   const handleShareInvoice = async (
     tx: any,
-    platform: 'whatsapp' | 'viber' | 'email' | 'download'
+    platform: 'whatsapp' | 'wechat' | 'viber' | 'email' | 'download'
   ) => {
-    // Generate summary text and copy to clipboard immediately
+    // Generate multilingual summary text and copy to clipboard immediately
     const invoiceNum = tx.code || (typeof tx.id === 'string' ? tx.id.slice(-6) : 'INV');
-    const clientName = tx.client || tx.supplier || 'Valued Client';
-    const netAmount = formatMoney(tx.totalAfterDiscount ?? tx.totalInvoiceAmount ?? tx.sellingAmount ?? 0, tx.currency || tx.invoiceCurrency || 'USD');
-    const summaryText = `Official Invoice #${invoiceNum}\nClient: ${clientName}\nTotal Due: ${netAmount}\nIssued by Shaswar Ahmad Shaswar Co. (Bako's Master System ERP)`;
+    const clientName = tx.client || tx.supplier || (receiptShareLang === 'ku' ? 'کڕیاری بەڕێز' : receiptShareLang === 'ar' ? 'العميل الكريم' : 'Valued Client');
+    const txCur = tx.currency || tx.invoiceCurrency || 'USD';
+    const netVal = Number(tx.totalAfterDiscount ?? tx.totalInvoiceAmount ?? tx.sellingAmount ?? 0);
+    const paidVal = Number(tx.amountPaidNow ?? tx.amountPaidToSupplier ?? 0);
+    const debtVal = Number(tx.combinedTotalDebt ?? tx.supplierDebtRemaining ?? tx.amountOwed ?? Math.max(0, netVal - paidVal));
+    const netAmount = formatMoney(netVal, txCur);
+    const paidAmount = formatMoney(paidVal, txCur);
+    const debtAmount = formatMoney(debtVal, txCur);
+    const isFullyPaid = debtVal <= 0;
+
+    let summaryText = '';
+    if (receiptShareLang === 'ku') {
+      const paymentDetails = isFullyPaid
+        ? `دۆخی پارەدان: بەتەواوی دراوە (هیچ قەرزێک نەماوە)`
+        : `بڕی دراو: ${paidAmount}\nقەرزی ماوە: ${debtAmount}`;
+      summaryText = `پسوولەی فەرمی #${invoiceNum}\nبەڕێز: ${clientName}\nکۆی گشتی پسوولە: ${netAmount}\n${paymentDetails}\nکۆمپانیای شاسوار ئەحمەد شاسوار`;
+    } else if (receiptShareLang === 'ar') {
+      const paymentDetails = isFullyPaid
+        ? `حالة الدفع: مدفوع بالكامل (لا يوجد رصيد متبقي)`
+        : `المبلغ المدفوع: ${paidAmount}\nالرصيد المتبقي المستحق: ${debtAmount}`;
+      summaryText = `فاتورة رسمية #${invoiceNum}\nالعميل / المورد: ${clientName}\nالإجمالي الصافي: ${netAmount}\n${paymentDetails}\nشركة شاسوار أحمد شاسوار`;
+    } else {
+      const paymentDetails = isFullyPaid
+        ? `Payment Status: Fully Paid (0.00 Remaining Balance)`
+        : `Amount Paid: ${paidAmount}\nRemaining Balance Due: ${debtAmount}`;
+      summaryText = `Official Invoice #${invoiceNum}\nClient: ${clientName}\nNet Total: ${netAmount}\n${paymentDetails}\nIssued by Shaswar Ahmad Shaswar Co. (Bako's Master System ERP)`;
+    }
 
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(summaryText).catch(() => {});
@@ -871,17 +1005,51 @@ export const TradeLedgerSection: React.FC = () => {
     const cacheKey = tx?.id || tx?.code || 'draft-tx';
 
     // 1. Open App / Copy Text
-    if (platform === 'whatsapp') {
-      let cleanPhone = tx.clientPhone ? tx.clientPhone.replace(/\D/g, '') : '';
-      if (cleanPhone.startsWith('07')) cleanPhone = '964' + cleanPhone.substring(1);
-      const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${msg}` : `https://api.whatsapp.com/send?text=${msg}`;
+    const txRawPhone = tx?.clientPhone || (tx as any)?.supplierContact || '';
+    const storedCode = tx?.phoneCountryCode
+      || COUNTRY_CODE_OPTIONS.find((c) => txRawPhone.startsWith(c.value))?.value
+      || ((editingTxId === tx?.id || !tx?.id) ? phoneCountryCode : undefined);
+
+    let digits = txRawPhone.replace(/\D/g, '');
+    let fullPhone = '';
+
+    if (txRawPhone.startsWith('+')) {
+      fullPhone = digits;
+    } else if (storedCode) {
+      const codeDigits = storedCode.replace(/\D/g, '');
+      if (digits.startsWith('0')) digits = digits.substring(1);
+      if (digits.startsWith(codeDigits)) {
+        fullPhone = digits;
+      } else {
+        fullPhone = `${codeDigits}${digits}`;
+      }
+    } else {
+      if (digits.startsWith('0')) digits = digits.substring(1);
+      const codeDigits = phoneCountryCode.replace(/\D/g, '');
+      if (digits.startsWith('86') || digits.startsWith('964')) {
+        fullPhone = digits;
+      } else {
+        fullPhone = `${codeDigits}${digits}`;
+      }
+    }
+
+    const isTxChina = (storedCode === '+86')
+      || digits.startsWith('86')
+      || digits.startsWith('086')
+      || txRawPhone.startsWith('+86')
+      || (!tx?.id && phoneCountryCode === '+86');
+    const isChina = platform === 'wechat' || (platform === 'whatsapp' && isTxChina);
+
+    if (platform === 'wechat' || (platform === 'whatsapp' && isChina)) {
+      window.open('weixin://', '_blank');
+      toast.success(isKu ? 'دەق کۆپی کرا بۆ WeChat!' : 'Summary copied for WeChat!');
+    } else if (platform === 'whatsapp') {
+      const waUrl = fullPhone ? `https://wa.me/${fullPhone}?text=${msg}` : `https://api.whatsapp.com/send?text=${msg}`;
       window.open(waUrl, '_blank');
       toast.success(isKu ? 'دەق کۆپی کرا و وەتسئەپ کرایەوە!' : 'Text copied & WhatsApp opened!');
     } else if (platform === 'viber') {
-      let cleanPhone = tx.clientPhone ? tx.clientPhone.replace(/\D/g, '') : '';
-      if (cleanPhone.startsWith('07')) cleanPhone = '964' + cleanPhone.substring(1);
-      if (cleanPhone) {
-        window.location.href = `viber://chat?number=${cleanPhone}&draft=${msg}`;
+      if (fullPhone) {
+        window.location.href = `viber://chat?number=${fullPhone}&draft=${msg}`;
       } else {
         window.location.href = `viber://forward?text=${msg}`;
       }
@@ -1048,28 +1216,43 @@ export const TradeLedgerSection: React.FC = () => {
     }
   };
 
+  const warehouseOps = useWarehouseOps();
+
   // Dynamically extract unique sellers and payment methods
   const availableSellers = useMemo(() => {
     const set = new Set<string>(savedSellers);
     transactions.forEach((tx) => {
       if (tx.seller && tx.seller.trim()) set.add(tx.seller.trim());
     });
+    warehouseOps.activeShipments.forEach((s) => {
+      if (s.supplier && s.supplier.trim()) set.add(s.supplier.trim());
+    });
     return Array.from(set).filter(Boolean).sort();
-  }, [savedSellers, transactions]);
+  }, [savedSellers, transactions, warehouseOps.activeShipments]);
 
   const availablePaymentMethods = useMemo(() => {
     const set = new Set<string>(savedPaymentTypes);
+    BILINGUAL_PAYMENT_PILLS.forEach((p) => set.add(p.value));
     transactions.forEach((tx) => {
       if (tx.paymentType && tx.paymentType.trim()) set.add(tx.paymentType.trim());
     });
     return Array.from(set).filter(Boolean).sort();
   }, [savedPaymentTypes, transactions]);
 
-  const warehouseOps = useWarehouseOps();
-
   useEffect(() => {
     void pullFromServer();
     void warehouseOps.syncFromServer?.();
+
+    // Dynamically set the browser tab title and app logo (favicon)
+    document.title = "Bako's Master System ERP";
+    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    // High-end dynamic SVG favicon matching the ERP's primary sky-blue branding
+    link.href = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%230284c7"/><text x="50%25" y="54%25" font-size="65" font-weight="900" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" fill="%23ffffff">B</text></svg>';
   }, []);
 
   const hasActiveSalesFilters = Boolean(
@@ -1093,45 +1276,169 @@ export const TradeLedgerSection: React.FC = () => {
   const filteredShipments = useMemo(() => {
     const now = Date.now();
     const oneDay = 24 * 60 * 60 * 1000;
+    const searchLower = salesSearch.trim().toLowerCase();
+
+    const filtered = warehouseOps.activeShipments.filter((s) => {
+      if (s.isDeleted === 1) return false;
+
+      const matchedTx = transactions.find(
+        (t) => t.id === s.id || (t.code && s.batchCode && t.code.toLowerCase() === s.batchCode.toLowerCase())
+      );
+
+      // 0. AR / AP Filter (Customer Sales vs Supplier Bills)
+      if (historyTypeFilter === 'AR' && matchedTx?.isReceivable !== true) return false;
+      if (historyTypeFilter === 'AP' && matchedTx?.isReceivable === true) return false;
+
+      // 1. Search across code, customer/supplier name, notes, phone, and supplier references
+      if (searchLower) {
+        const codeStr = `${s.batchCode || ''} ${s.id || ''} ${matchedTx?.code || ''}`.toLowerCase();
+        const clientStr = `${s.supplier || ''} ${s.supplierName || ''} ${matchedTx?.client || ''}`.toLowerCase();
+        const notesStr = `${s.notes || ''} ${matchedTx?.notes || ''}`.toLowerCase();
+        const refStr = `${s.originCountry || ''} ${matchedTx?.legacyInvoiceRef || ''} ${matchedTx?.fundermaxBatchRef || ''}`.toLowerCase();
+        const phoneStr = `${s.supplierContact || ''} ${matchedTx?.clientPhone || ''}`.toLowerCase();
+        const itemsStr = (s.items || []).map((it) => it.description || '').join(' ').toLowerCase();
+        const matchedSearch =
+          codeStr.includes(searchLower) ||
+          clientStr.includes(searchLower) ||
+          notesStr.includes(searchLower) ||
+          refStr.includes(searchLower) ||
+          phoneStr.includes(searchLower) ||
+          itemsStr.includes(searchLower);
+        if (!matchedSearch) return false;
+      }
+
+      // 2. Status Filter
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt =
+        s.supplierDebtRemaining !== undefined
+          ? Number(s.supplierDebtRemaining)
+          : Math.max(0, invoiced - paid);
+      const status: 'completed' | 'partial' | 'debt' =
+        debt <= 0 ? 'completed' : paid > 0 ? 'partial' : 'debt';
+      if (salesStatusFilter !== 'all' && status !== salesStatusFilter) {
+        return false;
+      }
+
+      // 3. Seller Filter
+      if (salesSellerFilter !== 'all') {
+        const sellerVal = matchedTx?.seller || s.supplier || '';
+        if (sellerVal !== salesSellerFilter && s.supplier !== salesSellerFilter) {
+          return false;
+        }
+      }
+
+      // 4. Payment Method Filter
+      if (salesPaymentMethodFilter !== 'all') {
+        const pmVal = matchedTx?.paymentType || matchedTx?.bank || 'Supplier Bill';
+        if (pmVal !== salesPaymentMethodFilter) {
+          return false;
+        }
+      }
+
+      // 5. Timeframe Filter
+      const activeTimeFilter = salesTimeframeFilter !== 'all' ? salesTimeframeFilter : ledgerTimeFilter;
+      if (activeTimeFilter !== 'all') {
+        const rawDate = s.createdAt || s.arrivalDate || '';
+        const txTime = rawDate ? new Date(rawDate).getTime() : NaN;
+        if (isNaN(txTime) || txTime <= 0) return false;
+        const diff = now - txTime;
+
+        if (activeTimeFilter === '1day' && diff > oneDay) return false;
+        if (activeTimeFilter === '1week' && diff > 7 * oneDay) return false;
+        if (activeTimeFilter === '1month' && diff > 30 * oneDay) return false;
+        if (activeTimeFilter === '3months' && diff > 90 * oneDay) return false;
+        if (activeTimeFilter === '6months' && diff > 180 * oneDay) return false;
+        if (activeTimeFilter === '1year' && diff > 365 * oneDay) return false;
+        if (activeTimeFilter === '3years' && diff > 3 * 365 * oneDay) return false;
+        if (activeTimeFilter === '5years' && diff > 5 * 365 * oneDay) return false;
+
+        // Legacy compatibility
+        const txDateStr = rawDate.split('T')[0];
+        const todayStr = new Date(now).toISOString().split('T')[0];
+        const yesterdayStr = new Date(now - oneDay).toISOString().split('T')[0];
+        if (activeTimeFilter === 'today' && txDateStr !== todayStr && diff > oneDay) return false;
+        if (activeTimeFilter === 'yesterday' && txDateStr !== yesterdayStr) return false;
+        if (activeTimeFilter === 'week' && diff > 7 * oneDay) return false;
+        if (activeTimeFilter === 'month' && diff > 30 * oneDay) return false;
+        if (activeTimeFilter === 'year' && diff > 365 * oneDay) return false;
+      }
+
+      return true;
+    });
+
+    // 6. Sort Filter
+    return [...filtered].sort((a, b) => {
+      const aInvoiced = Number(a.totalInvoiceAmount) || 0;
+      const bInvoiced = Number(b.totalInvoiceAmount) || 0;
+      const aPaid = Number(a.amountPaidToSupplier) || 0;
+      const bPaid = Number(b.amountPaidToSupplier) || 0;
+      const aDebt = a.supplierDebtRemaining !== undefined ? Number(a.supplierDebtRemaining) : Math.max(0, aInvoiced - aPaid);
+      const bDebt = b.supplierDebtRemaining !== undefined ? Number(b.supplierDebtRemaining) : Math.max(0, bInvoiced - bPaid);
+      const aTime = new Date(a.createdAt || a.arrivalDate || 0).getTime() || 0;
+      const bTime = new Date(b.createdAt || b.arrivalDate || 0).getTime() || 0;
+
+      if (salesSortBy === 'oldest') return aTime - bTime;
+      if (salesSortBy === 'highestTotal') return bInvoiced - aInvoiced;
+      if (salesSortBy === 'highestDebt') return bDebt - aDebt;
+      return bTime - aTime;
+    });
+  }, [
+    warehouseOps.activeShipments,
+    transactions,
+    salesSearch,
+    salesStatusFilter,
+    salesSellerFilter,
+    salesPaymentMethodFilter,
+    salesTimeframeFilter,
+    ledgerTimeFilter,
+    salesSortBy,
+    historyTypeFilter,
+  ]);
+
+  // Derived filtered arrays respecting independent AP & AR time filters
+  const filteredSupplierShipments = useMemo(() => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
     return warehouseOps.activeShipments.filter((s) => {
       if (s.isDeleted === 1) return false;
-      if (ledgerTimeFilter === 'all') return true;
+      if (apTimeFilter === 'all') return true;
       const rawDate = s.createdAt || s.arrivalDate || '';
       const txTime = rawDate ? new Date(rawDate).getTime() : NaN;
       if (isNaN(txTime) || txTime <= 0) return false;
       const diff = now - txTime;
-      if (ledgerTimeFilter === 'today') return diff <= oneDay;
-      if (ledgerTimeFilter === 'week') return diff <= 7 * oneDay;
-      if (ledgerTimeFilter === 'month') return diff <= 30 * oneDay;
-      if (ledgerTimeFilter === '3months') return diff <= 90 * oneDay;
-      if (ledgerTimeFilter === '6months') return diff <= 180 * oneDay;
-      if (ledgerTimeFilter === 'year') return diff <= 365 * oneDay;
+      if (apTimeFilter === '1day' && diff > oneDay) return false;
+      if (apTimeFilter === '1week' && diff > 7 * oneDay) return false;
+      if (apTimeFilter === '1month' && diff > 30 * oneDay) return false;
+      if (apTimeFilter === '3months' && diff > 90 * oneDay) return false;
+      if (apTimeFilter === '6months' && diff > 180 * oneDay) return false;
+      if (apTimeFilter === '1year' && diff > 365 * oneDay) return false;
       return true;
     });
-  }, [warehouseOps.activeShipments, ledgerTimeFilter]);
+  }, [warehouseOps.activeShipments, apTimeFilter]);
 
   const totalSupplierInvoiced = useMemo(() => {
-    return filteredShipments.reduce((acc, s) => {
+    return filteredSupplierShipments.reduce((acc, s) => {
       if (s.isDeleted === 1) return acc;
       const invoiced = Number(s.totalInvoiceAmount) || 0;
       if (invoiced <= 0) return acc;
       const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
       return acc + convertCurrency(invoiced, curr as CurrencyCode, posDraft.activeCurrency);
     }, 0);
-  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredSupplierShipments, convertCurrency, posDraft.activeCurrency]);
 
   const totalSupplierPaid = useMemo(() => {
-    return filteredShipments.reduce((acc, s) => {
+    return filteredSupplierShipments.reduce((acc, s) => {
       if (s.isDeleted === 1) return acc;
       const paid = Number(s.amountPaidToSupplier) || 0;
       if (paid <= 0) return acc;
       const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
       return acc + convertCurrency(paid, curr as CurrencyCode, posDraft.activeCurrency);
     }, 0);
-  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredSupplierShipments, convertCurrency, posDraft.activeCurrency]);
 
   const fundermaxSupplierDebt = useMemo(() => {
-    return filteredShipments.reduce((acc, s) => {
+    return filteredSupplierShipments.reduce((acc, s) => {
       if (s.isDeleted === 1) return acc;
       const isFmax = !s.supplier || s.supplier.toLowerCase().includes('fundermax');
       if (!isFmax) return acc;
@@ -1142,10 +1449,10 @@ export const TradeLedgerSection: React.FC = () => {
       const curr = s.invoiceCurrency || 'EUR';
       return acc + convertCurrency(debt, curr as CurrencyCode, posDraft.activeCurrency);
     }, 0);
-  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredSupplierShipments, convertCurrency, posDraft.activeCurrency]);
 
   const totalSupplierDebt = useMemo(() => {
-    return filteredShipments.reduce((acc, s) => {
+    return filteredSupplierShipments.reduce((acc, s) => {
       if (s.isDeleted === 1) return acc;
       const invoiced = Number(s.totalInvoiceAmount) || 0;
       const paid = Number(s.amountPaidToSupplier) || 0;
@@ -1154,32 +1461,143 @@ export const TradeLedgerSection: React.FC = () => {
       const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
       return acc + convertCurrency(debt, curr as CurrencyCode, posDraft.activeCurrency);
     }, 0);
-  }, [filteredShipments, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredSupplierShipments, convertCurrency, posDraft.activeCurrency]);
 
   // Derived arrays for AR (Customer Sales) vs AP (Supplier Payables)
   const activeCustomerSales = useMemo(() => {
     return transactions.filter(tx => tx.isDeleted !== 1 && tx.isReceivable === true);
   }, [transactions]);
 
+  const filteredCustomerSales = useMemo(() => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    return activeCustomerSales.filter((tx) => {
+      if (arTimeFilter === 'all') return true;
+      const rawDate = tx.timestamp || tx.lastUpdated || '';
+      const txTime = rawDate ? new Date(rawDate).getTime() : NaN;
+      if (isNaN(txTime) || txTime <= 0) return false;
+      const diff = now - txTime;
+      if (arTimeFilter === '1day' && diff > oneDay) return false;
+      if (arTimeFilter === '1week' && diff > 7 * oneDay) return false;
+      if (arTimeFilter === '1month' && diff > 30 * oneDay) return false;
+      if (arTimeFilter === '3months' && diff > 90 * oneDay) return false;
+      if (arTimeFilter === '6months' && diff > 180 * oneDay) return false;
+      if (arTimeFilter === '1year' && diff > 365 * oneDay) return false;
+      return true;
+    });
+  }, [activeCustomerSales, arTimeFilter]);
+
   // KPI Calculations for Accounts Receivable (Customer Debt)
   const totalCustomerInvoiced = useMemo(() => {
-    return activeCustomerSales.reduce((acc, tx) => {
+    return filteredCustomerSales.reduce((acc, tx) => {
       return acc + convertCurrency(tx.sellingAmount || 0, tx.currency || 'USD', posDraft.activeCurrency);
     }, 0);
-  }, [activeCustomerSales, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredCustomerSales, convertCurrency, posDraft.activeCurrency]);
 
   const totalCustomerPaid = useMemo(() => {
-    return activeCustomerSales.reduce((acc, tx) => {
+    return filteredCustomerSales.reduce((acc, tx) => {
       return acc + convertCurrency(tx.amountPaidNow || 0, tx.currency || 'USD', posDraft.activeCurrency);
     }, 0);
-  }, [activeCustomerSales, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredCustomerSales, convertCurrency, posDraft.activeCurrency]);
 
   const totalCustomerDebt = useMemo(() => {
-    return activeCustomerSales.reduce((acc, tx) => {
+    return filteredCustomerSales.reduce((acc, tx) => {
       const debt = tx.combinedTotalDebt || tx.amountOwed || 0;
       return acc + convertCurrency(debt, tx.currency || 'USD', posDraft.activeCurrency);
     }, 0);
-  }, [activeCustomerSales, convertCurrency, posDraft.activeCurrency]);
+  }, [filteredCustomerSales, convertCurrency, posDraft.activeCurrency]);
+
+  // Executive Analytics aggregated datasets
+  const analyticsData = useMemo(() => {
+    const dateMap = new Map<string, { date: string; revenue: number; payables: number; rawTime: number }>();
+
+    transactions.forEach((tx) => {
+      if (tx.isDeleted === 1 || !tx.isReceivable) return;
+      const rawDate = tx.timestamp || tx.lastUpdated || '';
+      if (!rawDate) return;
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return;
+      const key = rawDate.split('T')[0];
+      const rev = convertCurrency(tx.sellingAmount || 0, tx.currency || 'USD', posDraft.activeCurrency);
+      const curr = dateMap.get(key) || { date: key, revenue: 0, payables: 0, rawTime: d.getTime() };
+      curr.revenue += rev;
+      dateMap.set(key, curr);
+    });
+
+    warehouseOps.activeShipments.forEach((s) => {
+      if (s.isDeleted === 1) return;
+      const rawDate = s.createdAt || s.arrivalDate || '';
+      if (!rawDate) return;
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return;
+      const key = rawDate.split('T')[0];
+      const inv = Number(s.totalInvoiceAmount) || 0;
+      const currCode = (s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD')) as CurrencyCode;
+      const pay = convertCurrency(inv, currCode, posDraft.activeCurrency);
+      const curr = dateMap.get(key) || { date: key, revenue: 0, payables: 0, rawTime: d.getTime() };
+      curr.payables += pay;
+      dateMap.set(key, curr);
+    });
+
+    const revenueVsPayables = Array.from(dateMap.values())
+      .sort((a, b) => a.rawTime - b.rawTime)
+      .slice(-14)
+      .map((item) => ({
+        date: item.date.slice(5),
+        revenue: Math.round(item.revenue),
+        payables: Math.round(item.payables),
+      }));
+
+    const totalPaidCombined = totalCustomerPaid + totalSupplierPaid;
+    const totalUnpaidCombined = totalCustomerDebt + totalSupplierDebt;
+    const debtDistribution = [
+      { name: isKu ? 'دراو' : 'Paid', value: Math.round(totalPaidCombined) },
+      { name: isKu ? 'قەرزی ماوە' : 'Unpaid (Debt)', value: Math.round(totalUnpaidCombined) },
+    ].filter((item) => item.value > 0);
+
+    const customerMap = new Map<string, number>();
+    transactions.forEach((tx) => {
+      if (tx.isDeleted === 1 || !tx.isReceivable) return;
+      const name = (tx.client || 'Unknown Customer').trim();
+      const val = convertCurrency(tx.sellingAmount || 0, tx.currency || 'USD', posDraft.activeCurrency);
+      customerMap.set(name, (customerMap.get(name) || 0) + val);
+    });
+    const topCustomers = Array.from(customerMap.entries())
+      .map(([name, total]) => ({ name, total: Math.round(total) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    const supplierMap = new Map<string, number>();
+    warehouseOps.activeShipments.forEach((s) => {
+      if (s.isDeleted === 1) return;
+      const name = (s.supplier || s.supplierName || 'FunderMax GmbH').trim();
+      const inv = Number(s.totalInvoiceAmount) || 0;
+      const currCode = (s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD')) as CurrencyCode;
+      const val = convertCurrency(inv, currCode, posDraft.activeCurrency);
+      supplierMap.set(name, (supplierMap.get(name) || 0) + val);
+    });
+    const topSuppliers = Array.from(supplierMap.entries())
+      .map(([name, total]) => ({ name, total: Math.round(total) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    return {
+      revenueVsPayables,
+      debtDistribution,
+      topCustomers,
+      topSuppliers,
+    };
+  }, [
+    transactions,
+    warehouseOps.activeShipments,
+    totalCustomerPaid,
+    totalSupplierPaid,
+    totalCustomerDebt,
+    totalSupplierDebt,
+    convertCurrency,
+    posDraft.activeCurrency,
+    isKu,
+  ]);
 
   const supplierInvoicesWithDebtCount = useMemo(() => {
     return filteredShipments.filter((s) => {
@@ -1253,15 +1671,15 @@ export const TradeLedgerSection: React.FC = () => {
             <span className="hidden sm:inline">{t.mathAudit}</span>
           </button>
 
-          {/* Visual Charts Modal Trigger for Sales */}
+          {/* Executive Analytics Modal Trigger */}
           <button
             type="button"
-            onClick={() => openVisualCharts('sales')}
+            onClick={() => setIsExecutiveAnalyticsOpen(true)}
             className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 text-xs font-bold rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer shadow-2xs"
-            title={isKu ? 'چارت و شیکاری دارایی فرۆشتن' : 'Sales Charts'}
+            title={isKu ? 'شیکاری بەڕێوەبردن' : 'Executive Analytics'}
           >
             <BarChart3 className="w-4 h-4 text-sky-500" />
-            <span className="hidden sm:inline">{isKu ? 'چارتەکانی فرۆشتن' : 'Sales Charts'}</span>
+            <span className="hidden sm:inline">{isKu ? 'شیکاری بەڕێوەبردن' : 'Executive Analytics'}</span>
           </button>
         </div>
       </div>
@@ -1383,6 +1801,20 @@ export const TradeLedgerSection: React.FC = () => {
                 </p>
               </div>
             </div>
+            <select
+              value={arTimeFilter}
+              onChange={(e) => setArTimeFilter(e.target.value)}
+              className="h-8 px-2 text-[11px] font-bold rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-300 dark:border-emerald-750 text-emerald-800 dark:text-emerald-300 cursor-pointer shadow-xs focus:outline-none"
+              title="Filter Accounts Receivable"
+            >
+              <option value="all">All Time</option>
+              <option value="1day">1 Day</option>
+              <option value="1week">1 Week</option>
+              <option value="1month">1 Month</option>
+              <option value="3months">3 Months</option>
+              <option value="6months">6 Months</option>
+              <option value="1year">1 Year</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4 relative z-10">
@@ -1420,13 +1852,29 @@ export const TradeLedgerSection: React.FC = () => {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsSupplierPayablesOpen(true)}
-              className="text-xs font-bold text-rose-700 dark:text-rose-400 hover:text-rose-900 dark:hover:text-rose-300 underline underline-offset-4 cursor-pointer"
-            >
-              Ledger →
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={apTimeFilter}
+                onChange={(e) => setApTimeFilter(e.target.value)}
+                className="h-8 px-2 text-[11px] font-bold rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-300 dark:border-rose-750 text-rose-800 dark:text-rose-300 cursor-pointer shadow-xs focus:outline-none"
+                title="Filter Accounts Payable"
+              >
+                <option value="all">All Time</option>
+                <option value="1day">1 Day</option>
+                <option value="1week">1 Week</option>
+                <option value="1month">1 Month</option>
+                <option value="3months">3 Months</option>
+                <option value="6months">6 Months</option>
+                <option value="1year">1 Year</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setIsSupplierPayablesOpen(true)}
+                className="text-xs font-bold text-rose-700 dark:text-rose-400 hover:text-rose-900 dark:hover:text-rose-300 underline underline-offset-4 cursor-pointer"
+              >
+                Ledger →
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 relative z-10">
@@ -1453,25 +1901,16 @@ export const TradeLedgerSection: React.FC = () => {
         <div className={`absolute top-0 left-0 right-0 h-2 rounded-t-3xl bg-gradient-to-r ${txFormMode === 'AR' ? 'from-sky-500 to-emerald-500' : 'from-rose-500 to-amber-500'}`} />
         {/* Prominent Edit Mode Warning Banner */}
         {editingTxId && (
-          <div className="w-full bg-amber-500/15 border-2 border-amber-500 text-amber-900 dark:text-amber-200 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2.5">
-              <span className="text-xl shrink-0">⚠️</span>
-              <div>
-                <p className="font-bold text-sm md:text-base">
-                  {isKu ? `ئێستا دەستکاری وەسڵی ژمارە #${editingInvoiceCode} دەکەیت` : `Currently Editing Invoice #${editingInvoiceCode}`}
-                </p>
-                <p className="text-xs opacity-80">
-                  {isKu ? 'هەر گۆڕانکارییەک پاشەکەوت دەبێت لەسەر هەمان وەسڵ' : 'Saving will overwrite this existing transaction record.'}
-                </p>
-              </div>
+          <div className="w-full bg-amber-500/15 border-2 border-amber-500 text-amber-900 dark:text-amber-200 p-4 rounded-xl flex items-center gap-3 mb-4 animate-in fade-in duration-200">
+            <span className="text-xl shrink-0">⚠️</span>
+            <div>
+              <p className="font-bold text-sm md:text-base">
+                {isKu ? `ئێستا دەستکاری وەسڵی ژمارە #${editingInvoiceCode} دەکەیت` : `Currently Editing Invoice #${editingInvoiceCode}`}
+              </p>
+              <p className="text-xs opacity-80">
+                {isKu ? 'هەر گۆڕانکارییەک پاشەکەوت دەبێت لەسەر هەمان وەسڵ' : 'Saving will overwrite this existing transaction record.'}
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={handleCancelEdit}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-lg text-xs md:text-sm font-bold shadow-md transition cursor-pointer shrink-0"
-            >
-              {isKu ? 'هەڵوەشاندنەوە و وەسڵی نوێ' : 'Cancel & Start New'}
-            </button>
           </div>
         )}
 
@@ -1485,32 +1924,35 @@ export const TradeLedgerSection: React.FC = () => {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            {!editingTxId && (
-              <div className="flex p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 mr-4">
-                <button type="button" onClick={() => setTxFormMode('AR')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${txFormMode === 'AR' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-                  Customer Sale
+            {!editingTxId ? (
+              <>
+                <div className="flex p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 mr-4">
+                  <button type="button" onClick={() => setTxFormMode('AR')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${txFormMode === 'AR' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+                    Customer Sale
+                  </button>
+                  <button type="button" onClick={() => setTxFormMode('AP')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${txFormMode === 'AP' ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+                    Supplier Bill
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownManagerOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                  title="Manage and clean all saved dropdown presets"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Manage Dropdowns</span>
                 </button>
-                <button type="button" onClick={() => setTxFormMode('AP')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${txFormMode === 'AP' ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-                  Supplier Bill
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setIsDropdownManagerOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
-              title="Manage and clean all saved dropdown presets"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Manage Dropdowns</span>
-            </button>
-            {editingTxId && (
+              </>
+            ) : (
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100 hover:bg-amber-100/60 dark:hover:bg-amber-950/40 rounded-xl border border-amber-300 dark:border-amber-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 text-xs md:text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl shadow-sm transition active:scale-95 cursor-pointer"
+                title="Cancel editing and start a new transaction"
               >
-                {isKu ? 'هەڵوەشاندنەوە' : 'Cancel Edit'}
+                <X className="w-4 h-4" />
+                <span>{isKu ? 'هەڵوەشاندنەوە و وەسڵی نوێ' : 'Cancel & Start New'}</span>
               </button>
             )}
           </div>
@@ -1536,12 +1978,30 @@ export const TradeLedgerSection: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex justify-between items-center">
                   <span>Phone Number</span>
                   <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                    <HelpCircle className="w-3 h-3" /> WhatsApp & Viber (Optional)
+                    <HelpCircle className="w-3 h-3" /> {phoneCountryCode === '+86' ? 'WeChat & Viber (Optional)' : 'WhatsApp & Viber (Optional)'}
                   </span>
                 </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="tel" value={posDraft.clientPhone} onChange={(e) => setPosDraft((prev) => ({ ...prev, clientPhone: e.target.value }))} placeholder="0750 000 0000" className="w-full h-11 pl-10 pr-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500 transition-shadow" />
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <div className="sm:col-span-5">
+                    <SearchableDropdown
+                      options={COUNTRY_CODE_OPTIONS}
+                      value={phoneCountryCode}
+                      onChange={(v) => setPhoneCountryCode(v || '+964')}
+                      placeholder="Country..."
+                      allowDelete={false}
+                      clearable={false}
+                    />
+                  </div>
+                  <div className="relative sm:col-span-7">
+                    <Phone className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="tel"
+                      value={posDraft.clientPhone}
+                      onChange={(e) => setPosDraft({ ...posDraft, clientPhone: e.target.value })}
+                      placeholder="750 000 0000"
+                      className="w-full h-11 pl-10 pr-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -1834,7 +2294,7 @@ export const TradeLedgerSection: React.FC = () => {
               <Calculator className="w-3 h-3 absolute right-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
             </div>
             <div className="col-span-12 mt-1">
-              <button ref={addRowBtnRef} type="button" onClick={handleAddLineItem} disabled={!posDraft.rowProduct || currentRowPrice === 0} className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-500 text-white font-black tracking-widest text-sm shadow-md disabled:opacity-40 transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <button ref={addRowBtnRef} type="button" onClick={handleAddLineItem} disabled={!posDraft.rowProduct || currentRowPrice === 0} className="w-full h-11 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:bg-sky-600/40 text-white disabled:text-white/70 font-black tracking-widest text-sm shadow-md disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer">
                 <Plus className="w-5 h-5" />
                 {isKu ? 'زیادکردن بۆ وەسڵ' : 'ADD TO INVOICE'}
               </button>
@@ -1971,7 +2431,7 @@ export const TradeLedgerSection: React.FC = () => {
               type="button"
               onClick={handleAddLineItem}
               disabled={!posDraft.rowType && !posDraft.rowProduct && currentRowPrice === 0}
-              className="h-12 px-5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-sm shadow-sm disabled:opacity-40 transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+              className="h-12 px-5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:bg-sky-600/40 text-white disabled:text-white/70 font-bold text-sm shadow-sm disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
             >
               <Plus className="w-5 h-5" />
               <span>{isKu ? 'زیادکردن' : 'Add'}</span>
@@ -2391,7 +2851,11 @@ export const TradeLedgerSection: React.FC = () => {
                 <>
                   <button
                     onClick={() => handleSaveInvoice(false)}
-                    className={`w-full h-14 rounded-2xl text-white font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-transform active:scale-95 ${txFormMode === 'AR' ? 'bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-500' : 'bg-slate-900 hover:bg-slate-800 dark:bg-rose-600 dark:hover:bg-rose-500'}`}
+                    className={`w-full h-14 rounded-2xl text-white font-black text-sm uppercase tracking-widest shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                      txFormMode === 'AR'
+                        ? 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20'
+                        : 'bg-rose-500 hover:bg-rose-600 dark:bg-rose-600/80 dark:hover:bg-rose-600 shadow-rose-500/20'
+                    }`}
                   >
                     <ReceiptText className="w-5 h-5" />
                     {txFormMode === 'AR' ? 'Save Customer Sale' : 'Save Supplier Bill'}
@@ -2433,7 +2897,7 @@ export const TradeLedgerSection: React.FC = () => {
               {t.invoiceHistory}
             </h2>
             <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-              {`${warehouseOps.activeShipments.length} entries`}
+              {`${filteredShipments.length} entries`}
             </span>
             <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
               {isKu ? 'کۆی پسوولەکان:' : 'Invoiced:'} {formatMoney(filteredTotalRevenue, posDraft.activeCurrency)}
@@ -2443,23 +2907,62 @@ export const TradeLedgerSection: React.FC = () => {
             </span>
           </div>
 
-          {userPermissions?.canExport !== false && (
-            <button
-              type="button"
-              onClick={() => exportTransactionsToCSV([], language)}
-              disabled={warehouseOps.activeShipments.length === 0}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer self-start sm:self-auto shrink-0 disabled:opacity-50"
-              title={isKu ? 'هەناردەکردنی فایلی Excel / CSV بۆ ژمێریاری و وردبینی' : 'Export filtered sales to Excel / CSV for accountant audit'}
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
-              <span>{isKu ? 'هەناردەکردنی Excel / CSV' : 'Export Excel / CSV'}</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-auto">
+            {/* Customer Sales (AR) vs Supplier Bills (AP) Filter */}
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-xs">
+              <button
+                type="button"
+                onClick={() => setHistoryTypeFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  historyTypeFilter === 'all'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {isKu ? 'هەموو' : 'All'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryTypeFilter('AR')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  historyTypeFilter === 'AR'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {isKu ? 'فرۆشتن (AR)' : 'Customer Sales (AR)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryTypeFilter('AP')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  historyTypeFilter === 'AP'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {isKu ? 'کڕین (AP)' : 'Supplier Bills (AP)'}
+              </button>
+            </div>
+
+            {userPermissions?.canExport !== false && (
+              <button
+                type="button"
+                onClick={() => exportTransactionsToCSV(transactions, language)}
+                disabled={filteredShipments.length === 0}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+                title={isKu ? 'هەناردەکردنی فایلی Excel / CSV بۆ ژمێریاری و وردبینی' : 'Export filtered sales to Excel / CSV for accountant audit'}
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+                <span>{isKu ? 'هەناردەکردنی Excel / CSV' : 'Export Excel / CSV'}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Controls Bar */}
-        <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850/80 border border-slate-200 dark:border-slate-750 flex flex-wrap items-center justify-between gap-2.5 select-none text-xs">
-          <div className="flex items-center gap-2 flex-1 max-w-5xl flex-wrap">
+        <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850/80 border border-slate-200 dark:border-slate-750 flex flex-col sm:flex-row items-center justify-between gap-3 select-none text-xs">
+          <div className="flex items-center gap-2 flex-1 flex-wrap w-full sm:w-auto">
             {/* Search Input */}
             <div className="relative min-w-[160px] flex-1">
               <Search className="w-3.5 h-3.5 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -2538,20 +3041,22 @@ export const TradeLedgerSection: React.FC = () => {
             )}
 
             {/* Timeframe Filter */}
-            <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-              <select
-                value={salesTimeframeFilter}
-                onChange={(e) => setSalesTimeframeFilter(e.target.value as 'all' | 'today' | 'yesterday' | 'week' | 'month')}
-                className="bg-transparent focus:outline-none cursor-pointer"
-                title="Filter by Date / Period"
-              >
-                <option value="all" className="dark:bg-slate-800">{isKu ? 'هەموو کاتێک' : 'All Time'}</option>
-                <option value="today" className="dark:bg-slate-800">{isKu ? 'ئەمڕۆ' : 'Today'}</option>
-                <option value="yesterday" className="dark:bg-slate-800">{isKu ? 'دوێنێ' : 'Yesterday'}</option>
-                <option value="week" className="dark:bg-slate-800">{isKu ? 'ئەم هەفتەیە' : 'Last 7 Days'}</option>
-                <option value="month" className="dark:bg-slate-800">{isKu ? 'ئەم مانگە' : 'This Month'}</option>
-              </select>
-            </div>
+            <select
+              value={salesTimeframeFilter}
+              onChange={(e) => setSalesTimeframeFilter(e.target.value)}
+              className="h-11 px-3 text-xs font-bold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
+              title="Filter by Time"
+            >
+              <option value="all">All Time</option>
+              <option value="1day">1 Day</option>
+              <option value="1week">1 Week</option>
+              <option value="1month">1 Month</option>
+              <option value="3months">3 Months</option>
+              <option value="6months">6 Months</option>
+              <option value="1year">1 Year</option>
+              <option value="3years">3 Years</option>
+              <option value="5years">5 Years</option>
+            </select>
 
             {/* Sort Filter */}
             <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2 h-8 text-xs font-semibold text-slate-700 dark:text-slate-200 shrink-0">
@@ -2580,37 +3085,49 @@ export const TradeLedgerSection: React.FC = () => {
                 <span>{isKu ? 'سڕینەوەی فلتەر' : 'Clear Filters'}</span>
               </button>
             )}
+          </div>
 
-            {/* Receipt Sharing Language Toggle (Kurdish / English) */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-0.5 h-8 text-xs shrink-0 ms-auto">
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 px-1 hidden sm:inline">
-                {isKu ? 'زمانی ناردن:' : 'Share:'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setReceiptShareLang('ku')}
-                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  receiptShareLang === 'ku'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Send Receipts in Kurdish (کوردی)"
-              >
-                کوردی
-              </button>
-              <button
-                type="button"
-                onClick={() => setReceiptShareLang('en')}
-                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  receiptShareLang === 'en'
-                    ? 'bg-sky-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Send Receipts in English (ئینگلیزی)"
-              >
-                EN
-              </button>
-            </div>
+          {/* Compact Share Language Selector in Filter Bar */}
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1 h-11 text-xs shrink-0 shadow-2xs self-end sm:self-center">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+              {isKu ? 'زمان:' : 'Share:'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setReceiptShareLang('ku')}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                receiptShareLang === 'ku'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Kurdish"
+            >
+              کوردی
+            </button>
+            <button
+              type="button"
+              onClick={() => setReceiptShareLang('en')}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                receiptShareLang === 'en'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="English"
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              onClick={() => setReceiptShareLang('ar')}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                receiptShareLang === 'ar'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Arabic"
+            >
+              عربي
+            </button>
           </div>
         </div>
 
@@ -2619,27 +3136,30 @@ export const TradeLedgerSection: React.FC = () => {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
               <tr>
-                <th className="px-3.5 py-3">{isKu ? 'کۆد / بەروار' : 'Code / Date'}</th>
-                <th className="px-3.5 py-3">{isKu ? 'کڕیار' : 'Customer'}</th>
-                <th className="px-3.5 py-3">{isKu ? 'ڕوونکردنەوە (Notes)' : 'Notes / ڕوونکردنەوە'}</th>
-                <th className="px-3.5 py-3">{isKu ? 'پوختە' : 'Summary'}</th>
-                <th className="px-3.5 py-3">{isKu ? 'فرۆشیار / شێواز' : 'Seller / Method'}</th>
-                <th className="px-3.5 py-3 text-right">{isKu ? 'کۆی گشتی' : 'Net Total'}</th>
-                <th className="px-3.5 py-3 text-right">{isKu ? 'پارەی وەرگیراو' : 'RECEIVED / پارەی وەرگیراو'}</th>
-                <th className="px-3.5 py-3 text-right">{isKu ? 'قەرزی ماوە' : 'UNPAID BALANCE / قەرزی ماوە'}</th>
-                <th className="px-3.5 py-3 text-center">{isKu ? 'دۆخ' : 'Status'}</th>
-                <th className="px-3.5 py-3 text-center">{isKu ? 'کردارەکان' : 'Actions'}</th>
+                <th className="px-2.5 py-3">{isKu ? 'کۆد / بەروار' : 'Code / Date'}</th>
+                <th className="px-2.5 py-3">{isKu ? 'کڕیار' : 'Customer'}</th>
+                <th className="px-2.5 py-3">{isKu ? 'ڕوونکردنەوە (Notes)' : 'Notes / ڕوونکردنەوە'}</th>
+                <th className="px-2.5 py-3">{isKu ? 'پوختە' : 'Summary'}</th>
+                <th className="px-2.5 py-3">{isKu ? 'فرۆشیار / شێواز' : 'Seller / Method'}</th>
+                <th className="px-2.5 py-3 text-right">{isKu ? 'کۆی گشتی' : 'Net Total'}</th>
+                <th className="px-2.5 py-3 text-right">{isKu ? 'پارەی وەرگیراو' : 'RECEIVED / پارەی وەرگیراو'}</th>
+                <th className="px-2.5 py-3 text-right">{isKu ? 'قەرزی ماوە' : 'UNPAID BALANCE / قەرزی ماوە'}</th>
+                <th className="px-2.5 py-3 text-center">{isKu ? 'دۆخ' : 'Status'}</th>
+                <th className="px-2.5 py-3 text-center">{isKu ? 'کردارەکان' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-              {warehouseOps.activeShipments.length === 0 ? (
+              {filteredShipments.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
-                    No ledger entries recorded yet.
+                    {isKu ? 'هیچ پسوولەیەک نەدۆزرایەوە.' : 'No ledger entries match the current filters.'}
                   </td>
                 </tr>
               ) : (
-                warehouseOps.activeShipments.map((s) => {
+                filteredShipments.map((s) => {
+                  const matchedTx = transactions.find(
+                    (t) => t.id === s.id || (t.code && s.batchCode && t.code.toLowerCase() === s.batchCode.toLowerCase())
+                  );
                   const invoiced = Number(s.totalInvoiceAmount) || 0;
                   const paid = Number(s.amountPaidToSupplier) || 0;
                   const debt =
@@ -2671,28 +3191,28 @@ export const TradeLedgerSection: React.FC = () => {
                     id: s.id,
                     code: s.batchCode || s.id.slice(-6),
                     timestamp,
-                    panelType: 'Supplier Shipment',
+                    panelType: matchedTx?.panelType || 'Supplier Shipment',
                     material: firstDesc,
                     quantity: totalQty || 1,
                     unit: firstUnit,
-                    sellingType: 'Supplier Purchase',
-                    seller: '—',
-                    bank: 'Supplier Wire / LC',
-                    paymentType: 'Supplier Bill',
+                    sellingType: matchedTx?.sellingType || 'Supplier Purchase',
+                    seller: matchedTx?.seller || '—',
+                    bank: matchedTx?.bank || 'Supplier Wire / LC',
+                    paymentType: matchedTx?.paymentType || 'Supplier Bill',
                     currency: txCur,
                     sellingAmount: invoiced,
                     costPrice: invoiced,
-                    discountDollars: 0,
-                    discountPercentage: 0,
+                    discountDollars: matchedTx?.discountDollars || 0,
+                    discountPercentage: matchedTx?.discountPercentage || 0,
                     totalAfterDiscount: invoiced,
                     amountPaidNow: paid,
                     amountOwed: debt,
-                    oldUnpaidDebt: 0,
+                    oldUnpaidDebt: matchedTx?.oldUnpaidDebt || 0,
                     combinedTotalDebt: debt,
                     grossProfit: 0,
                     profitMargin: 0,
-                    notes: s.notes || '',
-                    images: s.attachments || [],
+                    notes: s.notes || matchedTx?.notes || '',
+                    images: s.attachments || matchedTx?.images || [],
                     status,
                     lastUpdated: s.updatedAt || timestamp,
                     items: (s.items || []).map((it, idx) => {
@@ -2710,14 +3230,18 @@ export const TradeLedgerSection: React.FC = () => {
                         fundermaxBatchRef: s.batchCode,
                       };
                     }),
-                    client: s.supplier || s.supplierName || 'FunderMax GmbH',
-                    clientPhone: s.supplierContact || '',
-                    legacyInvoiceRef: s.originCountry || '',
+                    client: s.supplier || s.supplierName || matchedTx?.client || 'FunderMax GmbH',
+                    clientPhone: s.supplierContact || matchedTx?.clientPhone || '',
+                    phoneCountryCode: matchedTx?.phoneCountryCode,
+                    legacyInvoiceRef: s.originCountry || matchedTx?.legacyInvoiceRef || '',
                     fundermaxBatchRef: s.batchCode,
+                    isReceivable: matchedTx?.isReceivable,
                   };
 
                   const isExpanded = expandedTxIds.has(tx.id);
                   const isDebt = debt > 0;
+                  const phoneStr = (tx?.clientPhone || (tx as any)?.supplierContact || s?.supplierContact || matchedTx?.clientPhone || '').replace(/\D/g, '');
+                  const isChina = (tx?.phoneCountryCode === '+86' || matchedTx?.phoneCountryCode === '+86') || (editingTxId === tx?.id && phoneCountryCode === '+86') || phoneStr.startsWith('86') || phoneStr.startsWith('086') || (tx?.clientPhone || '').startsWith('+86') || (s?.supplierContact || '').startsWith('+86');
 
                   return (
                     <React.Fragment key={tx.id}>
@@ -2725,8 +3249,8 @@ export const TradeLedgerSection: React.FC = () => {
                         onClick={() => toggleExpandTx(tx.id)}
                         className="transition-colors cursor-pointer select-none hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                       >
-                        <td className="px-3.5 py-3">
-                          <div className="flex items-center gap-2.5">
+                        <td className="px-2.5 py-2.5">
+                          <div className="flex items-center gap-2">
                             {tx.images && tx.images.length > 0 ? (
                               <img
                                 src={tx.images[0]}
@@ -2735,12 +3259,12 @@ export const TradeLedgerSection: React.FC = () => {
                                   e.stopPropagation();
                                   setZoomedImage({ url: tx.images![0], title: `Invoice ${tx.code || tx.id} - Receipt` });
                                 }}
-                                className="w-9 h-9 rounded border border-slate-200 dark:border-slate-700 object-cover cursor-pointer hover:scale-105 transition shrink-0 shadow-2xs"
+                                className="w-8 h-8 rounded border border-slate-200 dark:border-slate-700 object-cover cursor-pointer hover:scale-105 transition shrink-0 shadow-2xs"
                                 title={isKu ? 'کرتە بکە بۆ پیشاندانی پسوولە' : 'Click to view receipt'}
                               />
                             ) : null}
                             <div className="min-w-0">
-                              <div className="font-bold font-mono text-slate-900 dark:text-white">
+                              <div className="font-bold font-mono text-slate-900 dark:text-white text-xs">
                                 {tx.code || tx.id.slice(-6)}
                               </div>
                               <div className="text-[11px] text-slate-500">
@@ -2749,13 +3273,13 @@ export const TradeLedgerSection: React.FC = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-3.5 py-3">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-slate-900 dark:text-white">
+                        <td className="px-2.5 py-2.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900 dark:text-white text-xs">
                               {tx.client || 'FunderMax GmbH'}
                             </span>
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                              {isKu ? 'پسوولەی دابینکەر' : 'Supplier Bill'}
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              {tx.isReceivable ? (isKu ? 'فرۆشتنی کڕیار' : 'Customer Sale') : (isKu ? 'پسوولەی دابینکەر' : 'Supplier Bill')}
                             </span>
                           </div>
                           {tx.clientPhone ? (
@@ -2771,10 +3295,10 @@ export const TradeLedgerSection: React.FC = () => {
                             <span className="text-[11px] text-slate-400">—</span>
                           )}
                         </td>
-                        <td className="px-3.5 py-3 text-xs">
+                        <td className="px-2.5 py-2.5 text-xs max-w-[120px]">
                           {tx.notes ? (
                             <span
-                              className="max-w-[150px] truncate block text-slate-500 dark:text-slate-400 text-xs cursor-help font-normal"
+                              className="max-w-[120px] truncate block text-slate-500 dark:text-slate-400 text-xs cursor-pointer font-normal"
                               title={tx.notes}
                             >
                               {tx.notes}
@@ -2783,45 +3307,43 @@ export const TradeLedgerSection: React.FC = () => {
                             <span className="text-slate-400 text-[11px]">—</span>
                           )}
                         </td>
-                        <td className="px-3.5 py-3">
-                          <div className="text-slate-900 dark:text-white font-medium">
+                        <td className="px-2.5 py-2.5">
+                          <div className="text-slate-900 dark:text-white font-medium text-xs max-w-[140px] truncate" title={tx.material || tx.panelType}>
                             {tx.material || tx.panelType}
                           </div>
                           <div className="text-[11px] text-slate-500">
                             {tx.quantity} {tx.unit} • {tx.sellingType}
                             {tx.items && tx.items.length > 1 && (
-                              <span className="ms-1.5 px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold">
+                              <span className="ms-1 px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold">
                                 {tx.items.length} کاڵا
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-3.5 py-3 text-xs text-slate-600 dark:text-slate-400">
-                          <div className="font-medium text-slate-800 dark:text-slate-200">{tx.seller || '—'}</div>
-                          <div className="text-[11px] text-slate-500">{tx.bank || tx.paymentType || '—'}</div>
+                        <td className="px-2.5 py-2.5 text-xs text-slate-600 dark:text-slate-400">
+                          <div className="font-medium text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{tx.seller || '—'}</div>
+                          <div className="text-[11px] text-slate-500 max-w-[100px] truncate">{tx.bank || tx.paymentType || '—'}</div>
                         </td>
-                        <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                        <td className="px-2.5 py-2.5 text-right font-mono font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
                           {formatMoney(tx.totalAfterDiscount, txCur)}
                         </td>
-                        <td className="px-3.5 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                        <td className="px-2.5 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 text-xs whitespace-nowrap">
                           {formatMoney(tx.amountPaidNow, txCur)}
                         </td>
-                        <td className="px-3.5 py-3 text-right font-mono">
+                        <td className="px-2.5 py-2.5 text-right font-mono whitespace-nowrap">
                           {isDebt ? (
-                            <div className="flex flex-col items-end gap-1 min-w-max">
-                              <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
-                                {formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
-                              </span>
-                            </div>
+                            <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
+                              {formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
+                            </span>
                           ) : (
-                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
                               {isKu ? 'بەتەواوی دراوە' : 'Paid in Full'}
                             </span>
                           )}
                         </td>
-                        <td className="px-3.5 py-3 text-center">
+                        <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
                           <span
-                            className={`px-2.5 py-1 text-xs font-bold rounded-full ${
+                            className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
                               tx.status === 'completed'
                                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300'
                                 : tx.status === 'partial'
@@ -2832,98 +3354,92 @@ export const TradeLedgerSection: React.FC = () => {
                             {tx.status}
                           </span>
                         </td>
-                        <td className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1 min-w-max">
-                            {/* Unified Share / Export Dropdown */}
-                            <div className="relative inline-block text-left">
+                        <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            {/* 1. Download PDF */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleShareInvoice(tx, 'download');
+                              }}
+                              className="w-7 h-7 rounded-lg bg-sky-50 hover:bg-sky-600 text-sky-600 hover:text-white dark:bg-sky-950/60 dark:hover:bg-sky-600 dark:text-sky-400 dark:hover:text-white border border-sky-200 dark:border-sky-800/80 flex items-center justify-center transition cursor-pointer"
+                              title={isKu ? 'داگرتنی PDF' : 'Download PDF'}
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* 2. WhatsApp / WeChat */}
+                            {isChina ? (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setOpenShareMenuTxId(openShareMenuTxId === tx.id ? null : tx.id);
+                                  void handleShareInvoice(tx, 'wechat');
                                 }}
-                                className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                                title="Share / Export"
+                                className="w-7 h-7 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white dark:bg-emerald-950/60 dark:hover:bg-emerald-600 dark:text-emerald-400 dark:hover:text-white border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-center transition cursor-pointer active:scale-95"
+                                title="WeChat"
                               >
-                                <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                                <span>{isKu ? 'هاوبەشکردن' : 'Share / Export'}</span>
-                                <ChevronDown className="w-3 h-3 text-slate-400" />
+                                <WeChatIcon className="w-3.5 h-3.5" />
                               </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleShareInvoice(tx, 'whatsapp');
+                                }}
+                                className="w-7 h-7 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white dark:bg-emerald-950/60 dark:hover:bg-emerald-600 dark:text-emerald-400 dark:hover:text-white border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-center transition cursor-pointer"
+                                title="WhatsApp"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
-                              {openShareMenuTxId === tx.id && (
-                                <div
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="absolute right-0 z-30 mt-1 w-44 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-xl py-1 text-xs animate-in fade-in zoom-in-95 duration-150"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenShareMenuTxId(null);
-                                      handleShareInvoice(tx, 'download');
-                                    }}
-                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 font-semibold cursor-pointer"
-                                  >
-                                    <Download className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0"/>
-                                    <span>{isKu ? 'داگرتنی PDF' : 'Download PDF'}</span>
-                                  </button>
+                            {/* 3. Viber */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleShareInvoice(tx, 'viber');
+                              }}
+                              className="w-7 h-7 rounded-lg bg-purple-50 hover:bg-purple-600 text-purple-600 hover:text-white dark:bg-purple-950/60 dark:hover:bg-purple-600 dark:text-purple-400 dark:hover:text-white border border-purple-200 dark:border-purple-800/80 flex items-center justify-center transition cursor-pointer"
+                              title="Viber"
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                            </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenShareMenuTxId(null);
-                                      handleShareInvoice(tx, 'whatsapp');
-                                    }}
-                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold cursor-pointer"
-                                  >
-                                    <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0"/>
-                                    <span>WhatsApp</span>
-                                  </button>
+                            {/* 4. Email */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleShareInvoice(tx, 'email');
+                              }}
+                              className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-800 text-slate-700 hover:text-white dark:bg-slate-800 dark:hover:bg-slate-600 dark:text-slate-300 dark:hover:text-white border border-slate-200 dark:border-slate-700 flex items-center justify-center transition cursor-pointer"
+                              title="Email"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenShareMenuTxId(null);
-                                      handleShareInvoice(tx, 'viber');
-                                    }}
-                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-semibold cursor-pointer"
-                                  >
-                                    <Phone className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0"/>
-                                    <span>Viber</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenShareMenuTxId(null);
-                                      handleShareInvoice(tx, 'email');
-                                    }}
-                                    className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-semibold cursor-pointer"
-                                  >
-                                    <Mail className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0"/>
-                                    <span>Email</span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* 4. Inspect / View Details & Attachment */}
+                            {/* 5. Inspect (Eye) */}
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleExpandTx(tx.id);
                               }}
-                              className={`p-1.5 rounded-md transition cursor-pointer ${
+                              className={
                                 isExpanded
-                                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/80 dark:text-sky-300'
-                                  : 'text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/50'
-                              }`}
-                              title={isKu ? 'بینینی تەواوی وردەکاری و هاوپێچ' : 'View Full Details / Attachment'}
+                                  ? 'w-7 h-7 rounded-lg bg-sky-600 border border-sky-700 text-white flex items-center justify-center transition cursor-pointer'
+                                  : 'w-7 h-7 rounded-lg bg-sky-50 hover:bg-sky-600 text-sky-600 hover:text-white dark:bg-sky-950/60 dark:hover:bg-sky-600 dark:text-sky-400 dark:hover:text-white border border-sky-200 dark:border-sky-800/80 flex items-center justify-center transition cursor-pointer'
+                              }
+                              title={isKu ? 'بینینی تەواوی وردەکاری و تێبینی' : 'Inspect Details & Full Notes'}
                             >
-                              <Eye className="w-4 h-4" />
+                              <Eye className="w-3.5 h-3.5" />
                             </button>
 
-                            {/* 4. Edit Invoice */}
+                            {/* 6. Edit */}
                             {userPermissions.canEditSales && (
                               <button
                                 type="button"
@@ -2931,14 +3447,14 @@ export const TradeLedgerSection: React.FC = () => {
                                   e.stopPropagation();
                                   handleEditTx(tx);
                                 }}
-                                className="p-1.5 rounded-md text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition cursor-pointer"
+                                className="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-600 hover:text-white dark:bg-amber-950/60 dark:hover:bg-amber-600 dark:text-amber-400 dark:hover:text-white border border-amber-200 dark:border-amber-800/80 flex items-center justify-center transition cursor-pointer"
                                 title={isKu ? 'دەستکاری پسوولە (Edit Invoice)' : 'Edit Invoice'}
                               >
-                                <Edit3 className="w-4 h-4" />
+                                <Edit3 className="w-3.5 h-3.5" />
                               </button>
                             )}
 
-                            {/* 5. Delete Invoice */}
+                            {/* 7. Delete */}
                             {userPermissions.canDeleteSales && (
                               <button
                                 type="button"
@@ -2946,25 +3462,12 @@ export const TradeLedgerSection: React.FC = () => {
                                   e.stopPropagation();
                                   handleDeleteTx(tx);
                                 }}
-                                className="p-1.5 rounded-md text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition cursor-pointer"
+                                className="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white dark:bg-rose-950/60 dark:hover:bg-rose-600 dark:text-rose-400 dark:hover:text-white border border-rose-200 dark:border-rose-800/80 flex items-center justify-center transition cursor-pointer"
                                 title={isKu ? 'سڕینەوەی پسوولە (Delete Invoice)' : 'Delete Invoice'}
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-
-                            {/* 6. Expand / Collapse Line Items Toggle */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpandTx(tx.id);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                              title={isExpanded ? 'Collapse items' : 'Expand line items'}
-                            >
-                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -3022,34 +3525,6 @@ export const TradeLedgerSection: React.FC = () => {
                                       {renderIqdEquivalent(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
                                     </span>
                                   )}
-
-                                  {/* WhatsApp Action */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleShareInvoice(tx, 'whatsapp');
-                                    }}
-                                    className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-green-600 hover:bg-green-700 active:scale-95 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                                    title={isKu ? 'ناردن بۆ وەتسئەپ (WhatsApp)' : 'Share via WhatsApp'}
-                                  >
-                                    <MessageCircle className="w-3.5 h-3.5" />
-                                    <span>WhatsApp</span>
-                                  </button>
-
-                                  {/* Viber Action */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleShareInvoice(tx, 'viber');
-                                    }}
-                                    className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                                    title={isKu ? 'ناردن بۆ ڤایبەر (Viber)' : 'Share via Viber'}
-                                  >
-                                    <Phone className="w-3.5 h-3.5" />
-                                    <span>Viber</span>
-                                  </button>
                                 </div>
                               </div>
 
@@ -3139,17 +3614,15 @@ export const TradeLedgerSection: React.FC = () => {
                                   </div>
 
                                   {/* Full Unrestricted Text Notes */}
-                                  {tx.notes && (
-                                    <div className="p-3.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
-                                      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1 flex items-center gap-1.5">
-                                        <FileText className="w-3.5 h-3.5" />
-                                        <span>{isKu ? 'تێبینی و ڕوونکردنەوەی تەواو (Full Notes):' : 'Full Invoice Notes:'}</span>
-                                      </div>
-                                      <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed font-sans text-xs sm:text-sm">
-                                        {tx.notes}
-                                      </p>
+                                  <div className="p-3.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1 flex items-center gap-1.5">
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span>{isKu ? 'تێبینی و ڕوونکردنەوەی تەواو (Full Notes):' : 'Full Invoice Notes:'}</span>
                                     </div>
-                                  )}
+                                    <p className="text-xs font-mono text-slate-700 dark:text-slate-300 break-words whitespace-pre-wrap mt-1">
+                                      {matchedTx?.notes || s.notes || tx.notes || 'No additional notes provided.'}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -3203,12 +3676,15 @@ export const TradeLedgerSection: React.FC = () => {
             </div>
           </div>
 
-          {warehouseOps.activeShipments.length === 0 ? (
+          {filteredShipments.length === 0 ? (
             <div className="p-8 text-center text-slate-500 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-xs">
-              {isKu ? 'هیچ پسوولەیەک نەدۆزرایەوە.' : 'No ledger entries recorded yet.'}
+              {isKu ? 'هیچ پسوولەیەک نەدۆزرایەوە.' : 'No ledger entries match the current filters.'}
             </div>
           ) : (
-            warehouseOps.activeShipments.map((s) => {
+            filteredShipments.map((s) => {
+              const matchedTx = transactions.find(
+                (t) => t.id === s.id || (t.code && s.batchCode && t.code.toLowerCase() === s.batchCode.toLowerCase())
+              );
               const invoiced = Number(s.totalInvoiceAmount) || 0;
               const paid = Number(s.amountPaidToSupplier) || 0;
               const debt =
@@ -3279,13 +3755,16 @@ export const TradeLedgerSection: React.FC = () => {
                     fundermaxBatchRef: s.batchCode,
                   };
                 }),
-                client: s.supplier || s.supplierName || 'FunderMax GmbH',
-                clientPhone: s.supplierContact || '',
-                legacyInvoiceRef: s.originCountry || '',
+                client: s.supplier || s.supplierName || matchedTx?.client || 'FunderMax GmbH',
+                clientPhone: s.supplierContact || matchedTx?.clientPhone || '',
+                phoneCountryCode: matchedTx?.phoneCountryCode,
+                legacyInvoiceRef: s.originCountry || matchedTx?.legacyInvoiceRef || '',
                 fundermaxBatchRef: s.batchCode,
               };
 
               const isDebt = debt > 0;
+              const phoneStr = (tx?.clientPhone || (tx as any)?.supplierContact || s?.supplierContact || matchedTx?.clientPhone || '').replace(/\D/g, '');
+              const isChina = (tx?.phoneCountryCode === '+86' || matchedTx?.phoneCountryCode === '+86') || (editingTxId === tx?.id && phoneCountryCode === '+86') || phoneStr.startsWith('86') || phoneStr.startsWith('086') || (tx?.clientPhone || '').startsWith('+86') || (s?.supplierContact || '').startsWith('+86');
 
               return (
                 <div
@@ -3379,15 +3858,27 @@ export const TradeLedgerSection: React.FC = () => {
                       <span>{isKu ? 'چاپ' : 'Print'}</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleWhatsAppShare(tx)}
-                      className="min-h-[48px] px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
-                      title={receiptShareLang === 'ku' ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
-                    >
-                      <MessageCircle className="w-4 h-4 shrink-0" />
-                      <span>WhatsApp</span>
-                    </button>
+                    {isChina ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleShareInvoice(tx, 'wechat')}
+                        className="h-11 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white dark:bg-emerald-950/60 dark:hover:bg-emerald-600 dark:text-emerald-400 dark:hover:text-white border border-emerald-200 dark:border-emerald-800/80 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
+                        title="WeChat"
+                      >
+                        <WeChatIcon className="w-4 h-4 shrink-0" />
+                        <span>WeChat</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleWhatsAppShare(tx)}
+                        className="min-h-[48px] px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
+                        title={receiptShareLang === 'ku' ? 'ناردن بۆ وەتسئەپ' : 'WhatsApp'}
+                      >
+                        <MessageCircle className="w-4 h-4 shrink-0" />
+                        <span>WhatsApp</span>
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -3656,14 +4147,29 @@ export const TradeLedgerSection: React.FC = () => {
               >
                 {isKu ? 'داخستن' : 'Close'}
               </button>
-              <button
-                type="button"
-                onClick={() => handleWhatsAppShare(inspectingTx)}
-                className="px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>{isKu ? 'وەتسئەپ' : 'WhatsApp'}</span>
-              </button>
+              {(() => {
+                const phoneStr = (inspectingTx?.clientPhone || (inspectingTx as any)?.supplierContact || '').replace(/\D/g, '');
+                const isChina = inspectingTx?.phoneCountryCode === '+86' || (editingTxId === inspectingTx.id && phoneCountryCode === '+86') || phoneStr.startsWith('86') || phoneStr.startsWith('086') || (inspectingTx?.clientPhone || '').startsWith('+86') || ((inspectingTx as any)?.supplierContact || '').startsWith('+86');
+                return isChina ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleShareInvoice(inspectingTx, 'wechat')}
+                    className="h-11 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white dark:bg-emerald-950/60 dark:hover:bg-emerald-600 dark:text-emerald-400 dark:hover:text-white border border-emerald-200 dark:border-emerald-800/80 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    <WeChatIcon className="w-4 h-4 shrink-0" />
+                    <span>WeChat</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleWhatsAppShare(inspectingTx)}
+                    className="px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>{isKu ? 'وەتسئەپ' : 'WhatsApp'}</span>
+                  </button>
+                );
+              })()}
               <button
                 type="button"
                 onClick={() => handleEmailShare(inspectingTx)}
@@ -4021,14 +4527,29 @@ export const TradeLedgerSection: React.FC = () => {
                   <Download className="w-4 h-4 shrink-0" />
                   <span>PDF Export</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { const tx = printingTx; setPrintingTx(null); handleShareInvoice(tx, 'whatsapp'); }}
-                  className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
-                >
-                  <MessageCircle className="w-4 h-4 shrink-0" />
-                  <span>WhatsApp</span>
-                </button>
+                {(() => {
+                  const phoneStr = (printingTx?.clientPhone || (printingTx as any)?.supplierContact || '').replace(/\D/g, '');
+                  const isChina = printingTx?.phoneCountryCode === '+86' || (phoneCountryCode === '+86' && (!printingTx || printingTx.id === editingTxId)) || phoneStr.startsWith('86') || phoneStr.startsWith('086') || (printingTx?.clientPhone || '').startsWith('+86') || ((printingTx as any)?.supplierContact || '').startsWith('+86');
+                  return isChina ? (
+                    <button
+                      type="button"
+                      onClick={() => { const tx = printingTx; setPrintingTx(null); void handleShareInvoice(tx, 'wechat'); }}
+                      className="h-11 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white dark:bg-emerald-950/60 dark:hover:bg-emerald-600 dark:text-emerald-400 dark:hover:text-white border border-emerald-200 dark:border-emerald-800/80 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                    >
+                      <WeChatIcon className="w-4 h-4 shrink-0" />
+                      <span>WeChat</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { const tx = printingTx; setPrintingTx(null); void handleShareInvoice(tx, 'whatsapp'); }}
+                      className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+                    >
+                      <MessageCircle className="w-4 h-4 shrink-0" />
+                      <span>WhatsApp</span>
+                    </button>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => { const tx = printingTx; setPrintingTx(null); handleShareInvoice(tx, 'viber'); }}
@@ -4083,6 +4604,225 @@ export const TradeLedgerSection: React.FC = () => {
         isOpen={isSupplierPayablesOpen}
         onClose={() => setIsSupplierPayablesOpen(false)}
       />
+
+      {/* EXECUTIVE ANALYTICS MODAL */}
+      {isExecutiveAnalyticsOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-7 space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800/80 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-xs">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {isKu ? 'شیکاری بەڕێوەبردن (Executive Analytics)' : 'Executive Analytics Dashboard'}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isKu
+                      ? 'شیکاری داتا داراییەکان، دابەشبوونی قەرز، و سەرەکیترین کڕیار و دابینکەران'
+                      : `Live multi-dimensional financial intelligence (${posDraft.activeCurrency})`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExecutiveAnalyticsOpen(false)}
+                className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition cursor-pointer"
+                title="Close Analytics"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 2x2 Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 1. Revenue vs Payables Area Chart */}
+              <div className="p-5 rounded-2xl bg-slate-50/60 dark:bg-slate-850/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      {isKu ? 'داهات بەرامبەر پارەدان (Revenue vs Payables)' : 'Revenue vs Payables'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {isKu ? 'بەراوردی فرۆشی کڕیاران و خەرجی کڕین بەپێی کات' : 'Customer sales vs supplier bills over time'}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                    {posDraft.activeCurrency}
+                  </span>
+                </div>
+                {analyticsData.revenueVsPayables.length === 0 ? (
+                  <div className="h-60 flex items-center justify-center text-xs text-slate-400">
+                    {isKu ? 'هیچ داتایەکی بەردەست نییە' : 'No transaction history available.'}
+                  </div>
+                ) : (
+                  <div className="h-60 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={analyticsData.revenueVsPayables} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="payGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} />
+                        <XAxis dataKey="date" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} />
+                        <YAxis stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} tickFormatter={(val) => `${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px' }} />
+                        <Area type="monotone" dataKey="revenue" name={isKu ? 'داهات (فرۆشتن)' : 'Revenue (Sales)'} stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#revGrad)" />
+                        <Area type="monotone" dataKey="payables" name={isKu ? 'پارەی دابینکەر (کڕین)' : 'Payables (Bills)'} stroke="#f43f5e" strokeWidth={2.5} fillOpacity={1} fill="url(#payGrad)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Debt Distribution Pie Chart */}
+              <div className="p-5 rounded-2xl bg-slate-50/60 dark:bg-slate-850/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      {isKu ? 'دابەشبوونی قەرز (Debt Distribution)' : 'Debt Distribution'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {isKu ? 'کۆی گشتی دراو بەرامبەر قەرزی ماوەی هەموو لایەک' : 'Paid vs unpaid debt across all AR & AP records'}
+                    </p>
+                  </div>
+                </div>
+                {analyticsData.debtDistribution.length === 0 ? (
+                  <div className="h-60 flex items-center justify-center text-xs text-slate-400">
+                    {isKu ? 'هیچ داتایەکی قەرز نییە' : 'No debt distribution data.'}
+                  </div>
+                ) : (
+                  <div className="h-60 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={analyticsData.debtDistribution}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          labelLine={false}
+                        >
+                          <Cell key="cell-0" fill="#10b981" />
+                          <Cell key="cell-1" fill="#f43f5e" />
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: any) => formatMoney(Number(value), posDraft.activeCurrency)}
+                          contentStyle={{
+                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Top 5 Customers by Volume Bar Chart */}
+              <div className="p-5 rounded-2xl bg-slate-50/60 dark:bg-slate-850/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      {isKu ? '٥ کڕیاری سەرەکی بەپێی قەبارە' : 'Top 5 Customers by Volume'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {isKu ? 'سەرەکیترین کڕیاران بەپێی کۆی پارەی فرۆشراو' : 'Highest sales volume generated per client'}
+                    </p>
+                  </div>
+                </div>
+                {analyticsData.topCustomers.length === 0 ? (
+                  <div className="h-60 flex items-center justify-center text-xs text-slate-400">
+                    {isKu ? 'هیچ کڕیارێک تۆمار نەکراوە' : 'No customer sales records.'}
+                  </div>
+                ) : (
+                  <div className="h-60 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analyticsData.topCustomers} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} />
+                        <XAxis type="number" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} tickFormatter={(val) => `${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`} />
+                        <YAxis type="category" dataKey="name" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} width={90} />
+                        <Tooltip
+                          formatter={(value: any) => formatMoney(Number(value), posDraft.activeCurrency)}
+                          contentStyle={{
+                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                          }}
+                        />
+                        <Bar dataKey="total" name={isKu ? 'کۆی فرۆشتن' : 'Total Sales'} fill="#0284c7" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Top 5 Suppliers by Volume Bar Chart */}
+              <div className="p-5 rounded-2xl bg-slate-50/60 dark:bg-slate-850/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      {isKu ? '٥ دابینکەری سەرەکی بەپێی قەبارە' : 'Top 5 Suppliers by Volume'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {isKu ? 'سەرەکیترین دابینکەران بەپێی بڕی کڕینی شمەک' : 'Highest purchase volume sourced per supplier'}
+                    </p>
+                  </div>
+                </div>
+                {analyticsData.topSuppliers.length === 0 ? (
+                  <div className="h-60 flex items-center justify-center text-xs text-slate-400">
+                    {isKu ? 'هیچ دابینکەرێک تۆمار نەکراوە' : 'No supplier purchase records.'}
+                  </div>
+                ) : (
+                  <div className="h-60 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analyticsData.topSuppliers} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} />
+                        <XAxis type="number" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} tickFormatter={(val) => `${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`} />
+                        <YAxis type="category" dataKey="name" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} width={90} />
+                        <Tooltip
+                          formatter={(value: any) => formatMoney(Number(value), posDraft.activeCurrency)}
+                          contentStyle={{
+                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                          }}
+                        />
+                        <Bar dataKey="total" name={isKu ? 'کۆی کڕین' : 'Total Sourced'} fill="#e11d48" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

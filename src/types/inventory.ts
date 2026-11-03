@@ -200,6 +200,7 @@ export interface PanelTransaction {
   // Dual-Mode PC Accountant & Mobile Executive Fields
   client?: string;
   clientPhone?: string;
+  phoneCountryCode?: string;
   legacyInvoiceRef?: string;
   fundermaxBatchRef?: string;
   estimatedCost?: number;
@@ -286,6 +287,7 @@ export interface PosDraftState {
   images: string[];
   client: string;
   clientPhone: string;
+  phoneCountryCode?: string;
   legacyInvoiceRef: string;
   fundermaxBatchRef: string;
   estimatedCost: number | '';

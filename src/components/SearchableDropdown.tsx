@@ -5,8 +5,10 @@ import { Search, ChevronDown, Plus, Trash2, Check, X } from "lucide-react";
 import { useInventory } from "../context/InventoryContext";
 import { autoCapitalizeFirstLetter } from "../utils/text";
 
+export type DropdownOption = string | { label: string; value: string };
+
 interface SearchableDropdownProps {
-  options: string[];
+  options: DropdownOption[];
   value: string;
   onChange: (val: string) => void;
   onAddNew?: (newVal: string) => void;
@@ -52,17 +54,24 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     };
   }, []);
 
-  const filteredOptions = options.filter((opt) =>
-    opt.toLowerCase().includes(search.toLowerCase())
-  );
+  const getOptValue = (opt: DropdownOption): string => (typeof opt === "string" ? opt : opt.value);
+  const getOptLabel = (opt: DropdownOption): string => (typeof opt === "string" ? opt : opt.label);
+
+  const selectedOpt = options.find((opt) => getOptValue(opt) === value);
+  const displayLabel = selectedOpt ? getOptLabel(selectedOpt) : value;
+
+  const filteredOptions = options.filter((opt) => {
+    const searchTarget = typeof opt === "string" ? opt : `${opt.label} ${opt.value}`;
+    return searchTarget.toLowerCase().includes(search.toLowerCase());
+  });
 
   const canAddNew =
     Boolean(onAddNew) &&
     search.trim().length > 0 &&
-    !options.some((o) => o.toLowerCase() === search.trim().toLowerCase());
+    !options.some((o) => getOptValue(o).toLowerCase() === search.trim().toLowerCase());
 
-  const handleSelect = (opt: string) => {
-    onChange(opt);
+  const handleSelect = (opt: DropdownOption) => {
+    onChange(getOptValue(opt));
     setIsOpen(false);
     setSearch("");
   };
@@ -133,7 +142,7 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
         }`}
       >
         <span className={`truncate text-start ${value ? "font-semibold" : "text-slate-400 font-normal"}`}>
-          {value || placeholder || t.type}
+          {displayLabel || placeholder || t.type}
         </span>
         <div className="flex items-center gap-1 shrink-0 ms-1">
           {clearable && value && (
@@ -168,12 +177,14 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
           {/* Options List */}
           <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
             {filteredOptions.map((opt) => {
-              const isSelected = value === opt;
-              const canDeleteThis = allowDelete && Boolean(onDeleteOption) && !isProtectedOption(opt);
+              const optVal = getOptValue(opt);
+              const optLabel = getOptLabel(opt);
+              const isSelected = value === optVal;
+              const canDeleteThis = allowDelete && Boolean(onDeleteOption) && !isProtectedOption(optVal);
 
               return (
                 <div
-                  key={opt}
+                  key={optVal}
                   onClick={() => handleSelect(opt)}
                   className={`flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs sm:text-sm ${
                     isSelected
@@ -183,13 +194,13 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                 >
                   <div className="flex items-center gap-2 truncate me-2">
                     {isSelected && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
-                    <span className="truncate">{opt}</span>
+                    <span className="truncate">{optLabel}</span>
                   </div>
 
                   {canDeleteThis && (
                     <button
                       type="button"
-                      onClick={(e) => handleDelete(e, opt)}
+                      onClick={(e) => handleDelete(e, optVal)}
                       className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors shrink-0"
                       title={t.deleteType || "Remove option"}
                     >
