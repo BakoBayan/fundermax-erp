@@ -64,7 +64,7 @@ export const CopyrightModal: React.FC = () => {
         <button
           type="button"
           onClick={closeCopyrightModal}
-          className="absolute top-4 left-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors z-20 cursor-pointer"
+          className="absolute top-4 start-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors z-20 cursor-pointer"
           title={isKu ? 'داخستن' : 'Close'}
         >
           <X className="w-5 h-5" />
@@ -73,7 +73,7 @@ export const CopyrightModal: React.FC = () => {
         {/* Modal Scrollable Body */}
         <div className="p-5 sm:p-8 overflow-y-auto">
           {isKu ? (
-            <div className="space-y-6 text-right" dir="rtl">
+            <div className="space-y-6 text-end" dir="rtl">
               {/* Header Section */}
               <div className="text-center space-y-2 border-b border-slate-200 dark:border-slate-800 pb-4">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
@@ -135,7 +135,7 @@ export const CopyrightModal: React.FC = () => {
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-loose text-justify">
                   باکۆ بەیان خاوەنی شارەزاییەکی قووڵ و ئەزموونێکی ئاست بەرزە لە ئەندازیاریی و دروستکردنی نەرمەکاڵای پێشکەوتوو بۆ بەڕێوەبردنی کار و بازرگانی بە بەرزترین کوالێتی، لەوانە:
                 </p>
-                <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 leading-loose space-y-1 pr-2">
+                <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 leading-loose space-y-1 pe-2">
                   <li>سیستەمی کۆگا و بەڕێوەبردنی کارگە.</li>
                   <li>بەرنامەی فرۆشتن، پسوولە و بەدواداچوونی قەرز (POS).</li>
                   <li>سیستەمی داتابەیسی خێرا و ئۆفلاین بۆ کاتی نەبوونی ئینتەرنێت.</li>
@@ -192,7 +192,7 @@ export const CopyrightModal: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-6 text-left" dir="ltr">
+            <div className="space-y-6 text-start" dir="ltr">
               {/* Header Section */}
               <div className="text-center space-y-2 border-b border-slate-200 dark:border-slate-800 pb-4">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
@@ -254,7 +254,7 @@ export const CopyrightModal: React.FC = () => {
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-loose text-justify">
                   Bako Bayan brings extensive expertise in engineering mission-critical business management software of the highest quality, including:
                 </p>
-                <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 leading-loose space-y-1 pl-2">
+                <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 leading-loose space-y-1 ps-2">
                   <li>Warehouse and factory management systems.</li>
                   <li>Point of Sale (POS), invoicing, and debt-tracking platforms.</li>
                   <li>High-speed, offline-first local database architectures.</li>

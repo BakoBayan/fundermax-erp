@@ -350,7 +350,7 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
             </div>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-start border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-100/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <th className="py-3 px-4">{isKu ? 'ناوی دابینکەر' : 'Supplier Name'}</th>

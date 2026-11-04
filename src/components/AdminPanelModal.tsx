@@ -135,7 +135,7 @@ const ToggleSwitch: React.FC<{
         }}
         className="sr-only"
       />
-      <div className="pr-3 flex-1 min-w-0">
+      <div className="pe-3 flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{label}</span>
           {badge && (
@@ -1020,7 +1020,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Top User Carousel / Selector Strip */}
               <div className="bg-slate-50 dark:bg-slate-850 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1">
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider me-1">
                     {lang === 'en' ? 'Select Account:' : 'هەڵبژاردنی بەکارهێنەر:'}
                   </span>
                   {users.map((u) => {
@@ -1206,7 +1206,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   : `داڕشتەی "${preset.titleKu}" دیاریکرا. پاشەکەوت بکە بۆ جێبەجێکردن.`
                               );
                             }}
-                            className={`relative p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 min-h-[110px] ${isSelected
+                            className={`relative p-3.5 rounded-2xl border text-start transition-all cursor-pointer flex flex-col justify-between gap-3 min-h-[110px] ${isSelected
                                 ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
                                 : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50'
                               }`}
@@ -1281,7 +1281,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                           <Sliders className="w-4 h-4" />
                         </div>
-                        <div className="text-left">
+                        <div className="text-start">
                           <div className="text-xs font-black text-slate-900 dark:text-white">
                             {lang === 'en' ? 'Custom Fine-Tuning & Granular Overrides' : 'دەستکاریکردنی وردی دەسەڵاتەکان (Fine-Tuning)'}
                           </div>
@@ -2204,13 +2204,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   </h5>
                   <div className="flex items-center gap-2">
                     <div className="relative">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         value={logSearch}
                         onChange={(e) => setLogSearch(e.target.value)}
                         placeholder="Search logs..."
-                        className="pl-8 pr-3 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        className="ps-8 pe-3 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       />
                     </div>
                   </div>
@@ -2273,7 +2273,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-3 text-center md:text-left">
+                <div className="flex-1 space-y-3 text-center md:text-start">
                   <div>
                     <h4 className="text-base font-black text-slate-900 dark:text-white">
                       {lang === 'en' ? 'Shop-Floor Tablet & Mobile Wi-Fi Access' : 'بەستنەوەی تابلێت و مۆبایل بە وایفای'}
@@ -2837,15 +2837,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     {/* Table: Materials */}
                     {migrationPreviewTab === 'materials' && (
                       <div className="w-full max-w-full rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4 text-xs">
-                        <table className="w-full text-left">
+                        <table className="w-full text-start">
                           <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
                             <tr>
                               <th className="p-2.5">Code</th>
                               <th className="p-2.5">Panel Name</th>
                               <th className="p-2.5">Dimensions (mm)</th>
                               <th className="p-2.5">Type</th>
-                              <th className="p-2.5 text-right">Stock</th>
-                              <th className="p-2.5 text-right">Price</th>
+                              <th className="p-2.5 text-end">Stock</th>
+                              <th className="p-2.5 text-end">Price</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -2864,8 +2864,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     {m.length} × {m.width} × {m.thickness}
                                   </td>
                                   <td className="p-2.5 text-slate-500">{m.type || 'MDF'}</td>
-                                  <td className="p-2.5 text-right font-black text-emerald-600">{m.stockQuantity}</td>
-                                  <td className="p-2.5 text-right font-mono">${m.unitPrice || 0}</td>
+                                  <td className="p-2.5 text-end font-black text-emerald-600">{m.stockQuantity}</td>
+                                  <td className="p-2.5 text-end font-mono">${m.unitPrice || 0}</td>
                                 </tr>
                               ))
                             )}
@@ -2877,15 +2877,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     {/* Table: Shipments */}
                     {migrationPreviewTab === 'shipments' && (
                       <div className="w-full max-w-full rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4 text-xs">
-                        <table className="w-full text-left">
+                        <table className="w-full text-start">
                           <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
                             <tr>
                               <th className="p-2.5">Batch / Ref</th>
                               <th className="p-2.5">Supplier</th>
                               <th className="p-2.5">Currency</th>
-                              <th className="p-2.5 text-right">Invoiced</th>
-                              <th className="p-2.5 text-right">Paid</th>
-                              <th className="p-2.5 text-right">Remaining Balance</th>
+                              <th className="p-2.5 text-end">Invoiced</th>
+                              <th className="p-2.5 text-end">Paid</th>
+                              <th className="p-2.5 text-end">Remaining Balance</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -2901,9 +2901,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   <td className="p-2.5 font-mono text-[11px] text-sky-600 font-bold">{s.batchCode}</td>
                                   <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200">{s.supplier}</td>
                                   <td className="p-2.5 font-mono">{s.currency}</td>
-                                  <td className="p-2.5 text-right font-mono">{s.invoicedTotal.toLocaleString()}</td>
-                                  <td className="p-2.5 text-right font-mono text-emerald-600">{s.amountPaid.toLocaleString()}</td>
-                                  <td className="p-2.5 text-right font-mono font-bold text-rose-600">
+                                  <td className="p-2.5 text-end font-mono">{s.invoicedTotal.toLocaleString()}</td>
+                                  <td className="p-2.5 text-end font-mono text-emerald-600">{s.amountPaid.toLocaleString()}</td>
+                                  <td className="p-2.5 text-end font-mono font-bold text-rose-600">
                                     {s.remainingBalance.toLocaleString()}
                                   </td>
                                 </tr>
@@ -2917,15 +2917,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     {/* Table: Invoices */}
                     {migrationPreviewTab === 'invoices' && (
                       <div className="w-full max-w-full rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4 text-xs">
-                        <table className="w-full text-left">
+                        <table className="w-full text-start">
                           <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold">
                             <tr>
                               <th className="p-2.5">Client Name</th>
                               <th className="p-2.5">Phone</th>
                               <th className="p-2.5">Currency</th>
-                              <th className="p-2.5 text-right">Total</th>
-                              <th className="p-2.5 text-right">Paid</th>
-                              <th className="p-2.5 text-right">Debt Balance</th>
+                              <th className="p-2.5 text-end">Total</th>
+                              <th className="p-2.5 text-end">Paid</th>
+                              <th className="p-2.5 text-end">Debt Balance</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -2941,9 +2941,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200">{inv.clientName}</td>
                                   <td className="p-2.5 font-mono text-[11px] text-slate-500">{inv.clientPhone || '—'}</td>
                                   <td className="p-2.5 font-mono">{inv.currency}</td>
-                                  <td className="p-2.5 text-right font-mono">{inv.sellingAmount.toLocaleString()}</td>
-                                  <td className="p-2.5 text-right font-mono text-emerald-600">{inv.amountPaidNow.toLocaleString()}</td>
-                                  <td className="p-2.5 text-right font-mono font-bold text-rose-600">
+                                  <td className="p-2.5 text-end font-mono">{inv.sellingAmount.toLocaleString()}</td>
+                                  <td className="p-2.5 text-end font-mono text-emerald-600">{inv.amountPaidNow.toLocaleString()}</td>
+                                  <td className="p-2.5 text-end font-mono font-bold text-rose-600">
                                     {inv.amountOwed.toLocaleString()}
                                   </td>
                                 </tr>

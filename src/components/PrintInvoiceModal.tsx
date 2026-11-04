@@ -316,7 +316,7 @@ export default function PrintInvoiceModal({
       <button
         type="button"
         onClick={onClose}
-        className="fixed top-3 right-3 sm:top-5 sm:right-5 z-[120] p-2.5 rounded-full bg-slate-900/90 text-white hover:bg-rose-600 shadow-2xl border border-white/20 flex items-center gap-1.5 text-xs font-black transition active:scale-95 print-hide"
+        className="fixed top-3 end-3 sm:top-5 sm:end-5 z-[120] p-2.5 rounded-full bg-slate-900/90 text-white hover:bg-rose-600 shadow-2xl border border-white/20 flex items-center gap-1.5 text-xs font-black transition active:scale-95 print-hide"
         title="Exit Invoice (Esc)"
       >
         <X className="w-4 h-4" />
@@ -637,7 +637,7 @@ export default function PrintInvoiceModal({
                         <span className="font-mono font-bold text-[11px]">{activeImg.width}px</span>
 
                         {/* Quick Presets */}
-                        <div className="flex items-center gap-1 ml-1">
+                        <div className="flex items-center gap-1 ms-1">
                           {[100, 160, 240, 360].map(w => (
                             <button
                               key={w}
@@ -742,8 +742,8 @@ export default function PrintInvoiceModal({
                 <div className="flex justify-between text-[10px] font-black border-b border-black pb-1 mb-1">
                   <span className="w-1/2">ITEM</span>
                   <span className="w-10 text-center">QTY</span>
-                  <span className="w-16 text-right">PRICE</span>
-                  <span className="w-16 text-right">TOTAL</span>
+                  <span className="w-16 text-end">PRICE</span>
+                  <span className="w-16 text-end">TOTAL</span>
                 </div>
                 {tx.items && tx.items.length > 0 ? (
                   tx.items.map((it, idx) => (
@@ -752,16 +752,16 @@ export default function PrintInvoiceModal({
                         {it.product || it.type}
                       </div>
                       <div className="w-10 text-center font-bold">{it.quantity}</div>
-                      <div className="w-16 text-right">{formatMoney(it.price, tx.currency)}</div>
-                      <div className="w-16 text-right font-black">{formatMoney(it.total, tx.currency)}</div>
+                      <div className="w-16 text-end">{formatMoney(it.price, tx.currency)}</div>
+                      <div className="w-16 text-end font-black">{formatMoney(it.total, tx.currency)}</div>
                     </div>
                   ))
                 ) : (
                   <div className="flex justify-between items-start text-[10px] py-0.5">
                     <div className="w-1/2 font-bold truncate">{tx.material || tx.panelType}</div>
                     <div className="w-10 text-center font-bold">{tx.quantity}</div>
-                    <div className="w-16 text-right">{formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}</div>
-                    <div className="w-16 text-right font-black">{formatMoney(tx.sellingAmount, tx.currency)}</div>
+                    <div className="w-16 text-end">{formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}</div>
+                    <div className="w-16 text-end font-black">{formatMoney(tx.sellingAmount, tx.currency)}</div>
                   </div>
                 )}
               </div>
@@ -838,7 +838,7 @@ export default function PrintInvoiceModal({
                     <button
                       type="button"
                       onClick={handleFitToOnePage}
-                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 ml-auto cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 ms-auto cursor-pointer"
                       title="Automatically shrink images so order fits on 1 page"
                     >
                       <Minimize2 className="w-3.5 h-3.5" />
@@ -856,11 +856,11 @@ export default function PrintInvoiceModal({
                 {/* Visual Page Break Marker in Screen Preview (only when height > 960px) */}
                 {!isSinglePage && invoiceHeight > PAGE_HEIGHT_PX && (
                   <div 
-                    className="absolute left-0 right-0 pointer-events-none flex items-center justify-center print-hide z-20"
+                    className="absolute start-0 end-0 pointer-events-none flex items-center justify-center print-hide z-20"
                     style={{ top: `${PAGE_HEIGHT_PX}px` }}
                   >
                     <div className="w-full border-t-2 border-dashed border-amber-500/80 relative">
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-black shadow-md whitespace-nowrap">
+                      <span className="absolute -top-3 start-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-black shadow-md whitespace-nowrap">
                         {lang === 'en' ? '✂ PAGE 1 ENDS HERE • PAGE 2 STARTS' : '✂ کۆتایی پەڕەی ١ • دەستپێکی پەڕەی ٢'}
                       </span>
                     </div>
@@ -880,7 +880,7 @@ export default function PrintInvoiceModal({
                   Official Sales Voucher / پسوولەی فەرمی فرۆشتن
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-end">
                 <span className="font-mono font-black text-sm sm:text-base text-blue-700 block">
                   #{tx.code || tx.id.slice(-4)}
                 </span>
@@ -916,11 +916,11 @@ export default function PrintInvoiceModal({
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b-2 border-slate-300 text-slate-700 font-black text-[10px] uppercase">
-                    <th className="py-1 text-left">{lang === 'en' ? 'Item' : 'Item / کاڵا'}</th>
+                    <th className="py-1 text-start">{lang === 'en' ? 'Item' : 'Item / کاڵا'}</th>
                     <th className="py-1 text-center">{lang === 'en' ? 'Qty' : 'Qty / ژمارە'}</th>
                     <th className="py-1 text-center">{lang === 'en' ? 'Type' : 'Type / جۆر'}</th>
-                    <th className="py-1 text-right">{lang === 'en' ? 'Price' : 'Price / نرخ'}</th>
-                    <th className="py-1 text-right">{lang === 'en' ? 'Total' : 'Total / کۆ'}</th>
+                    <th className="py-1 text-end">{lang === 'en' ? 'Price' : 'Price / نرخ'}</th>
+                    <th className="py-1 text-end">{lang === 'en' ? 'Total' : 'Total / کۆ'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -937,10 +937,10 @@ export default function PrintInvoiceModal({
                         <td className="py-1.5 text-center text-[10px] text-slate-600">
                           {it.sellingType || tx.sellingType || '-'}
                         </td>
-                        <td className="py-1.5 text-right font-mono text-slate-700">
+                        <td className="py-1.5 text-end font-mono text-slate-700">
                           {formatMoney(it.price, tx.currency)}
                         </td>
-                        <td className="py-1.5 text-right font-mono font-bold text-slate-950">
+                        <td className="py-1.5 text-end font-mono font-bold text-slate-950">
                           {formatMoney(it.total, tx.currency)}
                         </td>
                       </tr>
@@ -950,10 +950,10 @@ export default function PrintInvoiceModal({
                       <td className="py-1.5 font-bold text-slate-900">{tx.material || tx.panelType}</td>
                       <td className="py-1.5 text-center font-mono font-bold">{tx.quantity}</td>
                       <td className="py-1.5 text-center text-[10px] text-slate-600">{tx.sellingType || '-'}</td>
-                      <td className="py-1.5 text-right font-mono text-slate-700">
+                      <td className="py-1.5 text-end font-mono text-slate-700">
                         {formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}
                       </td>
-                      <td className="py-1.5 text-right font-mono font-bold text-slate-950">
+                      <td className="py-1.5 text-end font-mono font-bold text-slate-950">
                         {formatMoney(tx.sellingAmount, tx.currency)}
                       </td>
                     </tr>
@@ -1031,7 +1031,7 @@ export default function PrintInvoiceModal({
                         className="relative rounded-lg border border-slate-300 overflow-visible bg-white shadow-xs p-1 transition-all"
                       >
                         {/* Hover Overlay Controls (Screen Only) */}
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 print-hide whitespace-nowrap">
+                        <div className="absolute -top-7 start-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 print-hide whitespace-nowrap">
                           {/* Align buttons */}
                           <button
                             type="button"
@@ -1108,7 +1108,7 @@ export default function PrintInvoiceModal({
                         {/* Interactive Drag Corner Handle (Bottom-Right, Zero-Lag Mouse Resizing) */}
                         <div
                           onMouseDown={(e) => handleStartResize(e, img.id, img.width)}
-                          className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center cursor-ew-resize shadow-md border-2 border-white z-10 print-hide transition active:scale-125 select-none"
+                          className="absolute -bottom-2 -end-2 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center cursor-ew-resize shadow-md border-2 border-white z-10 print-hide transition active:scale-125 select-none"
                           title="Drag mouse horizontally to resize image without lag!"
                         >
                           <span className="text-[10px] font-black leading-none select-none">⤡</span>

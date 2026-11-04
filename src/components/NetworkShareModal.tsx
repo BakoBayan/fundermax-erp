@@ -115,7 +115,7 @@ export const NetworkShareModal: React.FC<NetworkShareModalProps> = ({ isOpen, on
               {t.networkLink}
             </label>
             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl border border-slate-300 dark:border-slate-700">
-              <span className="flex-1 font-mono font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate select-all px-2 text-left">
+              <span className="flex-1 font-mono font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate select-all px-2 text-start">
                 {networkUrl || "Loading..."}
               </span>
               <button

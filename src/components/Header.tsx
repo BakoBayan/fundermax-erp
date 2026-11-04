@@ -344,49 +344,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               </span>
             </button>
 
-            {/* Desktop Resilience Status Pill Badge: Live vs Offline */}
-            <div className="hidden md:flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSyncPing}
-                className={`relative z-20 pointer-events-auto h-9 px-3 rounded-xl text-xs font-bold shadow-2xs select-none border inline-flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
-                  isOnline && syncStatus === "synced"
-                    ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400/80 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100/80"
-                    : syncStatus === "syncing" || isPinging
-                    ? "bg-sky-50 dark:bg-sky-950/60 border-sky-400/80 text-sky-700 dark:text-sky-400 hover:bg-sky-100/80"
-                    : "bg-amber-50 dark:bg-amber-950/60 border-amber-400/80 text-amber-700 dark:text-amber-400 hover:bg-amber-100/80"
-                }`}
-                title={
-                  isOnline && syncStatus === "synced"
-                    ? `Live Connected: SQLite WAL Active (${walHealth.latencyMs}ms latency • ${walHealth.dbSize} DB). Click to re-verify.`
-                    : syncStatus === "syncing" || isPinging
-                    ? "Network restored; flushing cached offline mutations to local SQLite server..."
-                    : "Offline Mode: Wi-Fi disconnected; local mutations safely queueing to storage. Click to test reconnect."
-                }
-              >
-                <span className="relative flex h-2 w-2">
-                  {syncStatus === "syncing" || isPinging ? (
-                    <>
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
-                    </>
-                  ) : isOnline && syncStatus === "synced" ? (
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  ) : (
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-                  )}
-                </span>
-                <span className="font-mono">
-                  {syncStatus === "syncing" || isPinging
-                    ? "Syncing..."
-                    : isOnline && syncStatus === "synced"
-                    ? walHealth.isWalActive
-                      ? `WAL Synced (${walHealth.latencyMs}ms)`
-                      : `Online / Synced (${walHealth.latencyMs}ms)`
-                    : "Offline Mode"}
-                </span>
-              </button>
-            </div>
+            {/* Desktop Resilience Status Pill Badge: Live vs Offline (Hidden) */}
 
             {/* Undo / Redo Buttons */}
             {!isViewer && (

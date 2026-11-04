@@ -1810,7 +1810,7 @@ export const TradeLedgerSection: React.FC = () => {
         
         {/* ACCOUNTS RECEIVABLE (MONEY OWED TO US) */}
         <div className="p-5 sm:p-6 rounded-3xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+          <div className="absolute top-0 end-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-3xl -me-10 -mt-10 pointer-events-none" />
           
           <div className="flex items-center justify-between mb-5 relative z-10">
             <div className="flex items-center gap-3">
@@ -1861,7 +1861,7 @@ export const TradeLedgerSection: React.FC = () => {
 
         {/* ACCOUNTS PAYABLE (MONEY WE OWE) */}
         <div className="p-5 sm:p-6 rounded-3xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+          <div className="absolute top-0 end-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-500/5 rounded-full blur-3xl -me-10 -mt-10 pointer-events-none" />
           
           <div className="flex items-center justify-between mb-5 relative z-10">
             <div className="flex items-center gap-3">
@@ -1923,7 +1923,7 @@ export const TradeLedgerSection: React.FC = () => {
       {/* SUPPLIER BILL INTAKE FORM */}
       {(userPermissions?.canCreateSales || (editingTxId && userPermissions?.canEditSales)) ? (
       <div id="sales-draft-form" className={`p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border-2 shadow-xl shadow-slate-200/40 dark:shadow-none space-y-8 relative transition-colors duration-300 ${txFormMode === 'AR' ? 'border-sky-500/50 dark:border-sky-500/30' : 'border-rose-500/50 dark:border-rose-500/30'}`}>
-        <div className={`absolute top-0 left-0 right-0 h-2 rounded-t-3xl bg-gradient-to-r ${txFormMode === 'AR' ? 'from-sky-500 to-emerald-500' : 'from-rose-500 to-amber-500'}`} />
+        <div className={`absolute top-0 start-0 end-0 h-2 rounded-t-3xl bg-gradient-to-r ${txFormMode === 'AR' ? 'from-sky-500 to-emerald-500' : 'from-rose-500 to-amber-500'}`} />
         {/* Prominent Edit Mode Warning Banner */}
         {editingTxId && (
           <div className="w-full bg-amber-500/15 border-2 border-amber-500 text-amber-900 dark:text-amber-200 p-4 rounded-xl flex items-center gap-3 mb-4 animate-in fade-in duration-200">
@@ -1951,7 +1951,7 @@ export const TradeLedgerSection: React.FC = () => {
           <div className="flex items-center gap-2">
             {!editingTxId ? (
               <>
-                <div className="flex p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 mr-4">
+                <div className="flex p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 me-4">
                   <button type="button" onClick={() => setTxFormMode('AR')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${txFormMode === 'AR' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                     Customer Sale
                   </button>
@@ -2018,13 +2018,13 @@ export const TradeLedgerSection: React.FC = () => {
                     />
                   </div>
                   <div className="relative sm:col-span-7">
-                    <Phone className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Phone className="w-4 h-4 absolute start-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="tel"
                       value={posDraft.clientPhone}
                       onChange={(e) => setPosDraft({ ...posDraft, clientPhone: e.target.value })}
                       placeholder="750 000 0000"
-                      className="w-full h-11 pl-10 pr-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                      className="w-full h-11 ps-10 pe-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500 transition-shadow"
                     />
                   </div>
                 </div>
@@ -2310,13 +2310,13 @@ export const TradeLedgerSection: React.FC = () => {
             </div>
             <div className="col-span-2 relative">
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'نرخ' : 'Price ($)'}</label>
-              <input ref={priceInputRef} type="text" value={rowPriceStr} onChange={(e) => setRowPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); if (e.key === 'Enter') { e.preventDefault(); if (costInputRef.current) costInputRef.current.focus(); else handleAddLineItem(); } } }} placeholder="150+45" className="w-full h-[38px] pl-2 pr-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
-              <Calculator className="w-3 h-3 absolute right-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
+              <input ref={priceInputRef} type="text" value={rowPriceStr} onChange={(e) => setRowPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); if (e.key === 'Enter') { e.preventDefault(); if (costInputRef.current) costInputRef.current.focus(); else handleAddLineItem(); } } }} placeholder="150+45" className="w-full h-[38px] ps-2 pe-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
+              <Calculator className="w-3 h-3 absolute end-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
             </div>
             <div className="col-span-2 relative">
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider truncate" title="Internal Cost">{isKu ? 'تێچوو' : 'Cost ($)'}</label>
-              <input ref={costInputRef} type="text" value={costPriceStr} onChange={(e) => setCostPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); if (e.key === 'Enter') { e.preventDefault(); setTimeout(() => handleAddLineItem(), 50); } } }} placeholder="120" className="w-full h-[38px] pl-2 pr-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
-              <Calculator className="w-3 h-3 absolute right-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
+              <input ref={costInputRef} type="text" value={costPriceStr} onChange={(e) => setCostPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); if (e.key === 'Enter') { e.preventDefault(); setTimeout(() => handleAddLineItem(), 50); } } }} placeholder="120" className="w-full h-[38px] ps-2 pe-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
+              <Calculator className="w-3 h-3 absolute end-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
             </div>
             <div className="col-span-12 mt-1">
               <button ref={addRowBtnRef} type="button" onClick={handleAddLineItem} disabled={!posDraft.rowProduct || currentRowPrice === 0} className="w-full h-11 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:bg-sky-600/40 text-white disabled:text-white/70 font-black tracking-widest text-sm shadow-md disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer">
@@ -2490,14 +2490,14 @@ export const TradeLedgerSection: React.FC = () => {
           <div>
             {/* Desktop Table */}
             <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4 border border-slate-200 dark:border-slate-750 rounded-2xl">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-start text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   <tr>
                     <th className="px-4 py-2.5">{isKu ? 'کاڵا' : 'Item'}</th>
                     <th className="px-4 py-2.5">{isKu ? 'جۆر' : 'Type'}</th>
                     <th className="px-4 py-2.5 text-center">{isKu ? 'بڕ' : 'Qty'}</th>
-                    <th className="px-4 py-2.5 text-right">{isKu ? 'نرخ' : 'Price'}</th>
-                    <th className="px-4 py-2.5 text-right">{isKu ? 'کۆی کاڵا' : 'Line Total'}</th>
+                    <th className="px-4 py-2.5 text-end">{isKu ? 'نرخ' : 'Price'}</th>
+                    <th className="px-4 py-2.5 text-end">{isKu ? 'کۆی کاڵا' : 'Line Total'}</th>
                     <th className="px-4 py-2.5 text-center">{isKu ? 'کردار' : 'Action'}</th>
                   </tr>
                 </thead>
@@ -2511,10 +2511,10 @@ export const TradeLedgerSection: React.FC = () => {
                         {item.type}
                       </td>
                       <td className="px-4 py-2.5 text-center font-mono">{item.quantity}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">
+                      <td className="px-4 py-2.5 text-end font-mono">
                         {formatMoney(item.price, posDraft.activeCurrency)}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 dark:text-white">
+                      <td className="px-4 py-2.5 text-end font-mono font-bold text-slate-900 dark:text-white">
                         {formatMoney(item.total, posDraft.activeCurrency)}
                       </td>
                       <td className="px-4 py-2.5 text-center">
@@ -2584,7 +2584,7 @@ export const TradeLedgerSection: React.FC = () => {
                       </button>
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-end">
                       <div className="text-[10px] uppercase font-bold text-slate-400">{isKu ? 'کۆی کاڵا' : 'Line Total'}</div>
                       <div className="font-mono font-black text-base text-slate-950 dark:text-white">
                         {formatMoney(item.total, posDraft.activeCurrency)}
@@ -3158,7 +3158,7 @@ export const TradeLedgerSection: React.FC = () => {
 
         {/* Dual Adaptive Layout: Desktop Dense Table (W >= 1024px) */}
         <div className="hidden lg:block w-full max-w-full overflow-x-auto pb-4 rounded-3xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-850 shadow-xs">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-start text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
               <tr>
                 <th className="px-2.5 py-3">{isKu ? 'کۆد / بەروار' : 'Code / Date'}</th>
@@ -3166,9 +3166,9 @@ export const TradeLedgerSection: React.FC = () => {
                 <th className="px-2.5 py-3">{isKu ? 'ڕوونکردنەوە (Notes)' : 'Notes / ڕوونکردنەوە'}</th>
                 <th className="px-2.5 py-3">{isKu ? 'پوختە' : 'Summary'}</th>
                 <th className="px-2.5 py-3">{isKu ? 'فرۆشیار / شێواز' : 'Seller / Method'}</th>
-                <th className="px-2.5 py-3 text-right">{isKu ? 'کۆی گشتی' : 'Net Total'}</th>
-                <th className="px-2.5 py-3 text-right">{isKu ? 'پارەی وەرگیراو' : 'RECEIVED / پارەی وەرگیراو'}</th>
-                <th className="px-2.5 py-3 text-right">{isKu ? 'قەرزی ماوە' : 'UNPAID BALANCE / قەرزی ماوە'}</th>
+                <th className="px-2.5 py-3 text-end">{isKu ? 'کۆی گشتی' : 'Net Total'}</th>
+                <th className="px-2.5 py-3 text-end">{isKu ? 'پارەی وەرگیراو' : 'RECEIVED / پارەی وەرگیراو'}</th>
+                <th className="px-2.5 py-3 text-end">{isKu ? 'قەرزی ماوە' : 'UNPAID BALANCE / قەرزی ماوە'}</th>
                 <th className="px-2.5 py-3 text-center">{isKu ? 'دۆخ' : 'Status'}</th>
                 <th className="px-2.5 py-3 text-center">{isKu ? 'کردارەکان' : 'Actions'}</th>
               </tr>
@@ -3349,13 +3349,13 @@ export const TradeLedgerSection: React.FC = () => {
                           <div className="font-medium text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{tx.seller || '—'}</div>
                           <div className="text-[11px] text-slate-500 max-w-[100px] truncate">{tx.bank || tx.paymentType || '—'}</div>
                         </td>
-                        <td className="px-2.5 py-2.5 text-right font-mono font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
+                        <td className="px-2.5 py-2.5 text-end font-mono font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
                           {formatMoney(tx.totalAfterDiscount, txCur)}
                         </td>
-                        <td className="px-2.5 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 text-xs whitespace-nowrap">
+                        <td className="px-2.5 py-2.5 text-end font-mono text-emerald-600 dark:text-emerald-400 text-xs whitespace-nowrap">
                           {formatMoney(tx.amountPaidNow, txCur)}
                         </td>
-                        <td className="px-2.5 py-2.5 text-right font-mono whitespace-nowrap">
+                        <td className="px-2.5 py-2.5 text-end font-mono whitespace-nowrap">
                           {isDebt ? (
                             <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
                               {formatMoney(tx.combinedTotalDebt || tx.amountOwed || 0, txCur)}
@@ -3617,7 +3617,7 @@ export const TradeLedgerSection: React.FC = () => {
                                                 </div>
                                               )}
                                             </div>
-                                            <div className="text-right shrink-0">
+                                            <div className="text-end shrink-0">
                                               <div className="font-mono font-bold text-slate-900 dark:text-white text-sm whitespace-nowrap">
                                                 {formatMoney(item.total, txCur)}
                                               </div>
@@ -4052,13 +4052,13 @@ export const TradeLedgerSection: React.FC = () => {
                 {isKu ? 'کاڵا و بابەتەکان' : 'Purchased Items'}
               </h4>
               <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-start text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold uppercase">
                     <tr>
                       <th className="px-3 py-2">{isKu ? 'کاڵا' : 'Item'}</th>
                       <th className="px-3 py-2 text-center">{isKu ? 'بڕ' : 'Qty'}</th>
-                      <th className="px-3 py-2 text-right">{isKu ? 'نرخ' : 'Price'}</th>
-                      <th className="px-3 py-2 text-right">{isKu ? 'کۆی کاڵا' : 'Total'}</th>
+                      <th className="px-3 py-2 text-end">{isKu ? 'نرخ' : 'Price'}</th>
+                      <th className="px-3 py-2 text-end">{isKu ? 'کۆی کاڵا' : 'Total'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -4070,10 +4070,10 @@ export const TradeLedgerSection: React.FC = () => {
                             {it.type && <span className="text-slate-400 font-normal ms-1">({it.type})</span>}
                           </td>
                           <td className="px-3 py-2 text-center font-mono">{it.quantity}</td>
-                          <td className="px-3 py-2 text-right font-mono">
+                          <td className="px-3 py-2 text-end font-mono">
                             {formatMoney(it.price, inspectingTx.currency || 'USD')}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
+                          <td className="px-3 py-2 text-end font-mono font-bold text-slate-900 dark:text-white">
                             {formatMoney(it.total, inspectingTx.currency || 'USD')}
                           </td>
                         </tr>
@@ -4084,10 +4084,10 @@ export const TradeLedgerSection: React.FC = () => {
                           {inspectingTx.material || inspectingTx.panelType}
                         </td>
                         <td className="px-3 py-2 text-center font-mono">{inspectingTx.quantity}</td>
-                        <td className="px-3 py-2 text-right font-mono">
+                        <td className="px-3 py-2 text-end font-mono">
                           {formatMoney(inspectingTx.sellingAmount, inspectingTx.currency || 'USD')}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
+                        <td className="px-3 py-2 text-end font-mono font-bold text-slate-900 dark:text-white">
                           {formatMoney(inspectingTx.totalAfterDiscount || inspectingTx.sellingAmount, inspectingTx.currency || 'USD')}
                         </td>
                       </tr>
@@ -4268,7 +4268,7 @@ export const TradeLedgerSection: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-start text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-2">
                   <span>{isKu ? 'کۆی قەرزی ماوە:' : 'Total Unpaid Debt:'}</span>
-                  <span className="text-right">
+                  <span className="text-end">
                     <b className="text-rose-600 dark:text-rose-400 font-mono text-sm">{formatMoney(debt, cur)}</b>
                     {renderIqdEquivalent(debt, cur)}
                   </span>
@@ -4336,7 +4336,7 @@ export const TradeLedgerSection: React.FC = () => {
                     setPayImages((prev) => [...urls, ...prev]);
                     e.target.value = '';
                   }}
-                  className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 file:font-semibold"
+                  className="w-full text-xs text-slate-600 dark:text-slate-300 file:me-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 file:font-semibold"
                 />
                 {payImages.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1">
@@ -4347,7 +4347,7 @@ export const TradeLedgerSection: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPayImages((prev) => prev.filter((_, i) => i !== idx))}
-                          className="absolute top-0 right-0 p-0.5 bg-black/60 text-white rounded-bl-md cursor-pointer"
+                          className="absolute top-0 end-0 p-0.5 bg-black/60 text-white rounded-es-md cursor-pointer"
                         >
                           <X className="w-3 h-3" />
                         </button>

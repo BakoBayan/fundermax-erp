@@ -10,26 +10,20 @@ export const FooterAttribution: React.FC = () => {
 
   return (
     <footer className="relative w-full mt-3 md:mt-auto mb-20 md:mb-0 py-3 px-3 md:fixed md:bottom-0 md:inset-x-0 md:z-40 md:py-2 md:px-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] select-none no-print transition-colors">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-1.5 md:gap-2 text-[11px] md:text-xs text-slate-500 text-center md:text-left">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-1.5 md:gap-2 text-[11px] md:text-xs text-slate-500 text-center md:text-start">
         
         {/* Left: Professional & Legally Sound Copyright Attribution (Clickable) */}
         <button
           type="button"
           onClick={openCopyrightModal}
-          className="flex items-center gap-1.5 md:gap-2 text-slate-700 dark:text-slate-300 flex-wrap justify-center md:justify-start hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer group text-center md:text-left py-0.5 px-1.5 rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-800/80"
+          className="flex items-center gap-1.5 md:gap-2 text-slate-700 dark:text-slate-300 flex-wrap justify-center md:justify-start hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer group text-center md:text-start py-0.5 px-1.5 rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-800/80"
           title={isKu ? 'کلیک بکە بۆ زانیاری مافی یاسایی و داواکردنی پڕۆژە لە باکۆ بەیان' : 'Click for Legal Copyright, Intellectual Property & Project Commissioning'}
         >
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
-          <span className="font-extrabold tracking-tight text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-            {isKu
-              ? 'ئەندازیاری و چاودێریکراوە لەلایەن باکۆ بەیان مەزهەر'
-              : 'Engineered & Maintained by Bako Bayan Madhhar'}
-          </span>
-          <span className="text-slate-300 dark:text-slate-600 hidden md:inline">•</span>
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors hidden md:inline">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
             © {new Date().getFullYear()} Bako Bayan Madhhar. All rights reserved.
           </span>
           <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-800 text-[10px] font-mono font-bold text-emerald-800 dark:text-emerald-300 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900 transition-all shadow-2xs">

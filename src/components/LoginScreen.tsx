@@ -92,7 +92,7 @@ export const LoginScreen: React.FC = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username Input */}
-            <div className="space-y-1.5 text-left">
+            <div className="space-y-1.5 text-start">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                 Username
               </label>
@@ -111,7 +111,7 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             {/* Password Input */}
-            <div className="space-y-1.5 text-left">
+            <div className="space-y-1.5 text-start">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                 Password
               </label>

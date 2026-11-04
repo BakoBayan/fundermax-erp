@@ -636,16 +636,16 @@ export const ExecutiveProfitSuite: React.FC = () => {
 
         {/* Desktop View: Full Spreadsheet Table */}
         <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-xs text-start">
             <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
               <tr>
                 <th className="p-3">Panel Material</th>
                 <th className="p-3">Category</th>
-                <th className="p-3 text-right">Units Sold</th>
-                <th className="p-3 text-right">Revenue (USD)</th>
-                <th className="p-3 text-right">Landed Cost (USD)</th>
-                <th className="p-3 text-right">Gross Profit</th>
-                <th className="p-3 text-right">Profit Margin</th>
+                <th className="p-3 text-end">Units Sold</th>
+                <th className="p-3 text-end">Revenue (USD)</th>
+                <th className="p-3 text-end">Landed Cost (USD)</th>
+                <th className="p-3 text-end">Gross Profit</th>
+                <th className="p-3 text-end">Profit Margin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -662,17 +662,17 @@ export const ExecutiveProfitSuite: React.FC = () => {
                     <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="p-3 font-bold text-slate-900 dark:text-white">{m.name}</td>
                       <td className="p-3 text-slate-500">{m.type}</td>
-                      <td className="p-3 text-right font-mono font-bold">{m.sheetsSold}</td>
-                      <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                      <td className="p-3 text-end font-mono font-bold">{m.sheetsSold}</td>
+                      <td className="p-3 text-end font-mono font-bold text-slate-900 dark:text-slate-100">
                         ${Math.round(m.revenueUSD).toLocaleString()}
                       </td>
-                      <td className="p-3 text-right font-mono text-slate-500">
+                      <td className="p-3 text-end font-mono text-slate-500">
                         ${Math.round(m.costUSD).toLocaleString()}
                       </td>
-                      <td className="p-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                      <td className="p-3 text-end font-mono font-black text-emerald-600 dark:text-emerald-400">
                         +${Math.round(m.profitUSD).toLocaleString()}
                       </td>
-                      <td className="p-3 text-right font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                      <td className="p-3 text-end font-mono font-bold text-emerald-700 dark:text-emerald-300">
                         {Math.round(margin * 10) / 10}%
                       </td>
                     </tr>
@@ -763,15 +763,15 @@ export const ExecutiveProfitSuite: React.FC = () => {
 
         {/* Desktop View: Full Spreadsheet Table */}
         <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-xs text-start">
             <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
               <tr>
                 <th className="p-3">Batch Code</th>
                 <th className="p-3">Supplier Name</th>
                 <th className="p-3">Arrival Date</th>
-                <th className="p-3 text-right">Invoiced Total</th>
-                <th className="p-3 text-right">Paid to Supplier</th>
-                <th className="p-3 text-right">Remaining Debt</th>
+                <th className="p-3 text-end">Invoiced Total</th>
+                <th className="p-3 text-end">Paid to Supplier</th>
+                <th className="p-3 text-end">Remaining Debt</th>
                 <th className="p-3 text-center">Status</th>
               </tr>
             </thead>
@@ -798,13 +798,13 @@ export const ExecutiveProfitSuite: React.FC = () => {
                         <span className="text-[10px] text-slate-400 block font-normal">{s.originCountry || 'Austria (EU)'}</span>
                       </td>
                       <td className="p-3 text-slate-500 font-mono">{s.arrivalDate || '—'}</td>
-                      <td className="p-3 text-right font-mono font-bold">
+                      <td className="p-3 text-end font-mono font-bold">
                         {curr === 'EUR' ? '€' : '$'}{invoiced.toLocaleString()}
                       </td>
-                      <td className="p-3 text-right font-mono text-emerald-600 font-bold">
+                      <td className="p-3 text-end font-mono text-emerald-600 font-bold">
                         {curr === 'EUR' ? '€' : '$'}{paid.toLocaleString()}
                       </td>
-                      <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                      <td className="p-3 text-end font-mono font-black text-rose-600 dark:text-rose-400">
                         {curr === 'EUR' ? '€' : '$'}{debt.toLocaleString()}
                       </td>
                       <td className="p-3 text-center">

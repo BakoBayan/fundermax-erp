@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { unstable_noStore as noStore } from "next/cache";
+import { Vazirmatn } from "next/font/google";
 import "./globals.css";
 import { APP_CONFIG } from "@/config/appConfig";
 
+const vazirmatn = Vazirmatn({
+  subsets: ["arabic"],
+});
 
 export const revalidate = 3600;
 
@@ -41,7 +45,7 @@ export default function RootLayout({
 }>) {
   noStore();
   return (
-    <html lang="en" suppressHydrationWarning className="w-full max-w-full overflow-x-hidden">
+    <html lang="ku" dir="rtl" suppressHydrationWarning className="w-full max-w-full overflow-x-hidden">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
         <meta name="HandheldFriendly" content="true" />
@@ -67,7 +71,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased min-h-screen w-full max-w-full overflow-x-hidden">
+      <body className={`${vazirmatn.className} antialiased min-h-screen w-full max-w-full overflow-x-hidden`}>
         {children}
         <div id="print-mount-root"></div>
       </body>

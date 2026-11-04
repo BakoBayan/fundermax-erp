@@ -44,7 +44,7 @@ export const SlipUploadField: React.FC<SlipUploadFieldProps> = ({ images, onChan
         accept="image/*"
         multiple
         onChange={handleFiles}
-        className="block w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:font-bold file:cursor-pointer"
+        className="block w-full text-xs text-slate-600 dark:text-slate-300 file:me-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:font-bold file:cursor-pointer"
       />
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
@@ -55,7 +55,7 @@ export const SlipUploadField: React.FC<SlipUploadFieldProps> = ({ images, onChan
               <button
                 type="button"
                 onClick={() => onChange(images.filter((_, i) => i !== idx))}
-                className="absolute top-0 right-0 bg-black/60 text-white rounded-bl-lg p-0.5 cursor-pointer"
+                className="absolute top-0 end-0 bg-black/60 text-white rounded-es-lg p-0.5 cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>

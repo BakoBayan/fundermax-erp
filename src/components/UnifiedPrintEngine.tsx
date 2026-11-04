@@ -64,7 +64,7 @@ export const DoorProductionCuttingSlip: React.FC<{
           </div>
         </div>
 
-        <div className="text-right font-mono">
+        <div className="text-end font-mono">
           <div className="text-base font-black px-3.5 py-1.5 border-2 border-black inline-block bg-gray-100">
             REF #{order.orderNumber}
           </div>
@@ -87,7 +87,7 @@ export const DoorProductionCuttingSlip: React.FC<{
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-end">
           <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
             {isKu ? 'ژمارەی دەرگای داواکراو' : 'Total Doors To Manufacture'}
           </span>
@@ -181,26 +181,26 @@ export const DoorProductionCuttingSlip: React.FC<{
         <table className="w-full border-collapse border-2 border-black text-xs">
           <thead>
             <tr className="bg-gray-100 border-b-2 border-black text-black font-black uppercase text-[10px]">
-              <th className="p-2 border-r border-black text-left">{isKu ? 'جۆری تەختە (Material/Skin)' : 'Material / Skin'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'کۆدی پەنەل' : 'Panel Code'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'تاج و کەتیبە (Casing)' : 'Casing'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'بەستنی قوفڵ و ئێکسسوارات لە کارگە' : 'Hardware'}</th>
+              <th className="p-2 border-e border-black text-start">{isKu ? 'جۆری تەختە (Material/Skin)' : 'Material / Skin'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'کۆدی پەنەل' : 'Panel Code'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'تاج و کەتیبە (Casing)' : 'Casing'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'بەستنی قوفڵ و ئێکسسوارات لە کارگە' : 'Hardware'}</th>
               <th className="p-2 text-center">{isKu ? 'ئەستووری (Thickness)' : 'Thickness'}</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-black font-medium">
-              <td className="p-2.5 border-r border-black font-bold text-black">
+              <td className="p-2.5 border-e border-black font-bold text-black">
                 {material.name}
                 <div className="text-[10px] text-gray-600 font-mono">{isKu ? 'تایبەتمەندی تەختە / کۆد:' : 'Panel Specs / Code:'} {material.code} • {material.type}</div>
               </td>
-              <td className="p-2.5 border-r border-black text-center font-mono font-black text-black">
+              <td className="p-2.5 border-e border-black text-center font-mono font-black text-black">
                 #{material.code}
               </td>
-              <td className="p-2.5 border-r border-black text-center font-bold">
+              <td className="p-2.5 border-e border-black text-center font-bold">
                 {spec.casingIncluded ? (isKu ? '✅ هەیە (Included)' : '✅ Included') : (isKu ? '❌ نییە (None)' : '❌ None')}
               </td>
-              <td className="p-2.5 border-r border-black text-center font-bold">
+              <td className="p-2.5 border-e border-black text-center font-bold">
                 {spec.hardwareIncluded ? (isKu ? '✅ هەیە (Included)' : '✅ Included') : (isKu ? '❌ نییە (None)' : '❌ None')}
               </td>
               <td className="p-2.5 text-center font-mono font-black text-black">
@@ -315,7 +315,7 @@ export const WoodPanelsCuttingSlip: React.FC<{
           </div>
         </div>
 
-        <div className="text-right font-mono">
+        <div className="text-end font-mono">
           <div className="text-sm font-black px-3 py-1 border border-black inline-block bg-gray-100">
             REF #{order.orderNumber}
           </div>
@@ -339,7 +339,7 @@ export const WoodPanelsCuttingSlip: React.FC<{
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-end">
           <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
             {isKu ? 'بڕی تەختەی داواکراو' : 'Total Panels To Cut'}
           </span>
@@ -362,28 +362,28 @@ export const WoodPanelsCuttingSlip: React.FC<{
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
             <tr className="bg-gray-100 border-b border-black text-black font-black uppercase text-[11px]">
-              <th className="p-2 border-r border-black text-center w-10">#</th>
-              <th className="p-2 border-r border-black text-left">{isKu ? 'جۆری دار / پەنەل' : 'Material / Finish'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'درێژی (Length)' : 'Length (mm)'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'پانی (Width)' : 'Width (mm)'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'ئەستووری (Thick)' : 'Thick (mm)'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'دانە' : 'Quantity'}</th>
-              <th className="p-2 border-r border-black text-left">{isKu ? 'ئاڕاستەی نەخش / تێبینی' : 'Grain / Edge Notes'}</th>
+              <th className="p-2 border-e border-black text-center w-10">#</th>
+              <th className="p-2 border-e border-black text-start">{isKu ? 'جۆری دار / پەنەل' : 'Material / Finish'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'درێژی (Length)' : 'Length (mm)'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'پانی (Width)' : 'Width (mm)'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'ئەستووری (Thick)' : 'Thick (mm)'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'دانە' : 'Quantity'}</th>
+              <th className="p-2 border-e border-black text-start">{isKu ? 'ئاڕاستەی نەخش / تێبینی' : 'Grain / Edge Notes'}</th>
               <th className="p-2 text-center">{isKu ? 'دۆخ' : 'Status'}</th>
             </tr>
           </thead>
           <tbody>
             <tr style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }} className="border-b border-black">
-              <td className="p-2.5 border-r border-black text-center font-mono font-bold">1</td>
-              <td className="p-2.5 border-r border-black font-bold">
+              <td className="p-2.5 border-e border-black text-center font-mono font-bold">1</td>
+              <td className="p-2.5 border-e border-black font-bold">
                 {material.name}
                 <div className="text-[10px] text-gray-600 font-mono">TYPE: {material.type}</div>
               </td>
-              <td className="p-2.5 border-r border-black text-center font-mono font-black">{material.dimensions.length} mm</td>
-              <td className="p-2.5 border-r border-black text-center font-mono font-black">{material.dimensions.width} mm</td>
-              <td className="p-2.5 border-r border-black text-center font-mono font-black">{material.dimensions.thickness} mm</td>
-              <td className="p-2.5 border-r border-black text-center font-mono font-black text-sm">{order.quantity} pcs</td>
-              <td className="p-2.5 border-r border-black text-xs">{order.notes || (isKu ? 'بەپێی پێوانەی ستاندارد' : 'Standard Factory Grain')}</td>
+              <td className="p-2.5 border-e border-black text-center font-mono font-black">{material.dimensions.length} mm</td>
+              <td className="p-2.5 border-e border-black text-center font-mono font-black">{material.dimensions.width} mm</td>
+              <td className="p-2.5 border-e border-black text-center font-mono font-black">{material.dimensions.thickness} mm</td>
+              <td className="p-2.5 border-e border-black text-center font-mono font-black text-sm">{order.quantity} pcs</td>
+              <td className="p-2.5 border-e border-black text-xs">{order.notes || (isKu ? 'بەپێی پێوانەی ستاندارد' : 'Standard Factory Grain')}</td>
               <td className="p-2.5 text-center font-bold uppercase text-[10px]">
                 {order.status === 'finalized' ? (isKu ? 'تەواوکراو' : 'Cut Done') : (isKu ? 'ئامادە بۆ بڕین' : 'In Queue')}
               </td>
@@ -484,7 +484,7 @@ export const WarehouseManifestSlip: React.FC<{
           </div>
         </div>
 
-        <div className="text-right font-mono">
+        <div className="text-end font-mono">
           <div className="text-sm font-black px-3 py-1 border border-black inline-block bg-gray-100">
             BATCH: {shipment.batchCode}
           </div>
@@ -511,7 +511,7 @@ export const WarehouseManifestSlip: React.FC<{
           )}
         </div>
 
-        <div className="text-right font-mono">
+        <div className="text-end font-mono">
           <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
             {isKu ? 'کۆی بڕگەکانی ناو بار' : 'Manifest Line Count'}
           </span>
@@ -534,14 +534,14 @@ export const WarehouseManifestSlip: React.FC<{
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
             <tr className="bg-gray-100 border-b border-black text-black font-black uppercase text-[11px]">
-              <th className="p-2 border-r border-black text-center w-10">#</th>
-              <th className="p-2 border-r border-black text-left">{isKu ? 'ناوى کاڵا / کەرەستە' : 'Item Description'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'یەکە' : 'Unit'}</th>
-              <th className="p-2 border-r border-black text-right">{isKu ? 'چاوەڕوانکراو' : 'Expected Qty'}</th>
-              <th className="p-2 border-r border-black text-right">{isKu ? 'گەیشتوو' : 'Received Qty'}</th>
-              <th className="p-2 border-r border-black text-right">{isKu ? 'جیاوازی' : 'Variance'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'شوێن لە ڕەفە' : 'Rack / Bay'}</th>
-              <th className="p-2 text-left">{isKu ? 'تێبینی تەندروستی کاڵا' : 'Condition Notes'}</th>
+              <th className="p-2 border-e border-black text-center w-10">#</th>
+              <th className="p-2 border-e border-black text-start">{isKu ? 'ناوى کاڵا / کەرەستە' : 'Item Description'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'یەکە' : 'Unit'}</th>
+              <th className="p-2 border-e border-black text-end">{isKu ? 'چاوەڕوانکراو' : 'Expected Qty'}</th>
+              <th className="p-2 border-e border-black text-end">{isKu ? 'گەیشتوو' : 'Received Qty'}</th>
+              <th className="p-2 border-e border-black text-end">{isKu ? 'جیاوازی' : 'Variance'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'شوێن لە ڕەفە' : 'Rack / Bay'}</th>
+              <th className="p-2 text-start">{isKu ? 'تێبینی تەندروستی کاڵا' : 'Condition Notes'}</th>
             </tr>
           </thead>
           <tbody>
@@ -549,15 +549,15 @@ export const WarehouseManifestSlip: React.FC<{
               const diff = it.receivedQty - it.expectedQty;
               return (
                 <tr key={it.id || idx} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }} className="border-b border-black">
-                  <td className="p-2 border-r border-black text-center font-mono font-bold">{idx + 1}</td>
-                  <td className="p-2 border-r border-black font-bold">{it.description}</td>
-                  <td className="p-2 border-r border-black text-center font-mono">{it.unit}</td>
-                  <td className="p-2 border-r border-black text-right font-mono font-bold">{it.expectedQty.toLocaleString()}</td>
-                  <td className="p-2 border-r border-black text-right font-mono font-black">{it.receivedQty.toLocaleString()}</td>
-                  <td className={`p-2 border-r border-black text-right font-mono font-bold ${diff < 0 ? 'text-red-700' : 'text-black'}`}>
+                  <td className="p-2 border-e border-black text-center font-mono font-bold">{idx + 1}</td>
+                  <td className="p-2 border-e border-black font-bold">{it.description}</td>
+                  <td className="p-2 border-e border-black text-center font-mono">{it.unit}</td>
+                  <td className="p-2 border-e border-black text-end font-mono font-bold">{it.expectedQty.toLocaleString()}</td>
+                  <td className="p-2 border-e border-black text-end font-mono font-black">{it.receivedQty.toLocaleString()}</td>
+                  <td className={`p-2 border-e border-black text-end font-mono font-bold ${diff < 0 ? 'text-red-700' : 'text-black'}`}>
                     {diff === 0 ? '0' : diff > 0 ? `+${diff}` : `${diff}`}
                   </td>
-                  <td className="p-2 border-r border-black text-center font-mono font-bold">RACK-AUTO</td>
+                  <td className="p-2 border-e border-black text-center font-mono font-bold">RACK-AUTO</td>
                   <td className="p-2 text-xs">{it.expectedQty === it.receivedQty ? (isKu ? 'تەواوە و کێشەی نییە' : 'Inspected & Passed') : (isKu ? 'جیاوازی تۆمارکراوە' : 'Discrepancy noted')}</td>
                 </tr>
               );
@@ -669,24 +669,24 @@ export const PosInvoiceSlip: React.FC<{
           <div className="flex justify-between text-[10px] font-black border-b border-black pb-1 mb-1">
             <span className="w-1/2">ITEM</span>
             <span className="w-10 text-center">QTY</span>
-            <span className="w-16 text-right">PRICE</span>
-            <span className="w-16 text-right">TOTAL</span>
+            <span className="w-16 text-end">PRICE</span>
+            <span className="w-16 text-end">TOTAL</span>
           </div>
           {tx.items && tx.items.length > 0 ? (
             tx.items.map((it, idx) => (
               <div key={idx} className="flex justify-between items-start text-[10px] py-0.5">
                 <div className="w-1/2 font-bold truncate">{it.product || it.type}</div>
                 <div className="w-10 text-center font-bold">{it.quantity}</div>
-                <div className="w-16 text-right">{formatMoney(it.price, tx.currency)}</div>
-                <div className="w-16 text-right font-black">{formatMoney(it.total, tx.currency)}</div>
+                <div className="w-16 text-end">{formatMoney(it.price, tx.currency)}</div>
+                <div className="w-16 text-end font-black">{formatMoney(it.total, tx.currency)}</div>
               </div>
             ))
           ) : (
             <div className="flex justify-between items-start text-[10px] py-0.5">
               <div className="w-1/2 font-bold truncate">{tx.material || tx.panelType}</div>
               <div className="w-10 text-center font-bold">{tx.quantity}</div>
-              <div className="w-16 text-right">{formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}</div>
-              <div className="w-16 text-right font-black">{formatMoney(tx.sellingAmount, tx.currency)}</div>
+              <div className="w-16 text-end">{formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}</div>
+              <div className="w-16 text-end font-black">{formatMoney(tx.sellingAmount, tx.currency)}</div>
             </div>
           )}
         </div>
@@ -755,7 +755,7 @@ export const PosInvoiceSlip: React.FC<{
           </div>
         </div>
 
-        <div className="text-right font-mono">
+        <div className="text-end font-mono">
           <div className="text-sm font-black px-3 py-1 border border-black inline-block bg-gray-100">
             INV #{tx.code || tx.id.slice(-6)}
           </div>
@@ -781,7 +781,7 @@ export const PosInvoiceSlip: React.FC<{
           </div>
         </div>
 
-        <div className="text-right font-mono">
+        <div className="text-end font-mono">
           <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
             {isKu ? 'دۆخی پسوولە' : 'Invoice Payment Status'}
           </span>
@@ -799,34 +799,34 @@ export const PosInvoiceSlip: React.FC<{
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
             <tr className="bg-gray-100 border-b border-black text-black font-black uppercase text-[11px]">
-              <th className="p-2 border-r border-black text-center w-10">#</th>
-              <th className="p-2 border-r border-black text-left">{isKu ? 'کاڵا / کەرەستە' : 'Item Description'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'جۆری فرۆشتن' : 'Sale Type'}</th>
-              <th className="p-2 border-r border-black text-center">{isKu ? 'بڕ' : 'Quantity'}</th>
-              <th className="p-2 border-r border-black text-right">{isKu ? 'نرخی یەکە' : 'Unit Price'}</th>
-              <th className="p-2 text-right">{isKu ? 'کۆی گشتی' : 'Line Total'}</th>
+              <th className="p-2 border-e border-black text-center w-10">#</th>
+              <th className="p-2 border-e border-black text-start">{isKu ? 'کاڵا / کەرەستە' : 'Item Description'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'جۆری فرۆشتن' : 'Sale Type'}</th>
+              <th className="p-2 border-e border-black text-center">{isKu ? 'بڕ' : 'Quantity'}</th>
+              <th className="p-2 border-e border-black text-end">{isKu ? 'نرخی یەکە' : 'Unit Price'}</th>
+              <th className="p-2 text-end">{isKu ? 'کۆی گشتی' : 'Line Total'}</th>
             </tr>
           </thead>
           <tbody>
             {tx.items && tx.items.length > 0 ? (
               tx.items.map((it, idx) => (
                 <tr key={idx} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }} className="border-b border-black">
-                  <td className="p-2 border-r border-black text-center font-mono font-bold">{idx + 1}</td>
-                  <td className="p-2 border-r border-black font-bold">{it.product || it.type}</td>
-                  <td className="p-2 border-r border-black text-center text-xs">{it.sellingType || 'Wholesale'}</td>
-                  <td className="p-2 border-r border-black text-center font-mono font-bold">{it.quantity}</td>
-                  <td className="p-2 border-r border-black text-right font-mono">{formatMoney(it.price, tx.currency)}</td>
-                  <td className="p-2 text-right font-mono font-black">{formatMoney(it.total, tx.currency)}</td>
+                  <td className="p-2 border-e border-black text-center font-mono font-bold">{idx + 1}</td>
+                  <td className="p-2 border-e border-black font-bold">{it.product || it.type}</td>
+                  <td className="p-2 border-e border-black text-center text-xs">{it.sellingType || 'Wholesale'}</td>
+                  <td className="p-2 border-e border-black text-center font-mono font-bold">{it.quantity}</td>
+                  <td className="p-2 border-e border-black text-end font-mono">{formatMoney(it.price, tx.currency)}</td>
+                  <td className="p-2 text-end font-mono font-black">{formatMoney(it.total, tx.currency)}</td>
                 </tr>
               ))
             ) : (
               <tr style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }} className="border-b border-black">
-                <td className="p-2 border-r border-black text-center font-mono font-bold">1</td>
-                <td className="p-2 border-r border-black font-bold">{tx.material || tx.panelType}</td>
-                <td className="p-2 border-r border-black text-center text-xs">{tx.sellingType}</td>
-                <td className="p-2 border-r border-black text-center font-mono font-bold">{tx.quantity} {tx.unit}</td>
-                <td className="p-2 border-r border-black text-right font-mono">{formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}</td>
-                <td className="p-2 text-right font-mono font-black">{formatMoney(tx.sellingAmount, tx.currency)}</td>
+                <td className="p-2 border-e border-black text-center font-mono font-bold">1</td>
+                <td className="p-2 border-e border-black font-bold">{tx.material || tx.panelType}</td>
+                <td className="p-2 border-e border-black text-center text-xs">{tx.sellingType}</td>
+                <td className="p-2 border-e border-black text-center font-mono font-bold">{tx.quantity} {tx.unit}</td>
+                <td className="p-2 border-e border-black text-end font-mono">{formatMoney(tx.sellingAmount / (tx.quantity || 1), tx.currency)}</td>
+                <td className="p-2 text-end font-mono font-black">{formatMoney(tx.sellingAmount, tx.currency)}</td>
               </tr>
             )}
           </tbody>

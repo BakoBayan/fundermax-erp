@@ -118,7 +118,7 @@ export const AuditBackupsSection: React.FC = () => {
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-6 end-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
           {toastMsg}
         </div>
       )}
@@ -169,7 +169,7 @@ export const AuditBackupsSection: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <button
             onClick={() => exportPanelsCSV(materials, language)}
-            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-left transition-all group"
+            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-start transition-all group"
           >
             <div className="flex items-center justify-between mb-1.5">
               <Layers className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -181,7 +181,7 @@ export const AuditBackupsSection: React.FC = () => {
 
           <button
             onClick={() => exportOrdersCSV(allFlattenedOrders, language)}
-            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-left transition-all group"
+            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-start transition-all group"
           >
             <div className="flex items-center justify-between mb-1.5">
               <PackageCheck className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -193,7 +193,7 @@ export const AuditBackupsSection: React.FC = () => {
 
           <button
             onClick={() => exportTransactionsCSV(transactions, language)}
-            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-left transition-all group"
+            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-start transition-all group"
           >
             <div className="flex items-center justify-between mb-1.5">
               <ReceiptText className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -205,7 +205,7 @@ export const AuditBackupsSection: React.FC = () => {
 
           <button
             onClick={() => exportProductsCSV(products, language)}
-            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-left transition-all group"
+            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-start transition-all group"
           >
             <div className="flex items-center justify-between mb-1.5">
               <Boxes className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -217,7 +217,7 @@ export const AuditBackupsSection: React.FC = () => {
 
           <button
             onClick={() => exportShipmentsCSV(shipments, language)}
-            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-left transition-all group"
+            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-start transition-all group"
           >
             <div className="flex items-center justify-between mb-1.5">
               <Truck className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -229,7 +229,7 @@ export const AuditBackupsSection: React.FC = () => {
 
           <button
             onClick={() => exportAuditLogsCSV(activityLogs, language)}
-            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-left transition-all group"
+            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500/40 text-start transition-all group"
           >
             <div className="flex items-center justify-between mb-1.5">
               <Clock className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -308,13 +308,13 @@ export const AuditBackupsSection: React.FC = () => {
 
             {/* Search */}
             <div className="relative min-w-[140px] sm:w-56">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+              <Search className="w-3.5 h-3.5 absolute start-3 top-2.5 text-slate-400" />
               <input
                 type="text"
                 placeholder={isKu ? 'گەڕان لە تۆمارەکان...' : 'Search logs...'}
                 value={logSearch}
                 onChange={(e) => setLogSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full ps-8 pe-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
 
@@ -356,7 +356,7 @@ export const AuditBackupsSection: React.FC = () => {
                       {log.description} {log.details ? `— ${log.details}` : ''}
                     </p>
                   </div>
-                  <div className="sm:text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-1 text-[11px] text-slate-400 font-mono">
+                  <div className="sm:text-end shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-1 text-[11px] text-slate-400 font-mono">
                     <span className="font-semibold text-slate-700 dark:text-slate-300">
                       {log.username}
                     </span>

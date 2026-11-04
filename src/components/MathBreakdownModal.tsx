@@ -170,7 +170,7 @@ export default function MathBreakdownModal({
               </div>
             </div>
 
-            <div className="sm:text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-1.5 border-t sm:border-t-0 pt-2 sm:pt-0 border-rose-200 dark:border-rose-900/60">
+            <div className="sm:text-end shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-1.5 border-t sm:border-t-0 pt-2 sm:pt-0 border-rose-200 dark:border-rose-900/60">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-600 text-white font-mono shadow-xs">
                 {debtorOrders.length} {lang === 'en' ? 'Debtor Invoices' : 'وەسڵی قەرزدار'}
               </span>
@@ -362,7 +362,7 @@ export default function MathBreakdownModal({
                       </span>
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-end">
                       {/* Original Currency Debt */}
                       <span className="font-mono font-bold block text-slate-700 dark:text-slate-200">
                         {formatMoney(item.origDebt, item.origCur)}

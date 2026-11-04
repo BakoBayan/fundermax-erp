@@ -793,29 +793,7 @@ function WarehouseApp() {
                 </button>
               </div>
 
-              {/* Undo & Redo Controls (Hidden for Viewers) */}
-              {!isViewer && (
-                <div className="flex items-center h-9 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-                  <button
-                    onClick={undo}
-                    disabled={!canUndo}
-                    className="h-full px-2.5 rounded-lg text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all text-xs font-bold flex items-center gap-1 cursor-pointer"
-                    title="Undo (Ctrl+Z)"
-                  >
-                    <Undo2 className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Undo</span>
-                  </button>
-                  <button
-                    onClick={redo}
-                    disabled={!canRedo}
-                    className="h-full px-2.5 rounded-lg text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all text-xs font-bold flex items-center gap-1 cursor-pointer"
-                    title="Redo (Ctrl+Y)"
-                  >
-                    <Redo2 className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Redo</span>
-                  </button>
-                </div>
-              )}
+              {/* Undo & Redo Controls (Hidden) */}
             </div>
 
             {/* Quick Print & Visual Charts Options */}
