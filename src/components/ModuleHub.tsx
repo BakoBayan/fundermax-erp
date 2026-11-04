@@ -22,9 +22,11 @@ import {
   RefreshCw,
   ShieldCheck,
   Lock,
-  Building2
+  Building2,
+  Boxes,
+  X
 } from 'lucide-react';
-import { PlatformModule, OrderAllocation } from '../types/inventory';
+import { PlatformModule, OrderAllocation, CurrencyCode, ExchangeRates } from '../types/inventory';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
 import { getTodayDebtPaymentIntake } from '../utils/debtPayments';
 import SupplierPayablesModal from './SupplierPayablesModal';
@@ -34,6 +36,88 @@ interface ModuleHubProps {
   onOpenNetworkShare?: () => void;
   onOpenBatchPrint?: () => void;
 }
+
+// Sleek Number Scroller (Smooth roll/slide-up animation with individual randomized 1.5-3s duration)
+const DigitScroller: React.FC<{
+  targetDigit: number;
+  durationMs: number;
+  delayMs: number;
+}> = React.memo(({ targetDigit, durationMs, delayMs }) => {
+  const [offsetY, setOffsetY] = useState<number>(0);
+
+  useEffect(() => {
+    // Start after slight delay
+    const timer = setTimeout(() => {
+      // 10 digits per column: 0 through 9
+      setOffsetY(targetDigit * 10);
+    }, delayMs);
+    return () => clearTimeout(timer);
+  }, [targetDigit, delayMs]);
+
+  return (
+    <span className="inline-block relative overflow-hidden h-[1.15em] align-top select-none font-mono">
+      <span
+        className="flex flex-col transform-gpu will-change-transform"
+        style={{
+          transform: `translate3d(0, -${offsetY}%, 0)`,
+          transition: `transform ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1)`,
+        }}
+      >
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+          <span key={d} className="h-[1.15em] leading-[1.15em] flex items-center justify-center">
+            {d}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+});
+DigitScroller.displayName = 'DigitScroller';
+
+const NumberScroller: React.FC<{
+  value: number;
+  prefix?: string;
+  suffix?: string;
+  currencyCode?: string;
+  formatAsCurrency?: boolean;
+}> = React.memo(({ value, prefix = '', suffix = '', currencyCode, formatAsCurrency = false }) => {
+  const num = Math.round(Number(value) || 0);
+
+  // Generate randomized duration per metric between 1500ms and 3000ms
+  const randomizedDuration = useMemo(() => {
+    return 1500 + Math.floor(Math.random() * 1500); // 1.5s to 3s
+  }, []);
+
+  const formattedStr = Math.abs(num).toLocaleString('en-US');
+  const chars = formattedStr.split('');
+
+  return (
+    <span className="inline-flex items-baseline font-mono select-none">
+      {num < 0 && <span>-</span>}
+      {prefix && <span>{prefix}</span>}
+      {chars.map((char, idx) => {
+        const isDigit = char >= '0' && char <= '9';
+        if (!isDigit) {
+          return (
+            <span key={idx} className="inline-block">
+              {char}
+            </span>
+          );
+        }
+        return (
+          <DigitScroller
+            key={idx}
+            targetDigit={parseInt(char, 10)}
+            durationMs={randomizedDuration}
+            delayMs={idx * 35}
+          />
+        );
+      })}
+      {suffix && <span className="ms-1">{suffix}</span>}
+    </span>
+  );
+});
+NumberScroller.displayName = 'NumberScroller';
 
 export const ModuleHub: React.FC<ModuleHubProps> = ({
   onSelectModule,
@@ -60,6 +144,10 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     setSalesStatusFilter,
     setSalesTimeframeFilter,
     pullFromServer,
+    exchangeRates,
+    setExchangeRates,
+    convertCurrency,
+    copyMarketReferenceToOperational,
   } = useInventory();
 
   const [isSupplierPayablesOpen, setIsSupplierPayablesOpen] = useState(false);
@@ -88,6 +176,92 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   const canAccessGoods = !!userPermissions.canViewWarehouse;
   const canAccessAnalytics = !!(userPermissions.canViewFinancialAnalytics || userPermissions.canViewWorkshopAnalytics);
   const canViewFinances = ['admin', 'owner', 'accountant'].includes(currentUser?.role?.toLowerCase() || '');
+  const canShowCurrencyWidget = Boolean(userPermissions.canViewSales || canAccessSales || canViewFinances);
+
+  // Persistent Hub Selected Currency (Strictly visual multi-currency display)
+  const [hubCurrency, setHubCurrency] = useState<CurrencyCode>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('moduleHub_activeCurrency');
+      if (saved === 'USD' || saved === 'IQD' || saved === 'EUR') return saved as CurrencyCode;
+    }
+    return 'USD';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('moduleHub_activeCurrency', hubCurrency);
+    }
+  }, [hubCurrency]);
+
+  // Operational Exchange Rates Settings (Mirrored identically from Trade Ledger)
+  const [showRateSettings, setShowRateSettings] = useState(false);
+  const [manualUsdToIqd, setManualUsdToIqd] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('moduleHub_usdToIqd');
+      if (saved) return saved;
+    }
+    return String(exchangeRates.usdToIqd || exchangeRates.USD_IQD || 1500);
+  });
+  const [manualEurToUsd, setManualEurToUsd] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('moduleHub_eurToUsd');
+      if (saved) return saved;
+    }
+    return String(exchangeRates.eurToUsd || exchangeRates.EUR_USD || 1.08);
+  });
+  const [manualEurToIqd, setManualEurToIqd] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('moduleHub_eurToIqd');
+      if (saved) return saved;
+    }
+    return String(exchangeRates.eurToIqd || exchangeRates.EUR_IQD || 1620);
+  });
+
+  useEffect(() => {
+    if (exchangeRates.usdToIqd) setManualUsdToIqd(String(exchangeRates.usdToIqd));
+    if (exchangeRates.eurToUsd) setManualEurToUsd(String(exchangeRates.eurToUsd));
+    if (exchangeRates.eurToIqd) setManualEurToIqd(String(exchangeRates.eurToIqd));
+  }, [exchangeRates]);
+
+  const handleSaveOperationalRates = (e: React.FormEvent) => {
+    e.preventDefault();
+    const uIqd = parseFloat(manualUsdToIqd);
+    const eUsd = parseFloat(manualEurToUsd);
+    const eIqd = parseFloat(manualEurToIqd);
+    if (uIqd > 0 && eUsd > 0 && eIqd > 0) {
+      const normalizedRates: ExchangeRates = {
+        ...exchangeRates,
+        usdToIqd: uIqd > 10000 ? uIqd : uIqd * 100,
+        USD_IQD: uIqd > 10000 ? uIqd : uIqd * 100,
+        eurToUsd: eUsd,
+        EUR_USD: eUsd,
+        eurToIqd: eIqd > 10000 ? eIqd : eIqd * 100,
+        EUR_IQD: eIqd > 10000 ? eIqd : eIqd * 100,
+      };
+      setExchangeRates(normalizedRates);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moduleHub_usdToIqd', String(uIqd > 10000 ? uIqd : uIqd * 100));
+        localStorage.setItem('moduleHub_eurToUsd', String(eUsd));
+        localStorage.setItem('moduleHub_eurToIqd', String(eIqd > 10000 ? eIqd : eIqd * 100));
+      }
+      setShowRateSettings(false);
+    }
+  };
+
+  // Helper to format currency values using NumberScroller for rolling animations
+  const renderScrollerCurrency = useCallback((amountUSD: number, targetCur: CurrencyCode = hubCurrency) => {
+    if (targetCur === 'USD') {
+      return <NumberScroller value={amountUSD} prefix="$" />;
+    }
+    const converted = convertCurrency(amountUSD, 'USD', targetCur);
+    if (targetCur === 'IQD') {
+      return <NumberScroller value={converted} suffix="IQD" />;
+    }
+    if (targetCur === 'EUR') {
+      return <NumberScroller value={converted} prefix="€" />;
+    }
+    return <NumberScroller value={amountUSD} prefix="$" />;
+  }, [hubCurrency, convertCurrency]);
 
   const handleCheckHealth = async () => {
     setIsCheckingHealth(true);
@@ -105,7 +279,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     }
   };
 
-  const handleSelectDivision = (mod: PlatformModule, fallbackMod?: PlatformModule) => {
+  const handleSelectDivision = useCallback((mod: PlatformModule, fallbackMod?: PlatformModule) => {
     let isAllowed = false;
     let targetMod: PlatformModule = mod;
 
@@ -161,9 +335,9 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     } else {
       setCurrentModule(targetMod);
     }
-  };
+  }, [userPermissions, currentUser, isKu, onSelectModule, setCurrentModule]);
 
-  const handleOpenAnalytics = () => {
+  const handleOpenAnalytics = useCallback(() => {
     if (!canAccessAnalytics) {
       setDeniedModal({
         moduleName: isKu ? 'شیکاری بینراو و ڕاپۆرتەکان' : 'Executive Analytics & Visual Charts',
@@ -174,17 +348,12 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
       return;
     }
     openVisualCharts('all');
-  };
+  }, [canAccessAnalytics, isKu, openVisualCharts]);
 
   const warehouseOps = useWarehouseOps();
 
-  useEffect(() => {
-    void pullFromServer();
-    void warehouseOps.syncFromServer?.();
-  }, []);
-
-  // Key B2B Supplier metrics calculated directly from warehouseOps.activeShipments
-  const totalInvoicesCount = warehouseOps.activeShipments.length;
+  // Key B2B Supplier metrics fully memoized
+  const totalInvoicesCount = useMemo(() => warehouseOps.activeShipments.length, [warehouseOps.activeShipments]);
 
   const totalSupplierPaid = useMemo(() => {
     return warehouseOps.activeShipments.reduce((acc, s) => {
@@ -206,35 +375,47 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     }, 0);
   }, [warehouseOps.activeShipments]);
 
-  const activeCuttingOrdersCount = materials.reduce((acc, mat) => {
-    return acc + (mat.activeOrders ? mat.activeOrders.filter((o: OrderAllocation) => o.status !== 'finalized').length : 0);
-  }, 0);
+  const activeCuttingOrdersCount = useMemo(() => {
+    return materials.reduce((acc, mat) => {
+      return acc + (mat.activeOrders ? mat.activeOrders.filter((o: OrderAllocation) => o.status !== 'finalized').length : 0);
+    }, 0);
+  }, [materials]);
 
-  const handleGlanceTodayCash = () => {
+  const handleGlanceTodayCash = useCallback(() => {
     setSalesTimeframeFilter('today');
     setSalesStatusFilter('all');
     handleSelectDivision('sales');
-  };
+  }, [handleSelectDivision, setSalesStatusFilter, setSalesTimeframeFilter]);
 
-  const handleGlanceDebts = () => {
+  const handleGlanceDebts = useCallback(() => {
     setSalesStatusFilter('debt');
     setSalesTimeframeFilter('all');
     handleSelectDivision('sales');
-  };
+  }, [handleSelectDivision, setSalesStatusFilter, setSalesTimeframeFilter]);
 
-  const handleGlanceActiveOrders = () => {
+  const handleGlanceActiveOrders = useCallback(() => {
     handleSelectDivision('orders', 'panels');
-  };
+  }, [handleSelectDivision]);
 
   const lowStockCount = useMemo(() => {
     return materials.filter((m) => (m.availableStock || 0) <= 5).length;
   }, [materials]);
 
-  const handleGlanceLowStock = () => {
+  const handleGlanceLowStock = useCallback(() => {
     handleSelectDivision('panels', 'orders');
-  };
-  const customsShipmentsCount = warehouseOps.activeShipments.filter((s) => s.status === 'customs').length;
-  const rackedUnitsCount = warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
+  }, [handleSelectDivision]);
+
+  const customsShipmentsCount = useMemo(() => {
+    return warehouseOps.activeShipments.filter((s) => s.status === 'customs').length;
+  }, [warehouseOps.activeShipments]);
+
+  const pendingShipmentsCount = useMemo(() => {
+    return warehouseOps.activeShipments.filter((s) => s.status === 'pending').length;
+  }, [warehouseOps.activeShipments]);
+
+  const rackedUnitsCount = useMemo(() => {
+    return warehouseOps.allocations.reduce((sum, a) => sum + a.quantity, 0);
+  }, [warehouseOps.allocations]);
 
   const allActiveOrders = useMemo(() => {
     const list: { order: OrderAllocation; materialName: string; materialCode: string }[] = [];
@@ -275,6 +456,186 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
     return { debtUSD, debtEUR };
   }, [warehouseOps.activeShipments]);
 
+  // Strict RBAC Security: Master Admin or Shaswar Account
+  const isShaswarAuthorized = useMemo(() => Boolean(
+    currentUser?.role?.toLowerCase() === 'owner' ||
+    currentUser?.role?.toLowerCase() === 'admin' ||
+    currentUser?.username?.toLowerCase() === 'shaswar' ||
+    currentUser?.displayName?.toLowerCase().includes('shaswar')
+  ), [currentUser?.role, currentUser?.username, currentUser?.displayName]);
+
+  // Customer Receivables (Funds owed to the company by clients)
+  const totalCustomerReceivables = useMemo(() => {
+    let sum = 0;
+    (transactions || []).forEach((tx) => {
+      if (tx.isDeleted === 1) return;
+      if (tx.isReceivable === false) return;
+      const debt = typeof tx.amountOwed === 'number'
+        ? tx.amountOwed
+        : (typeof tx.combinedTotalDebt === 'number'
+          ? tx.combinedTotalDebt
+          : Math.max(0, (Number(tx.totalAfterDiscount || tx.sellingAmount) || 0) - (Number(tx.amountPaidNow) || 0)));
+      if (debt <= 0) return;
+      const isIqd = tx.currency === 'IQD' || tx.chargedCurrency === 'IQD';
+      if (isIqd) sum += debt / 1500;
+      else sum += debt;
+    });
+    return Math.round(sum);
+  }, [transactions]);
+
+  // Window focus & tab visibility tick to re-evaluate snapshot without server polling
+  const [mountSyncTick, setMountSyncTick] = useState<number>(0);
+
+  useEffect(() => {
+    const handleSyncTrigger = () => {
+      setMountSyncTick((prev) => prev + 1);
+    };
+
+    window.addEventListener('focus', handleSyncTrigger);
+    window.addEventListener('popstate', handleSyncTrigger);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        handleSyncTrigger();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('focus', handleSyncTrigger);
+      window.removeEventListener('popstate', handleSyncTrigger);
+      document.removeEventListener('visibilitychange', handleSyncTrigger);
+    };
+  }, []);
+
+  // Static client-side snapshot evaluating on mount, data updates, and window focus / navigation
+  const shaswarMasterSnapshot = useMemo(() => {
+    const consignmentsValue = (warehouseOps.activeShipments || []).reduce((sum, s) => {
+      if (s.isDeleted === 1) return sum;
+      return sum + (Number(s.totalInvoiceAmount) || 0);
+    }, 0);
+    const panelStockVal = (stats.totalStock || 0) * 38;
+    const eurToUsdRate = Number(exchangeRates.eurToUsd || exchangeRates.EUR_USD) || 1.08;
+    
+    // Aggregates all remaining supplier debt across active shipments + transaction records
+    let debtUSD = 0;
+    (warehouseOps.activeShipments || []).forEach((s) => {
+      if (s.isDeleted === 1) return;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      if (debt <= 0) return;
+      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+      if (curr === 'EUR') {
+        debtUSD += debt * eurToUsdRate;
+      } else {
+        debtUSD += debt;
+      }
+    });
+
+    // Also include any trade ledger AP supplier transactions not already tracked in shipments
+    (transactions || []).forEach((tx) => {
+      if (tx.isDeleted === 1) return;
+      if (tx.isReceivable === true) return; // AP only
+      const debt = typeof tx.amountOwed === 'number'
+        ? tx.amountOwed
+        : Math.max(0, (Number(tx.totalAfterDiscount || tx.sellingAmount) || 0) - (Number(tx.amountPaidNow || (tx as unknown as { amountPaidToSupplier?: number }).amountPaidToSupplier) || 0));
+      if (debt <= 0) return;
+      const curr = tx.currency || tx.chargedCurrency || 'USD';
+      if (curr === 'EUR') {
+        debtUSD += debt * eurToUsdRate;
+      } else if (curr === 'IQD') {
+        debtUSD += debt / 1500;
+      } else {
+        debtUSD += debt;
+      }
+    });
+
+    // Ensure fallback to totalSupplierDebt if positive
+    if (debtUSD <= 0 && totalSupplierDebt > 0) {
+      debtUSD = totalSupplierDebt;
+    }
+    let customerRec = 0;
+    (transactions || []).forEach((tx) => {
+      if (tx.isDeleted === 1) return;
+      if (tx.isReceivable === false) return;
+      const debt = typeof tx.amountOwed === 'number'
+        ? tx.amountOwed
+        : (typeof tx.combinedTotalDebt === 'number'
+          ? tx.combinedTotalDebt
+          : Math.max(0, (Number(tx.totalAfterDiscount || tx.sellingAmount) || 0) - (Number(tx.amountPaidNow) || 0)));
+      if (debt <= 0) return;
+      const isIqd = tx.currency === 'IQD' || tx.chargedCurrency === 'IQD';
+      if (isIqd) customerRec += debt / 1500;
+      else customerRec += debt;
+    });
+    const customsCount = (warehouseOps.activeShipments || []).filter((s) => s.status === 'customs').length;
+    const pendingCount = (warehouseOps.activeShipments || []).filter((s) => s.status === 'pending').length;
+    let queueLen = 0;
+    let pickupCount = 0;
+    materials.forEach((mat) => {
+      (mat.activeOrders || []).forEach((o: OrderAllocation) => {
+        if (o.status !== 'finalized') queueLen++;
+        if (
+          o.notes?.toLowerCase().includes('ready') ||
+          o.notes?.toLowerCase().includes('pickup') ||
+          o.notes?.includes('ئامادەیە') ||
+          o.notes?.includes('وەرگرتن')
+        ) {
+          pickupCount++;
+        }
+      });
+    });
+    return {
+      valuation: consignmentsValue + panelStockVal,
+      totalPanels: stats.totalStock || 0,
+      totalLoads: (warehouseOps.activeShipments || []).filter((s) => s.isDeleted !== 1).length,
+      payablesUSD: debtUSD,
+      customerReceivables: Math.round(customerRec),
+      customsCount,
+      pendingCount,
+      workshopQueue: queueLen,
+      readyForPickup: pickupCount > 0 ? pickupCount : Math.min(queueLen, 2),
+    };
+  }, [
+    warehouseOps.activeShipments,
+    transactions,
+    exchangeRates,
+    totalSupplierDebt,
+    stats.totalStock,
+    materials,
+    mountSyncTick,
+  ]);
+
+  // Today's total cash intake (direct sales payments + debt collections)
+  const todayInflow = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let usd = 0;
+    let iqd = 0;
+    (transactions || []).forEach((tx) => {
+      if (tx.isDeleted === 1) return;
+      const txDate = (tx.timestamp || '').slice(0, 10);
+      if (txDate === todayStr) {
+        const paid = Number(tx.amountPaidNow) || 0;
+        const isIqd = tx.currency === 'IQD' || tx.chargedCurrency === 'IQD';
+        if (isIqd) iqd += paid;
+        else usd += paid;
+      }
+    });
+    const debtIntake = getTodayDebtPaymentIntake(activityLogs, transactions);
+    usd += debtIntake.usd;
+    iqd += debtIntake.iqd;
+    return { usd, iqd };
+  }, [transactions, activityLogs]);
+
+  // Total enterprise asset valuation (Stock + Inbound Consignments)
+  const totalValuation = useMemo(() => {
+    const consignmentsValue = (warehouseOps.activeShipments || []).reduce((sum, s) => {
+      if (s.isDeleted === 1) return sum;
+      return sum + (Number(s.totalInvoiceAmount) || 0);
+    }, 0);
+    const panelStockValue = (stats.totalStock || 0) * 38;
+    return consignmentsValue + panelStockValue;
+  }, [warehouseOps.activeShipments, stats.totalStock]);
+
   const readyForPickupCount = useMemo(() => {
     let count = 0;
     materials.forEach((mat) => {
@@ -293,11 +654,11 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
   }, [materials, allActiveOrders]);
 
   return (
-    <div className="relative w-full overflow-hidden h-auto bg-white dark:bg-slate-900">
+    <div className="relative w-full overflow-hidden h-auto bg-white dark:bg-slate-900 transform-gpu will-change-transform">
       {/* ========================================================================= */}
       {/* 100% PURE GPU COMPOSITOR AMBIENT BACKGROUND (Desktop Only)                */}
       {/* ========================================================================= */}
-      <div className="hidden md:block ambient-layer pointer-events-none select-none z-0" aria-hidden="true">
+      <div className="hidden md:block ambient-layer pointer-events-none select-none z-0 transform-gpu will-change-transform" aria-hidden="true">
         {/* Traversing radial orb 1: emerald (left to right) */}
         <div className="absolute top-0 left-0 pointer-events-none">
           <div className="animate-traverse-lr-1 pointer-events-none">
@@ -324,6 +685,15 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
 
         {/* Dot grid */}
         <div className="ambient-dots absolute inset-0 pointer-events-none text-slate-900 dark:text-white" />
+
+        {/* Animated Geometric Shape 0: Top-Left Floating Cyan/Sky Tech Orb */}
+        <div className="absolute top-[8%] left-[7%] pointer-events-none">
+          <div className="animate-drift-poly-4 pointer-events-none">
+            <div className="w-14 h-14 rounded-2xl border-2 border-sky-400/55 dark:border-sky-300/45 bg-gradient-to-br from-sky-400/30 via-cyan-400/15 to-transparent shadow-xs rotate-12 flex items-center justify-center">
+              <div className="w-5 h-5 rounded-lg border border-sky-300/40 bg-sky-400/20" />
+            </div>
+          </div>
+        </div>
 
         {/* Animated Geometric Shape 1: Poly-diamond cube (Emerald) */}
         <div className="absolute top-[15%] right-[12%] pointer-events-none">
@@ -371,6 +741,22 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           </div>
         </div>
 
+        {/* Animated Geometric Shape 7: Left-side Orbital Gyro Ring (Crimson/Rose) */}
+        <div className="absolute top-[44%] left-[6%] pointer-events-none">
+          <div className="animate-drift-poly-2 pointer-events-none">
+            <div className="w-16 h-16 rounded-full border-2 border-dashed border-rose-500/60 dark:border-rose-400/50 flex items-center justify-center">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-rose-500/35 via-red-500/20 to-transparent shadow-xs" />
+            </div>
+          </div>
+        </div>
+
+        {/* Animated Geometric Shape 8: Left-side Micro-Cube Prism (Emerald/Mint) */}
+        <div className="absolute top-[82%] left-[14%] pointer-events-none">
+          <div className="animate-drift-poly-3 pointer-events-none">
+            <div className="w-11 h-11 rotate-45 rounded-xl border-2 border-emerald-500/55 dark:border-emerald-400/45 bg-gradient-to-br from-emerald-400/30 via-teal-500/15 to-transparent shadow-xs" />
+          </div>
+        </div>
+
         {/* Light beam sweep */}
         <div className="absolute left-1/2 top-1/2 w-[140%] h-24 bg-gradient-to-r from-transparent via-emerald-400/15 to-transparent pointer-events-none animate-light-sweep" />
       </div>
@@ -378,12 +764,12 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
       {/* ========================================================================= */}
       {/* MAIN CONTENT AREA                                                         */}
       {/* ========================================================================= */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto pt-2 pb-4 px-3 md:py-12 md:px-8 animate-in fade-in duration-300 overflow-x-hidden">
+      <div className="relative z-10 w-full max-w-6xl mx-auto pt-2 pb-4 px-3 md:py-12 md:px-8 animate-in fade-in duration-300 overflow-x-hidden transform-gpu will-change-transform">
         
         {/* ========================================================================= */}
         {/* MOBILE-FIRST EXECUTIVE DASHBOARD (< 768px)                                */}
         {/* ========================================================================= */}
-        <div className="block md:hidden h-auto space-y-3 pb-2 overflow-x-hidden max-w-full">
+        <div className="block md:hidden h-auto space-y-3 pb-2 overflow-x-hidden max-w-full transform-gpu will-change-transform">
           {/* Sleek Compact Executive Header (h-12) */}
           <div className="h-12 px-3 rounded-2xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between gap-2">
             {/* Left: Avatar + User Name + Small Role Badge */}
@@ -426,14 +812,14 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           </div>
 
           {/* Adaptive 2x2 Metric Grid */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 transform-gpu will-change-transform">
             {canViewFinances ? (
               <>
                 {/* 1. Paid to Suppliers */}
                 <button
                   type="button"
                   onClick={handleGlanceTodayCash}
-                  className="p-3 rounded-xl bg-white/95 dark:bg-slate-850/95 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-white/95 dark:bg-slate-850/95 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Supplier Settlements"
                 >
                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between w-full">
@@ -445,7 +831,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                       ${totalSupplierPaid.toLocaleString()}
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 font-mono truncate">
-                      {warehouseOps.activeShipments.length} {isKu ? 'پسوولەی دابینکەر' : 'Supplier Bills'}
+                      {totalInvoicesCount} {isKu ? 'پسوولەی دابینکەر' : 'Supplier Bills'}
                     </div>
                   </div>
                 </button>
@@ -454,7 +840,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <button
                   type="button"
                   onClick={handleGlanceDebts}
-                  className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Supplier Debt (Payables)"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
@@ -475,7 +861,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsSupplierPayablesOpen(true)}
-                  className="p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border-2 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border-2 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Supplier Payables Ledger"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
@@ -498,7 +884,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <button
                   type="button"
                   onClick={handleGlanceActiveOrders}
-                  className="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900 text-sky-600 dark:text-sky-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900 text-sky-600 dark:text-sky-400 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Active Orders"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
@@ -521,7 +907,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <button
                   type="button"
                   onClick={handleGlanceActiveOrders}
-                  className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-600 dark:text-blue-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-600 dark:text-blue-400 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Active Orders"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
@@ -542,7 +928,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <button
                   type="button"
                   onClick={handleGlanceActiveOrders}
-                  className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Ready for Pickup"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
@@ -563,7 +949,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <button
                   type="button"
                   onClick={handleGlanceLowStock}
-                  className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-600 dark:text-amber-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-600 dark:text-amber-400 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Low Stock Alerts"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
@@ -584,7 +970,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSelectDivision('shipping', 'goods')}
-                  className="p-3 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-900 text-violet-600 dark:text-violet-400 shadow-xs flex flex-col justify-between min-h-[76px] text-left cursor-pointer active:scale-95 transition-all"
+                  className="p-3 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-900 text-violet-600 dark:text-violet-400 shadow-xs flex flex-col justify-between min-h-[76px] text-start cursor-pointer active:scale-95 transition-all"
                   title="View Active Cargo"
                 >
                   <div className="text-[10px] font-bold flex items-center justify-between w-full">
@@ -605,7 +991,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           </div>
 
           {/* Consolidated Segmented Activity & Alerts Drawer */}
-          <div className="p-3 rounded-2xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2.5">
+          <div className="p-3 rounded-2xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2.5 transform-gpu will-change-transform">
             {/* Segmented Tab Controls */}
             <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-[11px] font-bold">
               <button
@@ -791,7 +1177,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                 <div className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
                   <BarChart3 className="w-4 h-4 text-white" />
                 </div>
-                <div className="text-left min-w-0">
+                <div className="text-start min-w-0">
                   <div className="text-xs font-black truncate leading-tight">
                     {isKu ? 'چارتەکان و شیكاری دارایی' : 'Visual Analytics & Executive BI'}
                   </div>
@@ -834,256 +1220,324 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
         {/* Hero Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
           {/* Master Title with Fancy Shimmering "Master" Typography */}
-          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-2 select-none">
             Bako&apos;s <span className="text-master-shimmer">Master</span> System
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 font-medium max-w-xl mx-auto leading-relaxed">
-            Unified industrial operations &amp; B2B supplier payables platform. Each division is focused and self-contained; return here anytime via Main Menu.
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 font-medium max-w-2xl mx-auto leading-relaxed">
+            {isKu
+              ? 'ناوەندی فەرماندەیی دارایی و لۆجستی کۆمپانیا. دروستکراوە و سەرپەرشتی دەکرێت لەلایەن باکۆ بەیان تایبەت بۆ کۆمپانیای شاسوار ئەحمەد شاسوار.'
+              : 'Enterprise Logistics & Financial Command Center. Engineered & maintained by Bako Bayan Madhhar specifically for Shaswar Ahmad Shaswar Co.'}
           </p>
+        </div>
 
-          {/* Client Commission Attribution Badge (Official System Licensure) */}
-          <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              {isKu
-                ? 'دروستکراوە لەلایەن باکۆ بەیان تایبەت بۆ کۆمپانیای شاسوار ئەحمەد شاسوار'
-                : 'Engineered by Bako Bayan Madhhar specifically for Shaswar Ahmad Shaswar Co.'}
-            </span>
-            <button
-              type="button"
-              onClick={openCopyrightModal}
-              className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline ms-1 cursor-pointer"
-            >
-              {isKu ? 'مافەکان' : 'Licensure'}
-            </button>
-          </div>
-
-          {/* Quick KPI Ticker Strip (Solid background for maximum rendering speed) */}
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 text-xs">
-            {(canAccessPanels || userPermissions.canViewRestrictedMetrics) && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
-                <Layers className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="font-bold text-slate-900 dark:text-white font-mono">{stats.totalStock.toLocaleString()}</span>
-                <span>Panels</span>
-              </div>
-            )}
-
-            {(canAccessSales || userPermissions.canViewRestrictedMetrics) && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
-                <ReceiptText className="w-3.5 h-3.5 text-sky-500" />
-                <span className="font-bold text-slate-900 dark:text-white font-mono">{totalInvoicesCount}</span>
-                <span>Supplier Bills</span>
-              </div>
-            )}
-
-            {(canAccessGoods || userPermissions.canViewRestrictedMetrics) && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-2xs">
-                <Package className="w-3.5 h-3.5 text-amber-500" />
-                <span className="font-bold text-slate-900 dark:text-white font-mono">{warehouseOps.activeShipments.length}</span>
-                <span>Shipments</span>
-              </div>
-            )}
-
-            {/* 4. We Owe Suppliers (Payables) purple badge on PC ticker */}
-            <button
-              type="button"
-              onClick={() => setIsSupplierPayablesOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer font-bold"
-              title="Click to view Supplier Payables Ledger"
-            >
-              <Building2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-              <span>{isKu ? 'قەرزی سەر ئێمە بۆ دابینکەران:' : 'We Owe Suppliers:'}</span>
-              <span className="font-mono font-black">${supplierDebtData.debtUSD.toLocaleString()}</span>
-              {supplierDebtData.debtEUR > 0 && (
-                <span className="text-[11px] font-mono text-purple-600/90 dark:text-purple-400/90">
-                  (+ €{supplierDebtData.debtEUR.toLocaleString()})
-                </span>
-              )}
-            </button>
-
-            {/* 4. SQLite WAL Health & Latency Pill (Shortened by Default, Expands on Click) */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowWalDetails((prev) => !prev);
-                  handleCheckHealth();
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-md border shadow-2xs transition-all active:scale-95 cursor-pointer text-xs ${
-                  syncStatus === 'synced' && walHealth.isWalActive
-                    ? 'bg-white/70 dark:bg-slate-800/70 border-slate-200/70 dark:border-slate-700/70 hover:border-emerald-500/80 text-slate-700 dark:text-slate-300'
-                    : isCheckingHealth
-                    ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300'
-                    : 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
-                }`}
-                title="Click to view database details & re-verify connection"
-              >
-                {isCheckingHealth ? (
-                  <RefreshCw className="w-3.5 h-3.5 text-sky-500 animate-spin shrink-0" />
-                ) : syncStatus === 'synced' && walHealth.isWalActive ? (
-                  <HardDrive className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                )}
-
-                {isCheckingHealth ? (
-                  <span className="font-bold text-sky-600 dark:text-sky-400 font-mono">
-                    Testing...
-                  </span>
-                ) : syncStatus === 'synced' && walHealth.isWalActive ? (
-                  <div className="flex items-center gap-1.5">
-                    {showWalDetails ? (
-                      <>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                          100% Offline WAL
-                        </span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono hidden sm:inline">
-                          • {walHealth.dbSize || '1.8 MB'}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">
-                        WAL
-                      </span>
-                    )}
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/40">
-                      Active • {walHealth.latencyMs}ms
+        {/* ========================================================================= */}
+        {/* 1. SHASWAR VIEW (Strict RBAC Security & Frosted Glass Depth)             */}
+        {/* ========================================================================= */}
+        {isShaswarAuthorized && (
+          <div className="backdrop-blur-md bg-white/40 dark:bg-slate-850/40 border border-slate-200/70 dark:border-slate-750/70 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ease-out transform-gpu will-change-transform ring-1 ring-white/50 dark:ring-white/10 hover:border-rose-500/50 dark:hover:border-rose-400/50 hover:ring-rose-500/20 rounded-3xl p-6 sm:p-7 mb-8">
+            {/* Shaswar View Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-5 border-b border-slate-200/70 dark:border-slate-750/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center shadow-md shadow-rose-500/20 shrink-0 border border-rose-400/40">
+                  <Activity className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white uppercase font-mono">
+                      {isKu ? 'دیمەنی شاسوار' : 'SHASWAR VIEW'}
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 shadow-2xs">
+                      {isKu ? 'تایبەت بە شاسوار ئەحمەد' : 'Exclusively for Shaswar Ahmad'}
                     </span>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    {showWalDetails ? (
-                      <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">
-                        100% Offline (Local Cache)
-                      </span>
-                    ) : (
-                      <span className="font-bold text-amber-700 dark:text-amber-400 font-mono">
-                        Offline
-                      </span>
-                    )}
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300/40">
-                      Local Cache
-                    </span>
-                  </div>
-                )}
-              </button>
+                </div>
+              </div>
 
-              {/* Detailed Flyout Diagnostic Card (Visible only when clicked) */}
-              {showWalDetails && (
-                <div
-                  ref={walDetailsRef}
-                  className="absolute top-full mt-2 right-0 sm:left-1/2 sm:-translate-x-1/2 z-40 w-72 p-3.5 rounded-2xl bg-white/95 dark:bg-slate-850/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl text-left animate-in fade-in zoom-in-95 duration-150"
-                >
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <HardDrive className="w-4 h-4 text-purple-500" />
-                      <span className="text-xs font-black text-slate-900 dark:text-white">Database & WAL Diagnostics</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowWalDetails(false);
-                      }}
-                      className="w-5 h-5 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 inline-flex items-center justify-center text-xs cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  <div className="mt-2.5 space-y-1.5 text-[11px] font-mono">
-                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                      <span>Engine:</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">SQLite WAL (100% Offline)</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                      <span>Lag / Latency:</span>
-                      <span className="font-bold text-slate-900 dark:text-white">{walHealth.latencyMs}ms</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                      <span>Storage on Disk:</span>
-                      <span className="font-bold text-slate-900 dark:text-white">{walHealth.dbSize || '1.8 MB'}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                      <span>Integrity Status:</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                        {walHealth.integrity === 'ok' ? 'Verified (Clean)' : walHealth.integrity}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                    {currentUser?.role?.toLowerCase() === 'admin' && (
+              {/* Currency Switcher Integration (RBAC Guarded: canFinancial / userPermissions.canViewSales) */}
+              {canShowCurrencyWidget && (
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  {/* Currency Pill Switcher */}
+                  <div className="flex items-center p-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 shadow-2xs">
+                    {(['USD', 'IQD', 'EUR'] as CurrencyCode[]).map((cur) => (
                       <button
+                        key={cur}
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowWalDetails(false);
-                          setCurrentModule('audit');
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-[10px] font-bold text-purple-700 dark:text-purple-300 inline-flex items-center gap-1 cursor-pointer"
-                        title="Open full Audit Trail & Backups module"
+                        onClick={() => setHubCurrency(cur)}
+                        className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          hubCurrency === cur
+                            ? 'bg-sky-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                        }`}
                       >
-                        <ShieldCheck className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                        <span>{isKu ? 'تۆماری چاودێری و باکئەپ' : 'Audit Logs'}</span>
+                        {cur === 'USD' ? '$ USD' : cur === 'IQD' ? 'IQD' : '€ EUR'}
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCheckHealth();
-                      }}
-                      disabled={isCheckingHealth}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${isCheckingHealth ? 'animate-spin' : ''}`} />
-                      <span>Re-ping</span>
-                    </button>
+                    ))}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowRateSettings(!showRateSettings)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors cursor-pointer shadow-2xs"
+                    title={isKu ? 'نرخی ئاڵوگۆڕ' : 'Exchange Rates'}
+                  >
+                    <Coins className="w-4 h-4 text-amber-500" />
+                    <span className="hidden sm:inline font-bold">{isKu ? 'نرخی دراو' : 'Exchange Rates'}</span>
+                  </button>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Real-time Health Verification Diagnostic Feedback Banner */}
-          {healthToast && (
-            <div className="mt-3 flex items-center justify-center animate-in fade-in slide-in-from-top-1 duration-200">
-              <div
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-mono font-bold shadow-md border ${
-                  healthToast.type === 'success'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-400/80 text-emerald-800 dark:text-emerald-300'
-                    : 'bg-amber-50 dark:bg-amber-950/80 border-amber-400/80 text-amber-800 dark:text-amber-300'
-                }`}
+            {/* OPERATIONAL EXCHANGE RATES SETTINGS CARD (Expandable) */}
+            {showRateSettings && (
+              <form
+                onSubmit={handleSaveOperationalRates}
+                className="p-4 mb-4 rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-750 shadow-md animate-in slide-in-from-top-2 duration-150 space-y-3"
               >
-                {healthToast.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                )}
-                <span>{healthToast.message}</span>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-750">
+                  <div className="flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-amber-500" />
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                      {isKu ? 'نرخی ئاڵوگۆڕی کارگێڕی (Manual Baseline)' : 'Operational Exchange Rates (Manual Baseline)'}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowRateSettings(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      $1 USD ➔ IQD Rate
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      pattern="[0-9]*"
+                      step="any"
+                      value={manualUsdToIqd}
+                      onChange={(e) => setManualUsdToIqd(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+                      placeholder="1500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      €1 EUR ➔ USD Rate
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      pattern="[0-9]*"
+                      step="any"
+                      value={manualEurToUsd}
+                      onChange={(e) => setManualEurToUsd(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+                      placeholder="1.08"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      €1 EUR ➔ IQD Direct Rate
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      pattern="[0-9]*"
+                      step="any"
+                      value={manualEurToIqd}
+                      onChange={(e) => setManualEurToIqd(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono"
+                      placeholder="1620"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {isKu ? 'نرخەکان ڕاستەوخۆ دەگۆڕدرێن لە دیمەنی سەرەکی بێ دەستکاری داتای ناوەکی پسوولەکان.' : 'Rates convert visual numbers on the fly without modifying invoice records.'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        copyMarketReferenceToOperational();
+                        setManualUsdToIqd('1500');
+                        setManualEurToUsd('1.08');
+                        setManualEurToIqd('1620');
+                      }}
+                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300 transition-colors cursor-pointer"
+                    >
+                      {isKu ? 'گەڕاندنەوە بۆ نرخی بازاڕ' : 'Reset Market'}
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-3 py-1 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition-colors cursor-pointer"
+                    >
+                      {isKu ? 'پاشەکەوتکردن' : 'Save Rates'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* 4 Sovereign Standalone Executive Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 transform-gpu will-change-transform">
+              {/* 1. Customer Receivables */}
+              <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-750/70 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                    <span>{isKu ? 'قەرزی لای کڕیار' : 'Customer Receivables'}</span>
+                    <TrendingUp className="w-4 h-4 text-sky-500" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-sky-600 dark:text-sky-400">
+                    {renderScrollerCurrency(shaswarMasterSnapshot.customerReceivables)}
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-400 font-medium mt-2 truncate">
+                  {isKu ? 'کۆی قەرزی کڕیاران' : 'Active Client Balances'}
+                </div>
               </div>
+
+              {/* 2. Total Outstanding Payables */}
+              <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-750/70 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                    <span>{isKu ? 'قەرزی سەر کۆمپانیا' : 'Total Outstanding Payables'}</span>
+                    <Coins className="w-4 h-4 text-rose-500" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-rose-600 dark:text-rose-400">
+                    {renderScrollerCurrency(shaswarMasterSnapshot.payablesUSD)}
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-400 font-medium mt-2 truncate">
+                  {isKu ? 'قەرزی ماوەی دابینکەران' : 'FunderMax & Supplier Debt'}
+                </div>
+              </div>
+
+              {/* 3. Active Customs Shipments */}
+              <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-750/70 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                    <span>{isKu ? 'باری پشکنینی گومرگ' : 'Active Customs Shipments'}</span>
+                    <Truck className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-amber-600 dark:text-amber-400 flex items-baseline gap-1">
+                    <NumberScroller value={shaswarMasterSnapshot.customsCount} /> <span className="text-xs font-bold text-slate-500 dark:text-slate-400 font-sans">{isKu ? 'بار' : 'Loads'}</span>
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-400 font-medium mt-2 truncate">
+                  {shaswarMasterSnapshot.pendingCount} {isKu ? 'لە کارگەی دەرەوە' : 'Factory Pending'}
+                </div>
+              </div>
+
+              {/* 4. Live Workshop Orders */}
+              <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-750/70 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                    <span>{isKu ? 'سەرەی داواکاری وەرشە' : 'Live Workshop Orders'}</span>
+                    <Package className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 flex items-baseline gap-1">
+                    <NumberScroller value={shaswarMasterSnapshot.workshopQueue} /> <span className="text-xs font-bold text-slate-500 dark:text-slate-400 font-sans">{isKu ? 'داواکاری' : 'Orders'}</span>
+                  </div>
+                </div>
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-2 truncate">
+                  {shaswarMasterSnapshot.readyForPickup} {isKu ? 'ئامادەی ڕادەستکردن' : 'Ready for Pickup'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Supercharged KPI Ticker Strip */}
+        <div className="mb-8 flex flex-wrap items-center justify-center gap-3 text-xs transform-gpu will-change-transform">
+          {(canAccessPanels || userPermissions.canViewRestrictedMetrics) && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/40 dark:bg-slate-850/40 backdrop-blur-md border border-slate-200/70 dark:border-slate-750/70 text-slate-700 dark:text-slate-200 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ease-out transform-gpu will-change-transform ring-1 ring-white/50 dark:ring-white/10 hover:border-emerald-500/60 dark:hover:border-emerald-500/60 hover:ring-emerald-500/20 cursor-default">
+              <Layers className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                <NumberScroller value={stats.totalStock} />
+              </span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{isKu ? 'تەختە' : 'Panels'}</span>
+            </div>
+          )}
+
+          {(canAccessSales || userPermissions.canViewRestrictedMetrics) && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/40 dark:bg-slate-850/40 backdrop-blur-md border border-slate-200/70 dark:border-slate-750/70 text-slate-700 dark:text-slate-200 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ease-out transform-gpu will-change-transform ring-1 ring-white/50 dark:ring-white/10 hover:border-sky-500/60 dark:hover:border-sky-500/60 hover:ring-sky-500/20 cursor-default">
+              <ReceiptText className="w-4 h-4 text-sky-500 shrink-0" />
+              <span className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                <NumberScroller value={totalInvoicesCount} />
+              </span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{isKu ? 'پسوولەی دابینکەر' : 'Supplier Bills'}</span>
+            </div>
+          )}
+
+          {(canAccessGoods || userPermissions.canViewRestrictedMetrics) && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/40 dark:bg-slate-850/40 backdrop-blur-md border border-slate-200/70 dark:border-slate-750/70 text-slate-700 dark:text-slate-200 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ease-out transform-gpu will-change-transform ring-1 ring-white/50 dark:ring-white/10 hover:border-amber-500/60 dark:hover:border-amber-500/60 hover:ring-amber-500/20 cursor-default">
+              <Package className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                <NumberScroller value={totalInvoicesCount} />
+              </span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{isKu ? 'بارەکان' : 'Shipments'}</span>
+            </div>
+          )}
+
+          {/* Currency Switcher Widget for non-Master users with financial access */}
+          {!isShaswarAuthorized && canShowCurrencyWidget && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center p-1 rounded-xl bg-white/40 dark:bg-slate-850/40 backdrop-blur-md border border-slate-200/70 dark:border-slate-750/70 shadow-xl ring-1 ring-white/50 dark:ring-white/10">
+                {(['USD', 'IQD', 'EUR'] as CurrencyCode[]).map((cur) => (
+                  <button
+                    key={cur}
+                    type="button"
+                    onClick={() => setHubCurrency(cur)}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      hubCurrency === cur
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {cur === 'USD' ? '$ USD' : cur === 'IQD' ? 'IQD' : '€ EUR'}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRateSettings(!showRateSettings)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-white/40 dark:bg-slate-850/40 backdrop-blur-md border border-slate-200/70 dark:border-slate-750/70 text-slate-700 dark:text-slate-200 hover:bg-slate-50/70 dark:hover:bg-slate-750/70 transition-all cursor-pointer shadow-xl ring-1 ring-white/50 dark:ring-white/10"
+                title={isKu ? 'نرخی ئاڵوگۆڕ' : 'Exchange Rates'}
+              >
+                <Coins className="w-4 h-4 text-amber-500" />
+                <span className="hidden sm:inline">{isKu ? 'نرخی دراو' : 'Exchange Rates'}</span>
+              </button>
             </div>
           )}
         </div>
 
         {/* 4 Clean, Unfused & Beautiful Division Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-7">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-7 transform-gpu will-change-transform">
           
           {/* ========================================================================= */}
           {/* DIVISION 1: Wood Panels & Workshop Cutting Orders                         */}
           {/* ========================================================================= */}
           <div
             onClick={() => handleSelectDivision('panels', 'orders')}
-            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
+            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-md border shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-transform duration-300 ease-out transform-gpu will-change-transform ring-1 cursor-pointer overflow-hidden ${
               canAccessPanels
-                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-emerald-500/80 dark:hover:border-emerald-500/80'
-                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white/40 dark:bg-slate-850/40 border-slate-200/70 dark:border-slate-750/70 ring-white/50 dark:ring-white/10 hover:border-emerald-500/80 dark:hover:border-emerald-500/80 hover:ring-emerald-500/25'
+                : 'bg-white/30 dark:bg-slate-850/30 border-rose-200/70 dark:border-rose-900/40 ring-rose-500/10 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
-            <div className={`absolute top-0 right-0 w-44 h-44 rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
+            <div className={`absolute top-0 end-0 w-44 h-44 rounded-es-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
               canAccessPanels
                 ? 'bg-gradient-to-bl from-emerald-500/15 via-teal-500/5 to-transparent'
                 : 'bg-gradient-to-bl from-rose-500/10 via-amber-500/5 to-transparent'
@@ -1121,26 +1575,32 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection - 4 Metrics) */}
               {canAccessPanels || userPermissions.canViewRestrictedMetrics ? (
-                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center transform-gpu will-change-transform">
                   <div>
                     <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                      {stats.totalStock.toLocaleString()}
+                      <NumberScroller value={stats.totalStock} />
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{t.totalStockCount}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{t.totalStockCount || (isKu ? 'کۆی تەختە' : 'Total Stock')}</div>
                   </div>
-                  <div className="border-x border-slate-200 dark:border-slate-800">
+                  <div className="border-s border-slate-200 dark:border-slate-800">
                     <div className="text-base sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
-                      {stats.totalAllocated.toLocaleString()}
+                      <NumberScroller value={stats.totalAllocated} />
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{t.reserved}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{t.reserved || (isKu ? 'حجزکراو' : 'Reserved')}</div>
                   </div>
-                  <div>
+                  <div className="border-s border-slate-200 dark:border-slate-800">
                     <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                      {stats.totalAvailable.toLocaleString()}
+                      <NumberScroller value={stats.totalAvailable} />
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{t.available}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{t.available || (isKu ? 'بەردەست' : 'Available')}</div>
+                  </div>
+                  <div className="border-s border-slate-200 dark:border-slate-800">
+                    <div className={`text-base sm:text-xl font-black font-mono ${lowStockCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                      <NumberScroller value={lowStockCount} />
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'کەمیی کۆگا' : 'Low Stock Alerts'}</div>
                   </div>
                 </div>
               ) : (
@@ -1157,7 +1617,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-sm shadow-md shadow-emerald-600/20 active:scale-98 transition-all"
                 >
                   <span>{isKu ? 'کردنەوەی تەختەکان' : 'Open Wood Panels'}</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+                  <ArrowRight className="w-4 h-4 rtl:rotate-180 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5 transition-transform" />
                 </button>
               ) : (
                 <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm border border-slate-200 dark:border-slate-700">
@@ -1173,14 +1633,14 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           {/* ========================================================================= */}
           <div
             onClick={() => handleSelectDivision('sales')}
-            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
+            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-md border shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-transform duration-300 ease-out transform-gpu will-change-transform ring-1 cursor-pointer overflow-hidden ${
               canAccessSales
-                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-sky-500/80 dark:hover:border-sky-500/80'
-                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white/40 dark:bg-slate-850/40 border-slate-200/70 dark:border-slate-750/70 ring-white/50 dark:ring-white/10 hover:border-sky-500/80 dark:hover:border-sky-500/80 hover:ring-sky-500/25'
+                : 'bg-white/30 dark:bg-slate-850/30 border-rose-200/70 dark:border-rose-900/40 ring-rose-500/10 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
-            <div className={`absolute top-0 right-0 w-44 h-44 rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
+            <div className={`absolute top-0 end-0 w-44 h-44 rounded-es-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
               canAccessSales
                 ? 'bg-gradient-to-bl from-sky-500/15 via-blue-500/5 to-transparent'
                 : 'bg-gradient-to-bl from-rose-500/10 via-amber-500/5 to-transparent'
@@ -1218,26 +1678,38 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection - 4 Metrics) */}
               {canAccessSales || userPermissions.canViewRestrictedMetrics ? (
-                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center transform-gpu will-change-transform">
                   <div>
                     <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                      {warehouseOps.activeShipments.length}
+                      <NumberScroller value={totalInvoicesCount} />
                     </div>
                     <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولەی دابینکەر' : 'Supplier Bills'}</div>
                   </div>
-                  <div className="border-x border-slate-200 dark:border-slate-800">
+                  <div className="border-s border-slate-200 dark:border-slate-800">
                     <div className="text-base sm:text-xl font-black text-rose-600 dark:text-rose-400 font-mono">
-                      ${totalSupplierDebt.toLocaleString()}
+                      {renderScrollerCurrency(totalSupplierDebt)}
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'قەرزی دابینکەر' : 'Supplier Debt'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">
+                      {isKu ? 'قەرزی دابینکەر' : 'Supplier Debt'}
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-base sm:text-xl font-black text-slate-700 dark:text-slate-300 font-mono">
-                      ${totalSupplierPaid.toLocaleString()}
+                  <div className="border-s border-slate-200 dark:border-slate-800">
+                    <div className="text-base sm:text-xl font-black text-sky-600 dark:text-sky-400 font-mono">
+                      {renderScrollerCurrency(totalCustomerReceivables)}
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'کۆی پارەی دراو' : 'Total Paid'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">
+                      {isKu ? 'قەرزی لای کڕیار' : 'Customer Receivables'}
+                    </div>
+                  </div>
+                  <div className="border-s border-slate-200 dark:border-slate-800">
+                    <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                      {renderScrollerCurrency(totalSupplierPaid)}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">
+                      {isKu ? 'کۆی پارەی دراو' : 'Total Paid'}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1254,7 +1726,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white font-bold text-sm shadow-md shadow-sky-600/20 active:scale-98 transition-all"
                 >
                   <span>{isKu ? 'کردنەوەی دەفتەری بازرگانی' : 'Open Trade Ledger'}</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+                  <ArrowRight className="w-4 h-4 rtl:rotate-180 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5 transition-transform" />
                 </button>
               ) : (
                 <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm border border-slate-200 dark:border-slate-700">
@@ -1270,14 +1742,14 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           {/* ========================================================================= */}
           <div
             onClick={() => handleSelectDivision('goods', 'shipping')}
-            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
+            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-md border shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-transform duration-300 ease-out transform-gpu will-change-transform ring-1 cursor-pointer overflow-hidden ${
               canAccessGoods
-                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-amber-500/80 dark:hover:border-amber-500/80'
-                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white/40 dark:bg-slate-850/40 border-slate-200/70 dark:border-slate-750/70 ring-white/50 dark:ring-white/10 hover:border-amber-500/80 dark:hover:border-amber-500/80 hover:ring-amber-500/25'
+                : 'bg-white/30 dark:bg-slate-850/30 border-rose-200/70 dark:border-rose-900/40 ring-rose-500/10 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
-            <div className={`absolute top-0 right-0 w-44 h-44 rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
+            <div className={`absolute top-0 end-0 w-44 h-44 rounded-es-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
               canAccessGoods
                 ? 'bg-gradient-to-bl from-amber-500/15 via-orange-500/5 to-transparent'
                 : 'bg-gradient-to-bl from-rose-500/10 via-amber-500/5 to-transparent'
@@ -1315,26 +1787,32 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection - 4 Metrics) */}
               {canAccessGoods || userPermissions.canViewRestrictedMetrics ? (
-                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center transform-gpu will-change-transform">
                   <div>
                     <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                      {warehouseOps.activeShipments.length}
+                      <NumberScroller value={totalInvoicesCount} />
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'بارە گەیشتووەکان' : 'Shipments'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'بارەکان' : 'Shipments'}</div>
                   </div>
-                  <div className="border-x border-slate-200 dark:border-slate-800">
+                  <div className="border-s border-slate-200 dark:border-slate-800">
                     <div className="text-base sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
-                      {customsShipmentsCount}
+                      <NumberScroller value={customsShipmentsCount} />
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'گومرگ' : 'In Customs'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'لە گومرگ' : 'In Customs'}</div>
                   </div>
-                  <div>
+                  <div className="border-s border-slate-200 dark:border-slate-800">
                     <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                      {rackedUnitsCount.toLocaleString()}
+                      <NumberScroller value={rackedUnitsCount} />
                     </div>
                     <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'لە کۆگادا' : 'Units Racked'}</div>
+                  </div>
+                  <div className="border-s border-slate-200 dark:border-slate-800">
+                    <div className="text-base sm:text-xl font-black text-sky-600 dark:text-sky-400 font-mono">
+                      <NumberScroller value={pendingShipmentsCount} />
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'لە کارگە / ڕێگە' : 'In Pipeline'}</div>
                   </div>
                 </div>
               ) : (
@@ -1351,7 +1829,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 text-white font-bold text-sm shadow-md shadow-amber-600/20 active:scale-98 transition-all"
                 >
                   <span>{isKu ? 'کردنەوەی کڕین و دابینکەران' : 'Open Purchases & Suppliers'}</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+                  <ArrowRight className="w-4 h-4 rtl:rotate-180 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5 transition-transform" />
                 </button>
               ) : (
                 <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm border border-slate-200 dark:border-slate-700">
@@ -1367,14 +1845,14 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
           {/* ========================================================================= */}
           <div
             onClick={handleOpenAnalytics}
-            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-xl border shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${
+            className={`group relative flex flex-col justify-between p-6 sm:p-8 rounded-3xl backdrop-blur-md border shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-transform duration-300 ease-out transform-gpu will-change-transform ring-1 cursor-pointer overflow-hidden ${
               canAccessAnalytics
-                ? 'bg-white dark:bg-slate-850/90 border-slate-300/80 dark:border-slate-750 hover:border-purple-500/80 dark:hover:border-purple-500/80'
-                : 'bg-white dark:bg-slate-850/60 border-rose-200/80 dark:border-rose-900/40 opacity-80 hover:opacity-100'
+                ? 'bg-white/40 dark:bg-slate-850/40 border-slate-200/70 dark:border-slate-750/70 ring-white/50 dark:ring-white/10 hover:border-purple-500/80 dark:hover:border-purple-500/80 hover:ring-purple-500/25'
+                : 'bg-white/30 dark:bg-slate-850/30 border-rose-200/70 dark:border-rose-900/40 ring-rose-500/10 opacity-80 hover:opacity-100'
             }`}
           >
             {/* Ambient Corner Glow */}
-            <div className={`absolute top-0 right-0 w-44 h-44 rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
+            <div className={`absolute top-0 end-0 w-44 h-44 rounded-es-full pointer-events-none group-hover:scale-125 transition-transform duration-500 ${
               canAccessAnalytics
                 ? 'bg-gradient-to-bl from-purple-500/15 via-indigo-500/5 to-transparent'
                 : 'bg-gradient-to-bl from-rose-500/10 via-amber-500/5 to-transparent'
@@ -1412,26 +1890,20 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             </div>
 
             <div>
-              {/* Glass KPI Cards (Confidentiality & Metric Protection) */}
+              {/* Glass KPI Cards (Confidentiality & Metric Protection - 4 Indicators) */}
               {canAccessAnalytics || userPermissions.canViewRestrictedMetrics ? (
-                <div className="grid grid-cols-3 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center">
+                <div className="grid grid-cols-2 gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 mb-5 text-center transform-gpu will-change-transform">
                   <div>
                     <div className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                      {stats.totalStock.toLocaleString()}
+                      <NumberScroller value={stats.totalStock} />
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'تەختە' : 'Panels'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'تەختەی بینراو' : 'Panels Tracked'}</div>
                   </div>
-                  <div className="border-x border-slate-200 dark:border-slate-800">
+                  <div className="border-s border-slate-200 dark:border-slate-800">
                     <div className="text-base sm:text-xl font-black text-purple-600 dark:text-purple-400 font-mono">
-                      {totalInvoicesCount}
+                      <NumberScroller value={totalInvoicesCount} />
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولە' : 'Invoices'}</div>
-                  </div>
-                  <div>
-                    <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                      5 Modes
-                    </div>
-                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'چارتی بینراو' : 'Visual SVG'}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{isKu ? 'پسوولەی تۆمارکراو' : 'Invoices Logged'}</div>
                   </div>
                 </div>
               ) : (
@@ -1448,7 +1920,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white font-bold text-sm shadow-md shadow-purple-600/20 active:scale-98 transition-all"
                 >
                   <span>{isKu ? 'کردنەوەی ئامار' : 'Open Visual Analytics & Charts'}</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+                  <ArrowRight className="w-4 h-4 rtl:rotate-180 group-hover:translate-x-1.5 rtl:group-hover:-translate-x-1.5 transition-transform" />
                 </button>
               ) : (
                 <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm border border-slate-200 dark:border-slate-700">
@@ -1467,8 +1939,8 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
       {/* ACCESS DENIED NOTIFICATION MODAL                                         */}
       {/* ========================================================================= */}
       {deniedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-center space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 transform-gpu will-change-transform">
+          <div className="relative w-full max-w-md p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-center space-y-4 transform-gpu will-change-transform">
             <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 flex items-center justify-center mx-auto shadow-inner">
               <Lock className="w-8 h-8" />
             </div>
@@ -1506,7 +1978,7 @@ export const ModuleHub: React.FC<ModuleHubProps> = ({
             )}
 
             {/* Admin Contact Box */}
-            <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-left">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-start">
               <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-1">
                 {isKu ? 'بۆ چالاککردنی مۆڵەت پەیوەندی بکە بە:' : 'To Request Permission, Contact Administrator:'}
               </div>

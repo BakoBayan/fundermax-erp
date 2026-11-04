@@ -4,9 +4,9 @@ import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useInventory } from '../context/InventoryContext';
+import { useWarehouseOps } from '../hooks/useWarehouseOps';
 import {
   BarChart3,
-  PieChart,
   TrendingUp,
   Layers,
   ReceiptText,
@@ -17,27 +17,24 @@ import {
   FileText,
   CheckCircle2,
   AlertTriangle,
-  Search,
-  Filter,
-  DollarSign,
   Boxes,
-  ArrowUpRight,
+  ArrowRight,
   ShieldCheck,
-  ShieldAlert,
+  Lock,
+  Building2,
+  Coins,
+  Activity,
+  ArrowUpRight,
   Calendar,
-  User,
-  Phone,
-  Scissors
+  PieChart
 } from 'lucide-react';
-import { PanelMaterial, PanelTransaction, Product, Shipment, CurrencyCode } from '../types/inventory';
-
-type ChartScopeTab = 'all' | 'panels' | 'sales' | 'goods' | 'shipping';
+import { PanelMaterial, OrderAllocation } from '../types/inventory';
 
 // ============================================================================
-// VECTOR SVG CHART COMPONENTS (100% Offline, Fast, Zero Heavy NPM Dependencies)
+// VECTOR SVG CHART COMPONENTS (Zero Dependencies - Preserved for External Imports)
 // ============================================================================
 
-interface DonutSlice {
+export interface DonutSlice {
   label: string;
   value: number;
   color: string;
@@ -58,26 +55,19 @@ export const SvgDonutChart: React.FC<{
   }, [data]);
 
   const radius = size / 2;
-  const strokeWidth = size * 0.17; // doughnut thickness
+  const strokeWidth = size * 0.17;
   const innerRadius = radius - strokeWidth;
   const center = radius;
 
-  // Compute SVG arc paths using polar coordinates
   const slices = useMemo(() => {
     if (total <= 0) return [];
-
     const nonZeroSlices = data.filter((d) => d.value > 0);
     const isSingleNonZero = nonZeroSlices.length === 1;
 
-    let currentAngle = -90; // start at 12 o'clock
+    let currentAngle = -90;
     return data.map((d, index) => {
       if (d.value <= 0) {
-        return {
-          ...d,
-          index,
-          percentage: '0.0',
-          pathData: '',
-        };
+        return { ...d, index, percentage: '0.0', pathData: '' };
       }
 
       const sliceAngle = (d.value / total) * 360;
@@ -87,13 +77,10 @@ export const SvgDonutChart: React.FC<{
 
       const rOut = radius - 8;
       const rIn = innerRadius;
-
-      // Handle complete 360 degree full circle gracefully
       const isFull = isSingleNonZero || sliceAngle >= 359.5;
 
       let pathData = '';
       if (isFull) {
-        // Two 180-degree semicircles for outer circle, and two for inner cutout
         pathData = `M ${center} ${center - rOut} A ${rOut} ${rOut} 0 1 1 ${center} ${center + rOut} A ${rOut} ${rOut} 0 1 1 ${center} ${center - rOut} M ${center} ${center - rIn} A ${rIn} ${rIn} 0 1 0 ${center} ${center + rIn} A ${rIn} ${rIn} 0 1 0 ${center} ${center - rIn} Z`;
       } else {
         const startRad = (startAngle * Math.PI) / 180;
@@ -114,21 +101,17 @@ export const SvgDonutChart: React.FC<{
       }
 
       const percentage = ((d.value / total) * 100).toFixed(1);
-
-      return {
-        ...d,
-        index,
-        percentage,
-        pathData,
-      };
+      return { ...d, index, percentage, pathData };
     });
   }, [data, total, radius, innerRadius, center]);
 
-  const activeSlice = activeHoverIdx !== null ? slices[activeHoverIdx] : null;
+  const activeSlice = useMemo(() => {
+    return activeHoverIdx !== null && slices[activeHoverIdx] ? slices[activeHoverIdx] : null;
+  }, [activeHoverIdx, slices]);
 
   return (
     <div className="flex flex-col items-center w-full">
-      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <div className="relative flex items-center justify-center transform-gpu will-change-transform" style={{ width: size, height: size }}>
         <svg
           width={size}
           height={size}
@@ -143,7 +126,7 @@ export const SvgDonutChart: React.FC<{
               fill="none"
               stroke="currentColor"
               strokeWidth={strokeWidth}
-              className="text-slate-200 dark:text-slate-750"
+              className="text-slate-200 dark:text-slate-800"
             />
           ) : (
             slices.map((s) => {
@@ -170,11 +153,10 @@ export const SvgDonutChart: React.FC<{
           )}
         </svg>
 
-        {/* Center Cutout Stats */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
           {activeSlice ? (
             <>
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate max-w-[120px]">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate max-w-[130px]">
                 {activeSlice.label}
               </span>
               <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono leading-tight">
@@ -186,22 +168,18 @@ export const SvgDonutChart: React.FC<{
             </>
           ) : (
             <>
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate max-w-[130px]">
                 {totalLabel || (isKu ? 'کۆی گشتی' : 'Total')}
               </span>
               <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono leading-tight">
                 {totalValue !== undefined ? totalValue : total.toLocaleString()}
-              </span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                {slices.length} {isKu ? 'جۆر' : 'segments'}
               </span>
             </>
           )}
         </div>
       </div>
 
-      {/* Legend Grid - Responsive 1 col on mobile, 2 cols on sm+, scrollable if many items */}
-      <div className="w-full mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 sm:max-h-56 overflow-y-auto pr-1">
+      <div className="w-full mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto pe-1">
         {data.map((item, idx) => {
           const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
           const isHovered = activeHoverIdx === idx;
@@ -210,19 +188,19 @@ export const SvgDonutChart: React.FC<{
               key={idx}
               onMouseEnter={() => setActiveHoverIdx(idx)}
               onMouseLeave={() => setActiveHoverIdx(null)}
-              className={`flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer ${
+              className={`flex items-center justify-between p-1.5 rounded-xl border transition-all cursor-pointer ${
                 isHovered
-                  ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600 scale-[1.02]'
+                  ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600'
                   : 'bg-slate-50/50 dark:bg-slate-900/40 border-transparent hover:border-slate-200 dark:hover:border-slate-750'
               }`}
             >
-              <div className="flex items-center gap-2 truncate pr-1 min-w-0">
+              <div className="flex items-center gap-2 truncate pe-1 min-w-0">
                 <span className="w-3 h-3 rounded-md shrink-0 shadow-2xs" style={{ backgroundColor: item.color }} />
                 <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{item.label}</span>
               </div>
-              <div className="text-right shrink-0 font-mono">
+              <div className="text-end shrink-0 font-mono">
                 <span className="font-bold text-slate-900 dark:text-white">{item.value.toLocaleString()}</span>
-                <span className="text-[10px] text-slate-400 ml-1">({pct}%)</span>
+                <span className="text-[10px] text-slate-400 ms-1">({pct}%)</span>
               </div>
             </div>
           );
@@ -232,11 +210,7 @@ export const SvgDonutChart: React.FC<{
   );
 };
 
-// ============================================================================
-// GROUPED & STACKED SVG BAR CHART
-// ============================================================================
-
-interface BarGroupItem {
+export interface BarGroupItem {
   category: string;
   v1: number;
   v2?: number;
@@ -249,100 +223,107 @@ interface BarGroupItem {
 export const SvgGroupedBarChart: React.FC<{
   data: BarGroupItem[];
   height?: number;
-  isKu?: boolean;
-}> = ({ data, height = 240, isKu = false }) => {
+}> = ({ data, height = 230 }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const maxValue = useMemo(() => {
-    let max = 1;
+    let m = 1;
     data.forEach((d) => {
-      if (d.v1 > max) max = d.v1;
-      if (d.v2 && d.v2 > max) max = d.v2;
+      if (d.v1 > m) m = d.v1;
+      if (d.v2 && d.v2 > m) m = d.v2;
     });
-    // Add 15% headroom and round neatly
-    const rounded = Math.ceil((max * 1.15) / 10) * 10;
-    return Math.max(rounded, 10);
+    return Math.max(Math.ceil((m * 1.15) / 10) * 10, 10);
   }, [data]);
 
-  const chartWidth = 520;
-  const paddingLeft = 46;
-  const paddingRight = 16;
+  const width = 500;
+  const paddingLeft = 45;
+  const paddingRight = 15;
   const paddingTop = 20;
-  const paddingBottom = 34;
-
-  const innerWidth = chartWidth - paddingLeft - paddingRight;
+  const paddingBottom = 40;
+  const innerWidth = width - paddingLeft - paddingRight;
   const innerHeight = height - paddingTop - paddingBottom;
+  const groupWidth = data.length > 0 ? innerWidth / data.length : innerWidth;
+  const barWidth = Math.min(22, groupWidth * 0.35);
 
-  const yTicks = [0, 0.25, 0.5, 0.75, 1];
+  const gridLines = useMemo(() => {
+    return [0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+      const y = paddingTop + innerHeight - pct * innerHeight;
+      const val = Math.round(pct * maxValue);
+      return { pct, i, y, val };
+    });
+  }, [paddingTop, innerHeight, maxValue]);
 
-  const groupWidth = innerWidth / Math.max(data.length, 1);
-  const barWidth = Math.min(26, groupWidth * 0.38);
+  const barCoordinates = useMemo(() => {
+    return data.map((item, idx) => {
+      const groupX = paddingLeft + idx * groupWidth;
+      const centerX = groupX + groupWidth / 2;
+      const h1 = (Math.max(0, item.v1) / maxValue) * innerHeight;
+      const y1 = paddingTop + innerHeight - h1;
+      const hasV2 = item.v2 !== undefined && !!item.color2;
+      const xBar1 = hasV2 ? centerX - barWidth - 2 : centerX - barWidth / 2;
+      const xBar2 = centerX + 2;
+      const h2 = hasV2 ? (Math.max(0, item.v2!) / maxValue) * innerHeight : 0;
+      const y2 = paddingTop + innerHeight - h2;
+      const truncatedCategory = item.category.length > 9 ? `${item.category.substring(0, 8)}…` : item.category;
+
+      return {
+        item,
+        idx,
+        groupX,
+        centerX,
+        xBar1,
+        xBar2,
+        y1,
+        y2,
+        h1: Math.max(2, h1),
+        h2: Math.max(2, h2),
+        hasV2,
+        truncatedCategory,
+      };
+    });
+  }, [data, maxValue, innerHeight, groupWidth, barWidth, paddingLeft, paddingTop]);
 
   return (
     <div className="w-full flex flex-col">
-      <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
-        <div className="min-w-[500px] sm:min-w-full">
-          <svg
-            viewBox={`0 0 ${chartWidth} ${height}`}
-            className="w-full h-auto select-none overflow-visible"
-          >
-            {/* Y-axis gridlines & labels */}
-            {yTicks.map((pct, i) => {
-              const val = Math.round(maxValue * pct);
-              const y = paddingTop + innerHeight - innerHeight * pct;
-              return (
-                <g key={i}>
-                  <line
-                    x1={paddingLeft}
-                    y1={y}
-                    x2={chartWidth - paddingRight}
-                    y2={y}
-                    stroke="currentColor"
-                    strokeDasharray="3 3"
-                    className="text-slate-200 dark:text-slate-800"
-                  />
-                  <text
-                    x={paddingLeft - 8}
-                    y={y + 4}
-                    textAnchor="end"
-                    fontSize="10"
-                    fontFamily="monospace"
-                    className="fill-slate-400 dark:fill-slate-500 font-semibold"
-                  >
-                    {val.toLocaleString()}
-                  </text>
-                </g>
-              );
-            })}
+      <div className="w-full overflow-x-auto">
+        <div className="transform-gpu will-change-transform" style={{ minWidth: width, width: '100%' }}>
+          <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="select-none overflow-visible">
+            {gridLines.map((gl) => (
+              <g key={gl.i}>
+                <line
+                  x1={paddingLeft}
+                  y1={gl.y}
+                  x2={width - paddingRight}
+                  y2={gl.y}
+                  stroke="currentColor"
+                  strokeDasharray="3 3"
+                  className="text-slate-200 dark:text-slate-800"
+                />
+                <text
+                  x={paddingLeft - 8}
+                  y={gl.y + 4}
+                  textAnchor="end"
+                  fontSize="10"
+                  fontFamily="monospace"
+                  className="fill-slate-400 dark:fill-slate-500 font-semibold"
+                >
+                  {gl.val.toLocaleString()}
+                </text>
+              </g>
+            ))}
 
-            {/* Grouped Bars */}
-            {data.map((item, idx) => {
-              const groupX = paddingLeft + idx * groupWidth;
-              const centerX = groupX + groupWidth / 2;
-
-              const h1 = (Math.max(0, item.v1) / maxValue) * innerHeight;
-              const y1 = paddingTop + innerHeight - h1;
-
-              const hasV2 = item.v2 !== undefined && item.color2;
-              const xBar1 = hasV2 ? centerX - barWidth - 2 : centerX - barWidth / 2;
-              const xBar2 = centerX + 2;
-
-              const h2 = hasV2 ? (Math.max(0, item.v2!) / maxValue) * innerHeight : 0;
-              const y2 = paddingTop + innerHeight - h2;
-
-              const isHovered = hoveredIdx === idx;
-
+            {barCoordinates.map((bar) => {
+              const isHovered = hoveredIdx === bar.idx;
               return (
                 <g
-                  key={idx}
-                  onMouseEnter={() => setHoveredIdx(idx)}
+                  key={bar.idx}
+                  onMouseEnter={() => setHoveredIdx(bar.idx)}
                   onMouseLeave={() => setHoveredIdx(null)}
                   className="cursor-pointer"
                 >
-                  {/* Background column highlight on hover */}
                   {isHovered && (
                     <rect
-                      x={groupX + 2}
+                      x={bar.groupX + 2}
                       y={paddingTop}
                       width={groupWidth - 4}
                       height={innerHeight}
@@ -351,47 +332,32 @@ export const SvgGroupedBarChart: React.FC<{
                       rx="6"
                     />
                   )}
-
-                  {/* Bar 1 */}
                   <rect
-                    x={xBar1}
-                    y={y1}
+                    x={bar.xBar1}
+                    y={bar.y1}
                     width={barWidth}
-                    height={Math.max(2, h1)}
-                    fill={item.color1}
+                    height={bar.h1}
+                    fill={bar.item.color1}
                     rx="4"
-                    className="transition-all duration-200"
-                    style={{
-                      filter: isHovered ? 'brightness(1.15) drop-shadow(0 2px 4px rgba(0,0,0,0.2))' : 'none',
-                    }}
                   />
-
-                  {/* Bar 2 (if present) */}
-                  {hasV2 && (
+                  {bar.hasV2 && (
                     <rect
-                      x={xBar2}
-                      y={y2}
+                      x={bar.xBar2}
+                      y={bar.y2}
                       width={barWidth}
-                      height={Math.max(2, h2)}
-                      fill={item.color2}
+                      height={bar.h2}
+                      fill={bar.item.color2}
                       rx="4"
-                      className="transition-all duration-200"
-                      style={{
-                        filter: isHovered ? 'brightness(1.15) drop-shadow(0 2px 4px rgba(0,0,0,0.2))' : 'none',
-                      }}
                     />
                   )}
-
-                  {/* Category label below X axis */}
                   <text
-                    x={centerX}
+                    x={bar.centerX}
                     y={height - 12}
                     textAnchor="middle"
                     fontSize="10"
-                    fontWeight={isHovered ? 'bold' : 'normal'}
-                    className="fill-slate-600 dark:fill-slate-300 transition-colors"
+                    className="fill-slate-600 dark:fill-slate-300"
                   >
-                    {item.category.length > 9 ? `${item.category.substring(0, 8)}…` : item.category}
+                    {bar.truncatedCategory}
                   </text>
                 </g>
               );
@@ -399,36 +365,26 @@ export const SvgGroupedBarChart: React.FC<{
           </svg>
         </div>
       </div>
-
-      {/* Dynamic Hover Tooltip Banner */}
-      {hoveredIdx !== null && data[hoveredIdx] && (
-        <div className="mt-2 p-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 flex flex-wrap items-center justify-between text-xs max-w-full gap-2 animate-in fade-in duration-150">
-          <span className="font-bold">{data[hoveredIdx].category}</span>
-          <div className="flex items-center gap-3 sm:gap-4 font-mono flex-wrap">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data[hoveredIdx].color1 }} />
-              <span>{data[hoveredIdx].label1}:</span>
-              <strong>{data[hoveredIdx].v1.toLocaleString()}</strong>
+      {/* Legend below bar chart */}
+      {data.length > 0 && (
+        <div className="flex items-center justify-center gap-4 text-[11px] font-bold mt-2">
+          <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data[0].color1 }} />
+            {data[0].label1}
+          </span>
+          {data[0].label2 && (
+            <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data[0].color2 }} />
+              {data[0].label2}
             </span>
-            {data[hoveredIdx].v2 !== undefined && (
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data[hoveredIdx].color2 }} />
-                <span>{data[hoveredIdx].label2}:</span>
-                <strong>{data[hoveredIdx].v2?.toLocaleString()}</strong>
-              </span>
-            )}
-          </div>
+          )}
         </div>
       )}
     </div>
   );
 };
 
-// ============================================================================
-// SMOOTH AREA CURVE TREND CHART
-// ============================================================================
-
-interface TrendPoint {
+export interface TrendPoint {
   label: string;
   value: number;
 }
@@ -448,14 +404,11 @@ export const SvgAreaTrendChart: React.FC<{
   valuePrefix = '',
   isKu = false,
 }) => {
-  const [activePt, setActivePt] = useState<number | null>(null);
-
   const chartWidth = 520;
   const paddingLeft = 40;
   const paddingRight = 20;
   const paddingTop = 20;
   const paddingBottom = 30;
-
   const innerW = chartWidth - paddingLeft - paddingRight;
   const innerH = height - paddingTop - paddingBottom;
 
@@ -477,7 +430,6 @@ export const SvgAreaTrendChart: React.FC<{
     });
   }, [data, innerW, innerH, maxVal, paddingLeft, paddingTop]);
 
-  // Construct smooth cubic bezier path
   const pathD = useMemo(() => {
     if (points.length === 0) return '';
     if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
@@ -499,1732 +451,905 @@ export const SvgAreaTrendChart: React.FC<{
     if (!pathD || points.length === 0) return '';
     const last = points[points.length - 1];
     const first = points[0];
-    const bottom = paddingTop + innerH;
-    return `${pathD} L ${last.x} ${bottom} L ${first.x} ${bottom} Z`;
+    return `${pathD} L ${last.x} ${paddingTop + innerH} L ${first.x} ${paddingTop + innerH} Z`;
   }, [pathD, points, innerH, paddingTop]);
 
   return (
-    <div className="w-full flex flex-col">
-      <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
-        <div className="min-w-[500px] sm:min-w-full">
-          <svg
-            viewBox={`0 0 ${chartWidth} ${height}`}
-            className="w-full h-auto select-none overflow-visible"
-          >
-            <defs>
-              <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={lineColor} stopOpacity="0.45" />
-                <stop offset="100%" stopColor={lineColor} stopOpacity="0.02" />
-              </linearGradient>
-            </defs>
-
-            {/* Grid lines */}
-            {[0, 0.5, 1].map((pct, i) => {
-              const y = paddingTop + innerH - innerH * pct;
-              const v = Math.round(maxVal * pct);
-              return (
-                <g key={i}>
-                  <line
-                    x1={paddingLeft}
-                    y1={y}
-                    x2={chartWidth - paddingRight}
-                    y2={y}
-                    stroke="currentColor"
-                    strokeDasharray="2 3"
-                    className="text-slate-200 dark:text-slate-800"
-                  />
-                  <text
-                    x={paddingLeft - 6}
-                    y={y + 3}
-                    textAnchor="end"
-                    fontSize="10"
-                    fontFamily="monospace"
-                    className="fill-slate-400 font-semibold"
-                  >
-                    {valuePrefix}
-                    {v.toLocaleString()}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* Area fill */}
-            {areaD && <path d={areaD} fill={`url(#${fillGradientId})`} />}
-
-            {/* Line stroke */}
-            {pathD && (
-              <path
-                d={pathD}
-                fill="none"
-                stroke={lineColor}
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="drop-shadow-sm"
-              />
-            )}
-
-            {/* Data Points */}
-            {points.map((pt, i) => {
-              const isHovered = activePt === i;
-              return (
-                <g
-                  key={i}
-                  onMouseEnter={() => setActivePt(i)}
-                  onMouseLeave={() => setActivePt(null)}
-                  className="cursor-pointer"
-                >
-                  <circle
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={isHovered ? 6 : 4}
-                    fill="#ffffff"
-                    stroke={lineColor}
-                    strokeWidth={isHovered ? 3 : 2}
-                    className="transition-all duration-200"
-                  />
-                  {/* X-axis labels */}
-                  <text
-                    x={pt.x}
-                    y={height - 10}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fontWeight={isHovered ? 'bold' : 'normal'}
-                    className="fill-slate-500 dark:fill-slate-400"
-                  >
-                    {pt.label}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-      </div>
-
-      {activePt !== null && points[activePt] && (
-        <div className="mt-1 p-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 flex flex-wrap items-center justify-between text-xs max-w-full gap-2 animate-in fade-in duration-150">
-          <span className="font-semibold text-slate-300">{points[activePt].label}</span>
-          <span className="font-bold font-mono text-emerald-400">
-            {valuePrefix}
-            {points[activePt].value.toLocaleString()}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ============================================================================
-// HORIZONTAL RANKING PROGRESS BAR CHART
-// ============================================================================
-
-interface RankingItem {
-  label: string;
-  value: number;
-  subLabel?: string;
-  color?: string;
-}
-
-export const SvgHorizontalRankingChart: React.FC<{
-  items: RankingItem[];
-  valueSuffix?: string;
-  isKu?: boolean;
-}> = ({ items, valueSuffix = '', isKu = false }) => {
-  const maxVal = useMemo(() => {
-    return items.reduce((m, item) => (item.value > m ? item.value : m), 1);
-  }, [items]);
-
-  return (
-    <div className="w-full space-y-3">
-      {items.map((item, idx) => {
-        const pct = Math.min(100, Math.round((item.value / maxVal) * 100));
-        const barColor = item.color || '#10b981';
-
-        return (
-          <div key={idx} className="group flex flex-col gap-1">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <div className="flex items-center gap-2 truncate pr-2">
-                <span className="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-[10px] font-mono font-bold shrink-0">
-                  #{idx + 1}
-                </span>
-                <span className="text-slate-900 dark:text-white truncate">{item.label}</span>
-                {item.subLabel && (
-                  <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
-                    ({item.subLabel})
-                  </span>
-                )}
-              </div>
-              <span className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
-                {item.value.toLocaleString()} {valueSuffix}
-              </span>
-            </div>
-
-            {/* Track & Filled Bar */}
-            <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden relative">
-              <div
-                className="h-full rounded-full transition-all duration-500 ease-out group-hover:brightness-110"
-                style={{
-                  width: `${pct}%`,
-                  backgroundColor: barColor,
-                }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-// ============================================================================
-// SEMI-CIRCLE RADIAL GAUGE CHART
-// ============================================================================
-
-export const SvgGaugeChart: React.FC<{
-  percentage: number;
-  title: string;
-  statusLabel?: string;
-  size?: number;
-  color?: string;
-  isKu?: boolean;
-}> = ({ percentage, title, statusLabel, size = 180, color = '#10b981', isKu = false }) => {
-  const clamped = Math.max(0, Math.min(100, percentage));
-  const r = size * 0.38;
-  const strokeW = size * 0.12;
-  const cx = size / 2;
-  const cy = size * 0.58;
-
-  // 180 degree arc length: pi * r
-  const arcLength = Math.PI * r;
-  const filledLength = (clamped / 100) * arcLength;
-
-  return (
-    <div className="flex flex-col items-center justify-center p-3 text-center">
-      <div className="relative" style={{ width: size, height: size * 0.65 }}>
-        <svg width={size} height={size * 0.65} className="overflow-visible select-none">
-          {/* Background Track Arc */}
-          <path
-            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={strokeW}
-            strokeLinecap="round"
-            className="text-slate-200 dark:text-slate-800"
-          />
-
-          {/* Filled Metric Arc */}
-          <path
-            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-            fill="none"
-            stroke={color}
-            strokeWidth={strokeW}
-            strokeLinecap="round"
-            strokeDasharray={`${filledLength} ${arcLength}`}
-            className="transition-all duration-700 ease-out"
-          />
+    <div className="w-full overflow-x-auto">
+      <div className="transform-gpu will-change-transform" style={{ minWidth: chartWidth, width: '100%' }}>
+        <svg width="100%" height={height} viewBox={`0 0 ${chartWidth} ${height}`} className="select-none overflow-visible">
+          <defs>
+            <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.35" />
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+          {areaD && <path d={areaD} fill={`url(#${fillGradientId})`} />}
+          {pathD && <path d={pathD} fill="none" stroke={lineColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+          {points.map((pt, i) => (
+            <circle key={i} cx={pt.x} cy={pt.y} r="4" fill={lineColor} stroke="#fff" strokeWidth="2" className="cursor-pointer hover:r-6 transition-all" />
+          ))}
+          {/* Axis points */}
+          {points.map((pt, i) => (
+            <text key={i} x={pt.x} y={height - 8} textAnchor="middle" fontSize="10" className="fill-slate-500 font-mono">
+              {pt.label}
+            </text>
+          ))}
         </svg>
-
-        {/* Center Display */}
-        <div className="absolute inset-x-0 bottom-1 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-2xl font-black text-slate-900 dark:text-white font-mono leading-none">
-            {clamped.toFixed(1)}%
-          </span>
-          {statusLabel && (
-            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-              {statusLabel}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-2">{title}</span>
-    </div>
-  );
-};
-
-// ============================================================================
-// ACCESS DENIED MODAL COMPONENT (Gated Analytics)
-// ============================================================================
-export const AccessDeniedView: React.FC<{
-  message: string;
-  onClose: () => void;
-  isKu: boolean;
-}> = ({ message, onClose, isKu }) => {
-  return (
-    <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 select-none"
-      onClick={onClose}
-      role="alertdialog"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-4 animate-in zoom-in-95 duration-200"
-      >
-        <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-inner">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <div>
-          <h3 className="text-xl font-black text-slate-900 dark:text-white">
-            {message}
-          </h3>
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-            {isKu
-              ? 'ئەژمێرەکەت لەلایەن بەڕێوەبەر باکۆ بەیان مۆڵەتی دەستپێگەیشتنی چارت و شیکاری بینراوی دارایی پێنەدراوە. تکایە پەیوەندی بە بەڕێوەبەر بکە.'
-              : 'Your account does not have authorization to view executive financial analytics, profit margins, or workshop performance charts. Please contact system administrator.'}
-          </p>
-        </div>
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
-          >
-            {isKu ? 'داخستن' : 'Close'}
-          </button>
-        </div>
       </div>
     </div>
   );
 };
 
 // ============================================================================
-// MAIN VISUAL CHARTS MODAL COMPONENT
+// MAIN EXECUTIVE VISUAL CHARTS MODAL COMPONENT (RBAC Protected Bento Grid)
 // ============================================================================
+
+type FilterModule = 'all' | 'panels' | 'sales' | 'logistics';
 
 export const VisualChartsModal: React.FC = () => {
   const {
     isVisualChartsOpen,
-    visualChartsScope,
     closeVisualCharts,
     materials,
     stats,
-    transactions,
-    products,
-    shipments,
     language,
-    formatMoney,
-    convertCurrency,
     userPermissions,
   } = useInventory();
 
-  const isKu = language === 'ku';
-
-  const canFinancial = !!userPermissions?.canViewFinancialAnalytics;
-  const canWorkshop = !!userPermissions?.canViewWorkshopAnalytics;
-  const hasAnyAnalytics = canFinancial || canWorkshop;
-
-  // Active Scope Tab
+  const warehouseOps = useWarehouseOps();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<ChartScopeTab>('all');
-  const [reportDate, setReportDate] = useState<string>('');
-  const [tableSearch, setTableSearch] = useState<string>('');
+  const [filterModule, setFilterModule] = useState<FilterModule>('all');
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Sync tab with initial scope when modal opens
-  useEffect(() => {
-    if (isVisualChartsOpen) {
-      if ((visualChartsScope === 'panels' || visualChartsScope === 'orders') && canWorkshop) {
-        setActiveTab('panels');
-      } else if (visualChartsScope === 'sales' && canFinancial) {
-        setActiveTab('sales');
-      } else if (visualChartsScope === 'goods') {
-        setActiveTab('goods');
-      } else if (visualChartsScope === 'shipping') {
-        setActiveTab('shipping');
-      } else if (canFinancial) {
-        setActiveTab('all');
-      } else if (canWorkshop) {
-        setActiveTab('panels');
+  const isKu = language === 'ku';
+
+  // Strict RBAC Permission Gates
+  const canFinancial = !!userPermissions?.canViewSales;
+  const canLogistics = !!userPermissions?.canViewWarehouse;
+  const canInventory = !!userPermissions?.canViewPanels;
+
+  // 1. FINANCIALS CALCULATIONS (Guarded)
+  const financialData = useMemo(() => {
+    if (!canFinancial) return null;
+
+    const activeList = warehouseOps.activeShipments || [];
+    let totalPaid = 0;
+    let totalDebt = 0;
+    let debtEUR = 0;
+
+    activeList.forEach((s) => {
+      if (s.isDeleted === 1) return;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      const curr = s.invoiceCurrency || (s.supplier?.toLowerCase().includes('fundermax') ? 'EUR' : 'USD');
+
+      totalPaid += paid;
+      if (curr === 'EUR') {
+        debtEUR += debt;
       } else {
-        setActiveTab('goods');
+        totalDebt += debt;
       }
+    });
 
-      const d = new Date();
-      setReportDate(d.toLocaleDateString(isKu ? 'ku' : 'en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }));
-    }
-  }, [isVisualChartsOpen, visualChartsScope, isKu, canFinancial, canWorkshop]);
+    const totalInvoiced = totalPaid + totalDebt;
+    const count = activeList.length;
+    const avgInvoiceValue = count > 0 ? totalInvoiced / count : 0;
+    const paidPct = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0;
+    const debtPct = 100 - paidPct;
 
-  // Handle ESC key to close
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isVisualChartsOpen) {
-        closeVisualCharts();
-      }
+    return {
+      totalPaid,
+      totalDebt,
+      debtEUR,
+      totalInvoiced,
+      count,
+      avgInvoiceValue,
+      paidPct,
+      debtPct,
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isVisualChartsOpen, closeVisualCharts]);
+  }, [canFinancial, warehouseOps.activeShipments]);
 
-  // Handle Print Action
-  const handlePrint = () => {
-    window.print();
-  };
+  // Financial Donut Data (Supplier Paid vs Supplier Debt)
+  const financialDonutData: DonutSlice[] = useMemo(() => {
+    if (!financialData) return [];
+    return [
+      {
+        label: isKu ? 'پارەی دراو بە دابینکەر' : 'Paid to Suppliers',
+        value: financialData.totalPaid,
+        color: '#10b981', // emerald-500
+        subtext: isKu ? 'تەواوکراو' : 'Settled',
+      },
+      {
+        label: isKu ? 'قەرزی ماوە بۆ دابینکەران' : 'Supplier Debt',
+        value: financialData.totalDebt,
+        color: '#f43f5e', // rose-500
+        subtext: isKu ? 'قەرزی سەر کۆمپانیا' : 'Payables Remaining',
+      },
+    ];
+  }, [financialData, isKu]);
 
-  // --------------------------------------------------------------------------
-  // DATA CALCULATIONS FOR ALL MODULES
-  // --------------------------------------------------------------------------
+  // Financial Grouped Bar Data (Turnover by Supplier)
+  const financialBarData: BarGroupItem[] = useMemo(() => {
+    if (!canFinancial) return [];
+    const activeList = warehouseOps.activeShipments || [];
+    const supplierMap = new Map<string, { paid: number; debt: number }>();
 
-  // 1. Wood Panels & Orders Data Calculations
-  const panelsAnalytics = useMemo(() => {
-    // Types breakdown
-    const typeMap: Record<string, number> = {};
-    const thicknessMap: Record<string, number> = {};
-    const clientOrderMap: Record<string, number> = {};
+    activeList.forEach((s) => {
+      if (s.isDeleted === 1) return;
+      const name = s.supplier || s.supplierName || 'FunderMax';
+      const paid = Number(s.amountPaidToSupplier) || 0;
+      const invoiced = Number(s.totalInvoiceAmount) || 0;
+      const debt = s.supplierDebtRemaining !== undefined ? Number(s.supplierDebtRemaining) : Math.max(0, invoiced - paid);
+      const existing = supplierMap.get(name) || { paid: 0, debt: 0 };
+      supplierMap.set(name, { paid: existing.paid + paid, debt: existing.debt + debt });
+    });
 
-    materials.forEach((m) => {
-      typeMap[m.type] = (typeMap[m.type] || 0) + m.totalStock;
-      const th = `${m.dimensions.thickness}mm`;
-      thicknessMap[th] = (thicknessMap[th] || 0) + m.totalStock;
-
-      m.activeOrders.forEach((ord) => {
-        const client = ord.client.trim() || (isKu ? 'کڕیاری گشتی' : 'General Client');
-        clientOrderMap[client] = (clientOrderMap[client] || 0) + ord.quantity;
+    const list: BarGroupItem[] = [];
+    supplierMap.forEach((val, name) => {
+      list.push({
+        category: name,
+        v1: val.paid,
+        v2: val.debt,
+        label1: isKu ? 'دراو ($)' : 'Paid ($)',
+        label2: isKu ? 'قەرز ($)' : 'Debt ($)',
+        color1: '#10b981',
+        color2: '#f43f5e',
       });
     });
 
-    const palette = ['#10b981', '#0ea5e9', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
-    const typesDonut: DonutSlice[] = Object.entries(typeMap).map(([label, value], i) => ({
-      label,
-      value,
-      color: palette[i % palette.length],
-    }));
+    return list.slice(0, 6);
+  }, [canFinancial, warehouseOps.activeShipments, isKu]);
 
-    const thicknessBars: BarGroupItem[] = Object.entries(thicknessMap).map(([category, value]) => ({
-      category,
-      v1: value,
-      label1: isKu ? 'کۆی تەختە' : 'Stock Panels',
-      color1: '#10b981',
-    }));
+  // 2. LOGISTICS 3-STAGE PIPELINE CALCULATIONS (Guarded)
+  const logisticsData = useMemo(() => {
+    if (!canLogistics) return null;
 
-    const topClients: RankingItem[] = Object.entries(clientOrderMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([label, value], i) => ({
-        label,
-        value,
-        color: palette[i % palette.length],
-        subLabel: isKu ? 'داواکراو' : 'Reserved panels',
-      }));
-
-    const allocationRate = stats.totalStock > 0 ? (stats.totalAllocated / stats.totalStock) * 100 : 0;
+    const activeList = warehouseOps.activeShipments || [];
+    const factoryCount = activeList.filter((s) => s.status === 'pending').length;
+    const customsCount = activeList.filter((s) => s.status === 'customs').length;
+    const warehouseCount = activeList.filter((s) => s.status === 'received' || s.status === 'inspected').length;
+    const totalRacked = (warehouseOps.allocations || []).reduce((sum, a) => sum + (Number(a.quantity) || 0), 0);
 
     return {
-      typesDonut,
-      thicknessBars,
-      topClients,
-      allocationRate,
+      factoryCount,
+      customsCount,
+      warehouseCount,
+      totalCount: activeList.length,
+      totalRacked,
     };
-  }, [materials, stats, isKu]);
+  }, [canLogistics, warehouseOps.activeShipments, warehouseOps.allocations]);
 
-  // 2. Sales POS & Invoices Calculations
-  const salesAnalytics = useMemo(() => {
-    const curMap: Record<string, number> = { USD: 0, IQD: 0, EUR: 0 };
-    const statusMap: Record<string, number> = { completed: 0, partial: 0, debt: 0 };
+  // Logistics Trend Data across Inbound Batches
+  const logisticsTrendData: TrendPoint[] = useMemo(() => {
+    if (!canLogistics) return [];
+    const activeList = warehouseOps.activeShipments || [];
+    if (activeList.length === 0) {
+      return [
+        { label: isKu ? 'بار ۰۱' : 'Batch 01', value: 0 },
+        { label: isKu ? 'بار ۰۲' : 'Batch 02', value: 0 },
+      ];
+    }
 
-    let totalGrossRevenueUsd = 0;
-    let totalPaidUsd = 0;
-    let totalDebtUsd = 0;
-
-    const trendPoints: TrendPoint[] = [];
-
-    transactions.forEach((tx, idx) => {
-      const cur = tx.currency || 'USD';
-      curMap[cur] = (curMap[cur] || 0) + 1;
-
-      const st = tx.status || (tx.amountOwed > 0 ? 'debt' : 'completed');
-      statusMap[st] = (statusMap[st] || 0) + 1;
-
-      // Normalize into USD for global aggregation
-      const amtUsd = cur === 'USD' ? tx.totalAfterDiscount : convertCurrency(tx.totalAfterDiscount, cur as CurrencyCode, 'USD');
-      const paidUsd = cur === 'USD' ? tx.amountPaidNow : convertCurrency(tx.amountPaidNow, cur as CurrencyCode, 'USD');
-      const debtUsd = cur === 'USD' ? tx.combinedTotalDebt : convertCurrency(tx.combinedTotalDebt, cur as CurrencyCode, 'USD');
-
-      totalGrossRevenueUsd += amtUsd;
-      totalPaidUsd += paidUsd;
-      totalDebtUsd += debtUsd;
-
-      if (idx < 8) {
-        trendPoints.push({
-          label: tx.code || `#${idx + 1}`,
-          value: Math.round(amtUsd),
-        });
-      }
+    return activeList.slice(0, 8).map((s, i) => {
+      const totalQty = (s.items || []).reduce((sum, item) => sum + (Number(item.receivedQty) || Number(item.expectedQty) || 0), 0);
+      return {
+        label: s.batchCode ? s.batchCode.slice(-6) : `B-${i + 1}`,
+        value: totalQty > 0 ? totalQty : Math.round((Number(s.totalInvoiceAmount) || 1000) / 100),
+      };
     });
+  }, [canLogistics, warehouseOps.activeShipments, isKu]);
 
-    const currencyDonut: DonutSlice[] = [
-      { label: 'USD ($)', value: curMap.USD, color: '#0ea5e9' },
-      { label: 'IQD (د.ع)', value: curMap.IQD, color: '#10b981' },
-      { label: 'EUR (€)', value: curMap.EUR, color: '#8b5cf6' },
-    ].filter((d) => d.value > 0);
-
-    const statusDonut: DonutSlice[] = [
-      { label: isKu ? 'دراوە (تەواو)' : 'Completed', value: statusMap.completed, color: '#10b981' },
-      { label: isKu ? 'بەشەکی' : 'Partial', value: statusMap.partial, color: '#f59e0b' },
-      { label: isKu ? 'قەرز' : 'Unpaid Debt', value: statusMap.debt, color: '#ef4444' },
-    ].filter((d) => d.value > 0);
-
-    const recoveryRate = totalGrossRevenueUsd > 0 ? (totalPaidUsd / totalGrossRevenueUsd) * 100 : 100;
-
-    return {
-      totalGrossRevenueUsd,
-      totalPaidUsd,
-      totalDebtUsd,
-      currencyDonut,
-      statusDonut,
-      recoveryRate,
-      trendPoints: trendPoints.reverse(),
-    };
-  }, [transactions, convertCurrency, isKu]);
-
-  // 3. Warehouse Goods & Hardware Calculations
-  const goodsAnalytics = useMemo(() => {
-    let inStock = 0;
-    let lowStock = 0;
-    let outOfStock = 0;
-
-    const catMap: Record<string, number> = {};
-    const locMap: Record<string, number> = {};
-
-    products.forEach((p) => {
-      if (p.currentStock <= 0 || p.lane === 'outOfStock') outOfStock++;
-      else if (p.currentStock <= p.minStock || p.lane === 'lowStock') lowStock++;
-      else inStock++;
-
-      catMap[p.category] = (catMap[p.category] || 0) + p.currentStock;
-      const loc = p.location || 'Warehouse Floor';
-      locMap[loc] = (locMap[loc] || 0) + p.currentStock;
-    });
-
-    const healthDonut: DonutSlice[] = [
-      { label: isKu ? 'بەردەست' : 'In Stock', value: inStock, color: '#10b981' },
-      { label: isKu ? 'کەم ماوە' : 'Low Stock', value: lowStock, color: '#f59e0b' },
-      { label: isKu ? 'تەواوبوو' : 'Out of Stock', value: outOfStock, color: '#ef4444' },
-    ].filter((d) => d.value > 0);
-
-    const catBars: BarGroupItem[] = Object.entries(catMap)
-      .slice(0, 6)
-      .map(([category, value]) => ({
-        category,
-        v1: value,
-        label1: isKu ? 'دانە لە کۆگا' : 'Units in stock',
-        color1: '#f59e0b',
-      }));
-
-    const locRanking: RankingItem[] = Object.entries(locMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([label, value]) => ({
-        label,
-        value,
-        color: '#f59e0b',
-        subLabel: isKu ? 'کۆی کەلوپەل' : 'Stored items',
-      }));
-
-    const healthRate = products.length > 0 ? (inStock / products.length) * 100 : 100;
-
-    return {
-      healthDonut,
-      catBars,
-      locRanking,
-      healthRate,
-    };
-  }, [products, isKu]);
-
-  // 4. Shipping & Logistics Calculations
-  const shippingAnalytics = useMemo(() => {
-    const statusMap: Record<string, number> = { delivered: 0, in_transit: 0, pending: 0 };
-    const destMap: Record<string, number> = {};
-
-    shipments.forEach((s) => {
-      statusMap[s.status] = (statusMap[s.status] || 0) + 1;
-      const d = s.destination.trim() || (isKu ? 'شوێنی نادیار' : 'Unassigned');
-      destMap[d] = (destMap[d] || 0) + (s.quantity || 1);
-    });
-
-    const statusDonut: DonutSlice[] = [
-      { label: isKu ? 'گەیشتووە' : 'Delivered', value: statusMap.delivered, color: '#10b981' },
-      { label: isKu ? 'لە ڕێگایە' : 'In Transit', value: statusMap.in_transit, color: '#0ea5e9' },
-      { label: isKu ? 'چاوەڕوانکراو' : 'Pending', value: statusMap.pending, color: '#f59e0b' },
-    ].filter((d) => d.value > 0);
-
-    const destRanking: RankingItem[] = Object.entries(destMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([label, value]) => ({
-        label,
-        value,
-        color: '#0ea5e9',
-        subLabel: isKu ? 'کۆی بڕ' : 'Units transported',
-      }));
-
-    const deliveredRate = shipments.length > 0 ? (statusMap.delivered / shipments.length) * 100 : 100;
-
-    return {
-      statusDonut,
-      destRanking,
-      deliveredRate,
-    };
-  }, [shipments, isKu]);
-
-  // 5. Cross-Division Overview
-  const crossDivisionDonut: DonutSlice[] = useMemo(() => {
+  // Logistics Status Donut
+  const logisticsStatusDonut: DonutSlice[] = useMemo(() => {
+    if (!logisticsData) return [];
     return [
-      { label: isKu ? 'تەختەی کۆگا' : 'Wood Panels', value: stats.totalStock, color: '#10b981' },
-      { label: isKu ? 'کەلوپەل و قەراغ' : 'Hardware & Goods', value: products.reduce((acc, p) => acc + p.currentStock, 0), color: '#f59e0b' },
-      { label: isKu ? 'تەختەی گیراوی بڕین' : 'Reserved Orders', value: stats.totalAllocated, color: '#8b5cf6' },
-      { label: isKu ? 'باری گەیاندن' : 'Logistics Cargo', value: shipments.reduce((acc, s) => acc + s.quantity, 0), color: '#0ea5e9' },
-    ].filter((d) => d.value > 0);
-  }, [stats, products, shipments, isKu]);
+      {
+        label: isKu ? 'لە کارگە / ڕێگە' : 'Factory / In Transit',
+        value: logisticsData.factoryCount,
+        color: '#0ea5e9', // sky-500
+      },
+      {
+        label: isKu ? 'گومرگ' : 'Border Customs',
+        value: logisticsData.customsCount,
+        color: '#f59e0b', // amber-500
+      },
+      {
+        label: isKu ? 'کۆگا / گەیشتوو' : 'Warehouse / Racked',
+        value: logisticsData.warehouseCount,
+        color: '#10b981', // emerald-500
+      },
+    ];
+  }, [logisticsData, isKu]);
 
-  if (!isVisualChartsOpen || !mounted) {
-    return null;
-  }
+  // 3. INVENTORY HEALTH & STOCK DISTRIBUTION CALCULATIONS (Guarded)
+  const inventoryData = useMemo(() => {
+    if (!canInventory) return null;
 
-  // Access Denied View if user has neither financial nor workshop analytics permission
-  if (!canFinancial && !canWorkshop) {
-    return createPortal(
-      <AccessDeniedView
-        message={isKu ? 'دەستپێگەیشتنی شیکاری سنووردارکراوە' : 'Analytics Restricted'}
-        onClose={closeVisualCharts}
-        isKu={isKu}
-      />,
-      document.body
-    );
-  }
+    const totalStock = stats.totalStock || 0;
+    const totalAvailable = stats.totalAvailable || 0;
+    const totalReserved = stats.totalAllocated || 0;
+    const depletedCount = materials.filter((m) => (m.availableStock || 0) <= 0).length;
 
-  const modalContent = (
+    const availablePct = totalStock > 0 ? Math.round((totalAvailable / totalStock) * 100) : 0;
+    const reservedPct = totalStock > 0 ? Math.round((totalReserved / totalStock) * 100) : 0;
+    const depletedPct = Math.max(0, 100 - (availablePct + reservedPct));
+
+    const lowestStockPanels = [...materials]
+      .sort((a, b) => (a.availableStock || 0) - (b.availableStock || 0))
+      .slice(0, 3);
+
+    return {
+      totalStock,
+      totalAvailable,
+      totalReserved,
+      depletedCount,
+      availablePct,
+      reservedPct,
+      depletedPct,
+      lowestStockPanels,
+    };
+  }, [canInventory, stats, materials]);
+
+  // Inventory Stock Distribution Donut (Available vs Reserved vs Depleted)
+  const stockDonutData: DonutSlice[] = useMemo(() => {
+    if (!inventoryData) return [];
+    return [
+      {
+        label: isKu ? 'تەختەی بەردەست' : 'Available Stock',
+        value: inventoryData.totalAvailable,
+        color: '#10b981', // emerald-500
+      },
+      {
+        label: isKu ? 'حجزکراو بۆ وەرشە' : 'Reserved for Orders',
+        value: inventoryData.totalReserved,
+        color: '#f59e0b', // amber-500
+      },
+      {
+        label: isKu ? 'تەواوبوو / کەم' : 'Depleted Items',
+        value: inventoryData.depletedCount,
+        color: '#f43f5e', // rose-500
+      },
+    ];
+  }, [inventoryData, isKu]);
+
+  // Inventory Material Types Bar Chart (Available vs Reserved by Type)
+  const materialTypeBarData: BarGroupItem[] = useMemo(() => {
+    if (!canInventory) return [];
+    const typeMap = new Map<string, { available: number; reserved: number }>();
+
+    materials.forEach((m) => {
+      const type = m.type || (isKu ? 'تەختە' : 'Panel');
+      const existing = typeMap.get(type) || { available: 0, reserved: 0 };
+      typeMap.set(type, {
+        available: existing.available + (Number(m.availableStock) || 0),
+        reserved: existing.reserved + (Number(m.allocatedStock) || 0),
+      });
+    });
+
+    const list: BarGroupItem[] = [];
+    typeMap.forEach((val, type) => {
+      list.push({
+        category: type,
+        v1: val.available,
+        v2: val.reserved,
+        label1: isKu ? 'بەردەست' : 'Available',
+        label2: isKu ? 'حجزکراو' : 'Reserved',
+        color1: '#0ea5e9', // sky-500
+        color2: '#f59e0b', // amber-500
+      });
+    });
+
+    return list.slice(0, 6);
+  }, [canInventory, materials, isKu]);
+
+  if (!mounted || !isVisualChartsOpen) return null;
+
+  return createPortal(
     <div
-      id="print-charts-mount-root"
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
+      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-6 md:p-8 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto cursor-pointer"
       role="dialog"
       aria-modal="true"
       onClick={closeVisualCharts}
     >
-      {/* Modal Card Container */}
+      {/* Executive Bento Container */}
       <div
-        id="printable-charts"
+        className="relative w-full max-w-7xl max-h-[92vh] flex flex-col rounded-[2.5rem] bg-slate-50/95 dark:bg-slate-950/95 border border-slate-200/80 dark:border-slate-800/80 shadow-2xl overflow-hidden backdrop-blur-2xl my-auto text-slate-900 dark:text-white cursor-default"
+        dir={isKu ? 'rtl' : 'ltr'}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-6xl max-h-[92vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-slate-900 dark:text-slate-100"
       >
-        {/* ================================================================= */}
-        {/* TOP MODAL HEADER & CONTROLS (Screen Only)                         */}
-        {/* ================================================================= */}
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-850/70 backdrop-blur-md shrink-0 no-print">
+        {/* Header Bar */}
+        <div className="px-6 sm:px-8 py-5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shadow-md shadow-emerald-600/25">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
               <BarChart3 className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {isKu ? 'چارت و شیکاری بینراوی سیستەمی سەرەکی' : 'Visual Charts & Executive Analytics'}
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                  {isKu ? 'ناوەندی شیکاری بینراوی بەڕێوەبردن' : 'Executive Visual Analytics Suite'}
                 </h2>
-                <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                   {APP_CONFIG.version}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Bako&apos;s Master System • Engineered &amp; Maintained by <strong>Bako Bayan Madhhar</strong> (07705488654)
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                {isKu
+                  ? 'ئاماری وردی دارایی، لۆجستی و دابەشبوونی تەختە بە شێوازی پارێزراوی بەڕێوەبەرایەتی'
+                  : 'Rigid RBAC protected command center: Multi-currency payables, cargo pipelines & live stock distribution.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Print Analytics Report Button */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handlePrint}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-emerald-700 dark:hover:bg-emerald-600 font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
-              title="Print Vector Analytics Report"
+              onClick={() => window.print()}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-300 text-xs font-bold shadow-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer active:scale-95"
+              title={isKu ? 'چاپکردنی ڕاپۆرت' : 'Print Analytics Report'}
             >
-              <Printer className="w-4 h-4" />
-              <span>{isKu ? 'چاپی ڕاپۆرتی چارتەکان' : 'Print Analytics Report'}</span>
+              <Printer className="w-4 h-4 text-slate-500" />
+              <span>{isKu ? 'چاپکردن' : 'Print'}</span>
             </button>
-
-            {/* Close Button */}
             <button
               type="button"
               onClick={closeVisualCharts}
-              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer"
-              title="Close (Esc)"
+              className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 border border-slate-200/60 dark:border-slate-750"
+              title={isKu ? 'داخستن' : 'Close Modal'}
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* ================================================================= */}
-        {/* DIVISION SCOPE NAVIGATION TABS (Screen Only)                      */}
-        {/* ================================================================= */}
-        <div className="px-4 sm:px-6 pt-3 pb-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 no-print">
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-slate-900 dark:bg-emerald-600 text-white shadow-xs font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span>{isKu ? 'پوختەی گشتی سەرجەم بەشەکان' : 'Executive Overview'}</span>
-          </button>
-
-          {canWorkshop && (
+        {/* ========================================================================= */}
+        {/* 1. MODULE FILTER SWITCHER (Segmented Filter Bar)                          */}
+        {/* ========================================================================= */}
+        <div className="px-6 sm:px-8 pt-4 pb-2 bg-slate-100/60 dark:bg-slate-900/40 border-b border-slate-200/60 dark:border-slate-800/60 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {/* All Modules */}
             <button
               type="button"
-              onClick={() => setActiveTab('panels')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                activeTab === 'panels'
-                  ? 'bg-emerald-600 text-white shadow-xs font-black'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              onClick={() => setFilterModule('all')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 shadow-2xs ${
+                filterModule === 'all'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-black shadow-md'
+                  : 'bg-white/80 dark:bg-slate-850/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-slate-750'
               }`}
             >
-              <Layers className="w-4 h-4" />
-              <span>{isKu ? 'تەختەکان و داواکارییەکان' : 'Wood Panels & Orders'}</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
-                {materials.length}
-              </span>
+              {isKu ? 'هەموو بەشەکان' : 'All Modules'}
             </button>
-          )}
 
-          {canFinancial && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('sales')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                activeTab === 'sales'
-                  ? 'bg-sky-600 text-white shadow-xs font-black'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <ReceiptText className="w-4 h-4" />
-              <span>{isKu ? 'فرۆشتن و دارایی (POS)' : 'Sales POS & Finance'}</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
-                {transactions.length}
-              </span>
-            </button>
-          )}
+            {/* Panels & Workshop */}
+            {canInventory && (
+              <button
+                type="button"
+                onClick={() => setFilterModule('panels')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 shadow-2xs ${
+                  filterModule === 'panels'
+                    ? 'bg-emerald-600 text-white font-black shadow-md shadow-emerald-600/25 ring-1 ring-emerald-400/40'
+                    : 'bg-white/80 dark:bg-slate-850/80 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 border border-slate-200/60 dark:border-slate-750'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>{isKu ? 'تەختەکان و وەرشە' : 'Panels & Workshop'}</span>
+              </button>
+            )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('goods')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-              activeTab === 'goods'
-                ? 'bg-amber-600 text-white shadow-xs font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>{isKu ? 'کەلوپەل و پێداویستی کۆگا' : 'Warehouse Hardware & Fittings'}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
-              {products.length}
-            </span>
-          </button>
+            {/* B2B Trade & Payables */}
+            {canFinancial && (
+              <button
+                type="button"
+                onClick={() => setFilterModule('sales')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 shadow-2xs ${
+                  filterModule === 'sales'
+                    ? 'bg-sky-600 text-white font-black shadow-md shadow-sky-600/25 ring-1 ring-sky-400/40'
+                    : 'bg-white/80 dark:bg-slate-850/80 text-slate-600 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 border border-slate-200/60 dark:border-slate-750'
+                }`}
+              >
+                <ReceiptText className="w-3.5 h-3.5" />
+                <span>{isKu ? 'بازرگانی B2B و قەرزەکان' : 'B2B Trade & Payables'}</span>
+              </button>
+            )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('shipping')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-              activeTab === 'shipping'
-                ? 'bg-purple-600 text-white shadow-xs font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            <span>{isKu ? 'گواستنەوە و لۆجستی' : 'Shipping Pipeline'}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">
-              {shipments.length}
-            </span>
-          </button>
-        </div>
-
-        {/* ================================================================= */}
-        {/* PRINT FORMAL REPORT HEADER (Visible in Print & Top of Document)   */}
-        {/* ================================================================= */}
-        <div className="hidden print:block p-6 border-b-2 border-slate-900 bg-white text-slate-900">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="inline-block px-2.5 py-1 bg-slate-900 text-white text-[10px] font-mono font-bold uppercase tracking-widest rounded mb-1">
-                OFFICIAL SYSTEM ANALYTICS & INTELLIGENCE REPORT
-              </div>
-              <h1 className="text-3xl font-black uppercase tracking-tight">
-                Bako&apos;s Master System • {APP_CONFIG.version}
-              </h1>
-              <p className="text-xs font-bold text-slate-600 mt-0.5">
-                Division Focus:{' '}
-                <span className="uppercase text-slate-900 font-black">
-                  {activeTab === 'all'
-                    ? 'Cross-Division Operations'
-                    : activeTab === 'panels'
-                    ? 'Wood Panels & Workshop Orders'
-                    : activeTab === 'sales'
-                    ? 'Sales POS, Finance & Debt Ledger'
-                    : activeTab === 'goods'
-                    ? 'Warehouse Hardware & Fittings'
-                    : 'Shipping & Logistics Fleet'}
-                </span>
-              </p>
-            </div>
-
-            <div className="text-right text-xs font-mono">
-              <div className="font-bold text-slate-900">
-                Engineered &amp; Maintained by: <strong>Bako Bayan Madhhar</strong>
-              </div>
-              <div className="text-slate-600">Contact: 07705488654</div>
-              <div className="text-slate-500 mt-1">{reportDate}</div>
-              <div className="text-[10px] text-emerald-800 font-bold">SQLITE WAL DURABILITY VERIFIED</div>
-            </div>
+            {/* Logistics & Cargo */}
+            {canLogistics && (
+              <button
+                type="button"
+                onClick={() => setFilterModule('logistics')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 shadow-2xs ${
+                  filterModule === 'logistics'
+                    ? 'bg-amber-600 text-white font-black shadow-md shadow-amber-600/25 ring-1 ring-amber-400/40'
+                    : 'bg-white/80 dark:bg-slate-850/80 text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 border border-slate-200/60 dark:border-slate-750'
+                }`}
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>{isKu ? 'لۆجستی و بارەکان' : 'Logistics & Cargo'}</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* ================================================================= */}
-        {/* SCROLLABLE MODAL CONTENT BODY                                     */}
-        {/* ================================================================= */}
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-6">
+        {/* Scrollable Bento Grid Body */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6">
+          
+          {/* Main Bento Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-          {/* --------------------------------------------------------------- */}
-          {/* TAB 1: EXECUTIVE OVERVIEW (ALL DIVISIONS)                       */}
-          {/* --------------------------------------------------------------- */}
-          {activeTab === 'all' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Executive KPI Ticker Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80">
-                  <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-                    <span>{isKu ? 'کۆی تەختە' : 'Wood Panels'}</span>
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
-                    {stats.totalStock.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                    {stats.totalAvailable.toLocaleString()} {isKu ? 'بەردەست' : 'ready for dispatch'}
-                  </div>
-                </div>
-
-                {canFinancial ? (
-                  <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/80">
-                    <div className="flex items-center justify-between text-sky-700 dark:text-sky-400 text-xs font-bold">
-                      <span>{isKu ? 'پسوولە و فرۆشتن' : 'Invoices & Sales'}</span>
-                      <ReceiptText className="w-4 h-4" />
-                    </div>
-                    <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
-                      {transactions.length}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
-                      ${Math.round(salesAnalytics.totalGrossRevenueUsd).toLocaleString()} {isKu ? 'کۆی فرۆش' : 'Gross USD'}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/80">
-                    <div className="flex items-center justify-between text-sky-700 dark:text-sky-400 text-xs font-bold">
-                      <span>{isKu ? 'داواکارییەکانی بڕین' : 'Cutting Orders'}</span>
-                      <Scissors className="w-4 h-4" />
-                    </div>
-                    <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
-                      {materials.reduce((sum, m) => sum + m.activeOrders.length, 0)}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
-                      {stats.totalAllocated} {isKu ? 'تەختەی گیراو' : 'panels in cutting queue'}
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/80">
-                  <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 text-xs font-bold">
-                    <span>{isKu ? 'کەلوپەلی کۆگا' : 'Warehouse Goods'}</span>
-                    <Package className="w-4 h-4" />
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
-                    {products.length}
-                  </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                    {products.reduce((acc, p) => acc + p.currentStock, 0).toLocaleString()} {isKu ? 'دانەی گشتی' : 'total hardware items'}
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/80">
-                  <div className="flex items-center justify-between text-purple-700 dark:text-purple-400 text-xs font-bold">
-                    <span>{isKu ? 'هێڵی گواستنەوە' : 'Logistics'}</span>
-                    <Truck className="w-4 h-4" />
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-2">
-                    {shipments.length}
-                  </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                    {shippingAnalytics.deliveredRate.toFixed(0)}% {isKu ? 'گەیشتووە' : 'completion rate'}
-                  </div>
-                </div>
-              </div>
-
-              {/* 2-Column Visual Charts Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Chart 1: Master Inventory Share */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between print-avoid-break">
-                  <div className="mb-4">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <PieChart className="w-4 h-4 text-emerald-500" />
-                      <span>{isKu ? 'دابەشبوونی ماددەکان لە سەرانسەری سیستم' : 'Cross-Division Asset Share'}</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {isKu ? 'بەراوردی ڕێژەی تەختە، کەلوپەل و داواکارییەکان' : 'Volume proportion of Panels, Hardware Goods, and Active Reservations'}
-                    </p>
-                  </div>
-                  <SvgDonutChart
-                    data={crossDivisionDonut}
-                    totalLabel={isKu ? 'کۆی بڕ' : 'Total Items'}
-                    isKu={isKu}
-                  />
-                </div>
-
-                {/* Chart 2: Recent Revenue Trend or Workshop Queue */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between print-avoid-break">
-                  {canFinancial ? (
-                    <>
-                      <div className="mb-4">
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4 text-sky-500" />
-                          <span>{isKu ? 'ئاستی فرۆشتن بەپێی پسوولەکان ($)' : 'Invoice Revenue Trend ($)'}</span>
+            {/* ========================================================================= */}
+            {/* 2. FINANCIAL / PAYABLES VIEW (RBAC: canFinancial)                         */}
+            {/* ========================================================================= */}
+            {canFinancial && financialData && (filterModule === 'all' || filterModule === 'sales') && (
+              <>
+                {/* A. Hero Financial Ledger Overview Card */}
+                <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 flex items-center justify-center shadow-xs">
+                        <ReceiptText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                          {isKu ? 'شیكاری دارایی و قەرزی دابینکەران' : 'Executive Financial & Payables Ledger'}
                         </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {isKu ? 'بەدواداچوونی گەشەی داهاتی دارایی بە دۆلار' : 'Real-time sales progression curve in USD across recent transactions'}
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {isKu ? 'بەراوردی پارەی دراو بەرامبەر بە قەرزی ماوە بۆ دابینکەران' : 'Settlement proportion of supplier obligations'}
                         </p>
                       </div>
-                      {salesAnalytics.trendPoints.length > 0 ? (
-                        <SvgAreaTrendChart
-                          data={salesAnalytics.trendPoints}
-                          lineColor="#0ea5e9"
-                          valuePrefix="$"
-                          isKu={isKu}
-                        />
-                      ) : (
-                        <div className="h-48 flex items-center justify-center text-xs text-slate-400">
-                          {isKu ? 'هیچ پسوولەیەک تۆمار نەکراوە' : 'No transactions recorded yet'}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="mb-4">
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-emerald-500" />
-                          <span>{isKu ? 'دۆخی داواکارییەکانی وەرشە' : 'Workshop Orders Queue Status'}</span>
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {isKu ? 'ڕێژەی داواکارییە تەواوبووەکان و ئەوانەی لە کاردان' : 'Operational cutting queue completion and queue volume'}
-                        </p>
-                      </div>
-                      <SvgDonutChart
-                        data={panelsAnalytics.typesDonut}
-                        totalLabel={isKu ? 'جۆری تەختە' : 'Wood Types'}
-                        isKu={isKu}
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-sky-100/80 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 w-fit">
+                      B2B Trade & Multi-Currency
+                    </span>
+                  </div>
+
+                  {/* Horizontal Dual Progress Bar (Total Paid vs Supplier Debt) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono font-bold">
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        {isKu ? 'کۆی پارەی دراو:' : 'Total Paid:'} ${financialData.totalPaid.toLocaleString()} ({financialData.paidPct}%)
+                      </span>
+                      <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                        {isKu ? 'قەرزی سەر کۆمپانیا:' : 'Supplier Debt:'} ${financialData.totalDebt.toLocaleString()} ({financialData.debtPct}%)
+                      </span>
+                    </div>
+
+                    <div className="h-5 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex p-0.5 shadow-inner">
+                      <div
+                        style={{ width: `${Math.max(4, financialData.paidPct)}%` }}
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 shadow-xs"
+                        title={`Total Paid: $${financialData.totalPaid.toLocaleString()}`}
                       />
-                    </>
+                      <div
+                        style={{ width: `${Math.max(4, financialData.debtPct)}%` }}
+                        className="h-full rounded-full bg-gradient-to-r from-rose-500 to-amber-500 transition-all duration-700 shadow-xs ms-1"
+                        title={`Total Debt: $${financialData.totalDebt.toLocaleString()}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Metric Sub-cards Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-750">
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block mb-1">
+                        {isKu ? 'تێکڕای پسوولەی دابینکەر' : 'Average Invoice Value'}
+                      </span>
+                      <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 dark:text-white">
+                        ${Math.round(financialData.avgInvoiceValue).toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-1">
+                        {financialData.count} {isKu ? 'پسوولەی گشتی' : 'total bills'}
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-750">
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block mb-1">
+                        {isKu ? 'کۆی گشتی پسوولەکان' : 'Total Invoiced Volume'}
+                      </span>
+                      <span className="text-xl sm:text-2xl font-black font-mono text-sky-600 dark:text-sky-400">
+                        ${financialData.totalInvoiced.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-1">
+                        USD Gross Turnover
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/80">
+                      <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 block mb-1">
+                        {isKu ? 'قەرزی FunderMax بە یۆرۆ' : 'EUR Currency Debt'}
+                      </span>
+                      <span className="text-xl sm:text-2xl font-black font-mono text-purple-700 dark:text-purple-300">
+                        €{financialData.debtEUR.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-purple-600/80 dark:text-purple-400/80 font-mono block mt-1">
+                        European Direct Import
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* B. Financial SvgDonutChart: Supplier Paid vs Debt */}
+                <div className="col-span-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <PieChart className="w-5 h-5 text-emerald-500" />
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isKu ? 'دابەشبوونی پارەدان و قەرز' : 'Paid vs Debt Ratio'}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">Donut</span>
+                  </div>
+                  <SvgDonutChart
+                    data={financialDonutData}
+                    totalLabel={isKu ? 'کۆی پسوولە' : 'Total Invoiced'}
+                    totalValue={`$${financialData.totalInvoiced.toLocaleString()}`}
+                    size={220}
+                    isKu={isKu}
+                  />
+                </div>
+
+                {/* C. Financial SvgGroupedBarChart: Obligations by Supplier */}
+                <div className="col-span-1 md:col-span-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-sky-500" />
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isKu ? 'قەرز و پارەی دراو بەپێی دابینکەر' : 'Turnover by Supplier'}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">Grouped Bar</span>
+                  </div>
+                  {financialBarData.length > 0 ? (
+                    <SvgGroupedBarChart data={financialBarData} height={210} />
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-xs text-slate-400">
+                      {isKu ? 'هیچ داتایەکی دابینکەر بەردەست نییە' : 'No supplier transaction data available'}
+                    </div>
                   )}
                 </div>
-              </div>
+              </>
+            )}
 
-              {/* 4 Operational Health Gauges */}
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span>{isKu ? 'پێوەرە تەندروستییەکانی بەشەکان' : 'Operational Division Health Dials'}</span>
-                </h3>
-                <p className="text-xs text-slate-500 mb-4">
-                  {isKu ? 'ئامارەکانی بەردەستبوون، کۆکردنەوەی قەرز، و دۆخی کۆگا' : 'Real-time capability metrics: Stock Availability, Debt Recovery, Goods Health, Logistics Delivery'}
-                </p>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <SvgGaugeChart
-                    percentage={stats.totalStock > 0 ? (stats.totalAvailable / stats.totalStock) * 100 : 100}
-                    title={isKu ? 'بەردەستبوونی تەختە' : 'Panel Availability'}
-                    statusLabel={isKu ? 'تەندروست' : 'In Stock'}
-                    color="#10b981"
-                    isKu={isKu}
-                  />
-
-                  <SvgGaugeChart
-                    percentage={salesAnalytics.recoveryRate}
-                    title={isKu ? 'وەرگرتنەوەی پارە' : 'Payment Collection'}
-                    statusLabel={salesAnalytics.recoveryRate >= 75 ? 'Optimal' : 'Attention'}
-                    color="#0ea5e9"
-                    isKu={isKu}
-                  />
-
-                  <SvgGaugeChart
-                    percentage={goodsAnalytics.healthRate}
-                    title={isKu ? 'ڕێژەی کاڵای تەواو' : 'Goods Stock Health'}
-                    statusLabel={goodsAnalytics.healthRate >= 80 ? 'Optimal' : 'Low Stock'}
-                    color="#f59e0b"
-                    isKu={isKu}
-                  />
-
-                  <SvgGaugeChart
-                    percentage={shippingAnalytics.deliveredRate}
-                    title={isKu ? 'تەواوبوونی گەیاندن' : 'Fleet Delivery Rate'}
-                    statusLabel={shippingAnalytics.deliveredRate >= 80 ? 'Optimal' : 'In Transit'}
-                    color="#8b5cf6"
-                    isKu={isKu}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* --------------------------------------------------------------- */}
-          {/* TAB 2: WOOD PANELS & ORDERS                                     */}
-          {/* --------------------------------------------------------------- */}
-          {activeTab === 'panels' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Panels KPI Ticker */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                  <span className="text-xs font-semibold text-slate-500">{isKu ? 'کۆی تەختە' : 'Total Stock'}</span>
-                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                    {stats.totalStock.toLocaleString()}
+            {/* ========================================================================= */}
+            {/* 3. INVENTORY & CUTTING VIEW (RBAC: canInventory)                         */}
+            {/* ========================================================================= */}
+            {canInventory && inventoryData && (filterModule === 'all' || filterModule === 'panels') && (
+              <>
+                {/* A. Inventory Stock Distribution Donut */}
+                <div className="col-span-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <PieChart className="w-5 h-5 text-teal-500" />
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isKu ? 'دابەشبوونی تەختەکانی کۆگا' : 'Stock Distribution Donut'}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">Donut</span>
                   </div>
-                  <span className="text-[10px] text-slate-400">{materials.length} {isKu ? 'کۆد / جۆر' : 'panel codes'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
-                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{isKu ? 'گیراو بۆ بڕین' : 'Reserved Orders'}</span>
-                  <div className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400 mt-1">
-                    {stats.totalAllocated.toLocaleString()}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{stats.totalOrders} {isKu ? 'داواکاری چالاک' : 'active orders'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
-                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">{isKu ? 'بەردەست بۆ فرۆشتن' : 'Available Stock'}</span>
-                  <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-                    {stats.totalAvailable.toLocaleString()}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'ئامادە بۆ کڕیار' : 'ready for dispatch'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800">
-                  <span className="text-xs font-semibold text-purple-700 dark:text-purple-400">{isKu ? 'ڕێژەی گیراو' : 'Workshop Demand'}</span>
-                  <div className="text-2xl font-black font-mono text-purple-600 dark:text-purple-400 mt-1">
-                    {panelsAnalytics.allocationRate.toFixed(1)}%
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'لە کۆی گشتی کۆگا' : 'of warehouse capacity'}</span>
-                </div>
-              </div>
-
-              {/* Charts Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Panel Types Donut */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <PieChart className="w-4 h-4 text-emerald-500" />
-                    <span>{isKu ? 'جۆرەکانی تەختە لە کۆگا' : 'Wood Panel Types Distribution'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'ڕێژەی MDF، Plywood، Acrylic و جۆرەکانی تر' : 'Breakdown by MDF, Plywood, HPL, Acrylic, and custom sheets'}
-                  </p>
                   <SvgDonutChart
-                    data={panelsAnalytics.typesDonut}
+                    data={stockDonutData}
                     totalLabel={isKu ? 'کۆی تەختە' : 'Total Panels'}
+                    totalValue={inventoryData.totalStock.toLocaleString()}
+                    size={220}
                     isKu={isKu}
                   />
                 </div>
 
-                {/* Top Clients by Reservations */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <User className="w-4 h-4 text-sky-500" />
-                    <span>{isKu ? 'داواکارییەکانی کڕیاران بۆ بڕین' : 'Top Clients by Cut Order Volume'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'ئەو کڕیارانەی زۆرترین تەختەیان بۆ گیراوە' : 'Highest demand clients with active workshop cutting orders'}
-                  </p>
-                  {panelsAnalytics.topClients.length > 0 ? (
-                    <SvgHorizontalRankingChart
-                      items={panelsAnalytics.topClients}
-                      valueSuffix={isKu ? 'تەختە' : 'panels'}
-                      isKu={isKu}
-                    />
+                {/* B. Inventory SvgGroupedBarChart: Panel Stock by Material Type */}
+                <div className="col-span-1 md:col-span-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-emerald-500" />
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isKu ? 'تەختەکان بەپێی جۆر (MDF, HPL, Plywood)' : 'Stock by Material Type'}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">Available vs Reserved</span>
+                  </div>
+                  {materialTypeBarData.length > 0 ? (
+                    <SvgGroupedBarChart data={materialTypeBarData} height={210} />
                   ) : (
                     <div className="h-48 flex items-center justify-center text-xs text-slate-400">
-                      {isKu ? 'هیچ داواکارییەکی چالاک نییە' : 'No active client orders found'}
+                      {isKu ? 'هیچ جۆرە تەختەیەک بەردەست نییە' : 'No material stock records'}
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* Panel Thickness Distribution Bar Chart */}
-              {panelsAnalytics.thicknessBars.length > 0 && (
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <BarChart3 className="w-4 h-4 text-emerald-500" />
-                    <span>{isKu ? 'ئەستووری تەختەکان (Thickness)' : 'Panel Thickness Distribution (mm)'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'ژمارەی تەختەکان بەپێی ئەستووری (18mm، 16mm، هتد)' : 'Physical panel stock distributed across gauges and sheet thicknesses'}
-                  </p>
-                  <SvgGroupedBarChart data={panelsAnalytics.thicknessBars} height={200} isKu={isKu} />
-                </div>
-              )}
-            </div>
-          )}
+                {/* C. Stock Distribution Bar & Critical Depletion Alerts */}
+                <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center shadow-xs">
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                          {isKu ? 'تەندروستی کۆگا و ڕێژەی بەردەست' : 'Inventory Health & Depletion Thresholds'}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {isKu ? 'بەردەست، حجزکراو بۆ وەرشە، و کەمبوونەوەی مەترسیدار' : 'Available capacity vs workshop allocation'}
+                        </p>
+                      </div>
+                    </div>
 
-          {/* --------------------------------------------------------------- */}
-          {/* TAB 3: SALES POS & FINANCIAL INVOICES                           */}
-          {/* --------------------------------------------------------------- */}
-          {activeTab === 'sales' && canFinancial && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Financial Ticker */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                  <span className="text-xs font-semibold text-slate-500">{isKu ? 'کۆی فرۆش' : 'Gross Sales Volume'}</span>
-                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                    ${Math.round(salesAnalytics.totalGrossRevenueUsd).toLocaleString()}
+                    <span className="px-3.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-100/80 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 w-fit">
+                      {inventoryData.totalStock.toLocaleString()} {isKu ? 'تەختە لە کۆگا' : 'Panels in Stock'}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-slate-400">{transactions.length} {isKu ? 'پسوولە' : 'invoices recorded'}</span>
-                </div>
 
-                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
-                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">{isKu ? 'پارەی وەرگیراو' : 'Paid & Collected'}</span>
-                  <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-                    ${Math.round(salesAnalytics.totalPaidUsd).toLocaleString()}
+                  {/* Visual "Stock Distribution" Bar */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono font-bold">
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        {isKu ? 'بەردەست:' : 'Available:'} {inventoryData.totalAvailable.toLocaleString()} ({inventoryData.availablePct}%)
+                      </span>
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                        {isKu ? 'حجزکراو (بڕین):' : 'Reserved:'} {inventoryData.totalReserved.toLocaleString()} ({inventoryData.reservedPct}%)
+                      </span>
+                      <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                        {isKu ? 'تەواوبوو:' : 'Depleted:'} {inventoryData.depletedCount} {isKu ? 'جۆر' : 'types'} ({inventoryData.depletedPct}%)
+                      </span>
+                    </div>
+
+                    <div className="h-6 w-full rounded-2xl bg-slate-200 dark:bg-slate-800 overflow-hidden flex p-1 shadow-inner">
+                      <div
+                        style={{ width: `${Math.max(4, inventoryData.availablePct)}%` }}
+                        className="h-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 shadow-xs"
+                        title={`Available: ${inventoryData.totalAvailable.toLocaleString()}`}
+                      />
+                      <div
+                        style={{ width: `${Math.max(4, inventoryData.reservedPct)}%` }}
+                        className="h-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-700 shadow-xs ms-1.5"
+                        title={`Reserved: ${inventoryData.totalReserved.toLocaleString()}`}
+                      />
+                      {inventoryData.depletedPct > 0 && (
+                        <div
+                          style={{ width: `${Math.max(4, inventoryData.depletedPct)}%` }}
+                          className="h-full rounded-xl bg-gradient-to-r from-rose-500 to-red-600 transition-all duration-700 shadow-xs ms-1.5"
+                          title={`Depleted Percentage: ${inventoryData.depletedPct}%`}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400">{salesAnalytics.recoveryRate.toFixed(1)}% {isKu ? 'دراوە' : 'recovered'}</span>
-                </div>
 
-                <div className="p-4 rounded-2xl bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800">
-                  <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">{isKu ? 'کۆی قەرز' : 'Outstanding Debt'}</span>
-                  <div className="text-2xl font-black font-mono text-rose-600 dark:text-rose-400 mt-1">
-                    ${Math.round(salesAnalytics.totalDebtUsd).toLocaleString()}
+                  {/* Top 3 Lowest-Stock Panels with Critical Warning Colors */}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                      <span>{isKu ? '۳ تەختەی کەمترین لە کۆگادا (ئاگاداری مەترسی)' : 'Top 3 Depleted & Lowest-Stock Panels (Critical Alert)'}</span>
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {inventoryData.lowestStockPanels.map((mat) => {
+                        const avail = mat.availableStock || 0;
+                        const isZero = avail <= 0;
+                        return (
+                          <div
+                            key={mat.id}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                              isZero
+                                ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900 shadow-xs'
+                                : 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900 shadow-xs'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="font-mono font-black text-xs text-slate-900 dark:text-white">
+                                {mat.code}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase ${
+                                  isZero
+                                    ? 'bg-rose-200 dark:bg-rose-900 text-rose-900 dark:text-rose-200'
+                                    : 'bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200'
+                                }`}
+                              >
+                                {isZero ? (isKu ? 'تەواوبووە' : 'Depleted') : (isKu ? 'کەم ماوە' : 'Low Stock')}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-slate-900 dark:text-white block truncate mb-1">
+                                {mat.name}
+                              </span>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-500 dark:text-slate-400">{mat.type || 'Panel'}</span>
+                                <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
+                                  {avail} {isKu ? 'تەختە' : 'left'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'قەرزی ماوە' : 'unpaid customer balance'}</span>
                 </div>
+              </>
+            )}
 
-                <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800">
-                  <span className="text-xs font-semibold text-sky-700 dark:text-sky-400">{isKu ? 'دراوەکان' : 'Multi-Currency'}</span>
-                  <div className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400 mt-1">
-                    3 Currencies
+            {/* ========================================================================= */}
+            {/* 4. LOGISTICS VIEW (RBAC: canLogistics)                                     */}
+            {/* ========================================================================= */}
+            {canLogistics && logisticsData && (filterModule === 'all' || filterModule === 'logistics') && (
+              <>
+                {/* A. 3-Stage Visual Pipeline */}
+                <div className="col-span-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 flex items-center justify-center shadow-xs">
+                          <Truck className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
+                            {isKu ? 'هێڵی ۳ قۆناغی بارەکان' : '3-Stage Pipeline'}
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {isKu ? 'هاوردەکردنی FunderMax' : 'Inbound Cargo Pipeline'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-100/80 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        Inbound
+                      </span>
+                    </div>
+
+                    {/* 3-Stage Visual Pipeline (Factory ➔ Customs ➔ Warehouse) */}
+                    <div className="mt-4 space-y-2.5">
+                      {/* Stage 1: Factory / In Transit */}
+                      <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-750 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-500 ring-4 ring-sky-500/20" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            {isKu ? 'لە کارگە / باری لە ڕێگە' : 'Factory / In Transit'}
+                          </span>
+                        </div>
+                        <span className="px-3 py-0.5 rounded-xl font-mono font-black text-xs bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shadow-sm shadow-sky-500/10">
+                          {logisticsData.factoryCount} {isKu ? 'بار' : 'loads'}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-center text-slate-400 leading-none">
+                        <span className="text-xs font-mono font-bold">↓</span>
+                      </div>
+
+                      {/* Stage 2: Customs */}
+                      <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-750 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-amber-500/20" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            {isKu ? 'گومرگ و پشکنین' : 'Border Customs'}
+                          </span>
+                        </div>
+                        <span className="px-3 py-0.5 rounded-xl font-mono font-black text-xs bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shadow-sm shadow-amber-500/10">
+                          {logisticsData.customsCount} {isKu ? 'بار' : 'customs'}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-center text-slate-400 leading-none">
+                        <span className="text-xs font-mono font-bold">↓</span>
+                      </div>
+
+                      {/* Stage 3: Warehouse */}
+                      <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-750 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            {isKu ? 'گەیشتووەتە کۆگا' : 'Received & Inspected'}
+                          </span>
+                        </div>
+                        <span className="px-3 py-0.5 rounded-xl font-mono font-black text-xs bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-sm shadow-emerald-500/10">
+                          {logisticsData.warehouseCount} {isKu ? 'گەیشتوو' : 'racked'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400">USD • IQD • EUR</span>
-                </div>
-              </div>
 
-              {/* Financial Charts Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Currency Share */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <PieChart className="w-4 h-4 text-sky-500" />
-                    <span>{isKu ? 'دابەشبوونی دراوەکان (Currency Share)' : 'Currency Transaction Share'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'ڕێژەی پسوولەکان بە دۆلار، دینار و یۆرۆ' : 'Proportion of invoices billed in USD, IQD, and EUR'}
-                  </p>
+                  <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/60 flex items-center justify-between text-xs">
+                    <span className="font-bold text-amber-900 dark:text-amber-200">
+                      {isKu ? 'کۆی تەختەی مەخزەن:' : 'Total Racked Units:'}
+                    </span>
+                    <span className="font-mono font-black text-sm text-amber-900 dark:text-amber-200">
+                      {logisticsData.totalRacked.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* B. Logistics Status Donut */}
+                <div className="col-span-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <PieChart className="w-5 h-5 text-amber-500" />
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isKu ? 'دابەشبوونی دۆخی بارەکان' : 'Cargo Pipeline Donut'}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">Donut</span>
+                  </div>
                   <SvgDonutChart
-                    data={salesAnalytics.currencyDonut}
-                    totalLabel={isKu ? 'کۆی پسوولە' : 'Invoices'}
+                    data={logisticsStatusDonut}
+                    totalLabel={isKu ? 'کۆی بارەکان' : 'Total Shipments'}
+                    totalValue={logisticsData.totalCount}
+                    size={220}
                     isKu={isKu}
                   />
                 </div>
 
-                {/* Payment Status Breakdown */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <PieChart className="w-4 h-4 text-emerald-500" />
-                    <span>{isKu ? 'دۆخی پارەدان و قەرز' : 'Invoice Payment & Debt Status'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'ڕێژەی پسوولەی تەواوکراو، بەشەکی، و قەرزی ماوە' : 'Invoices categorized into Fully Paid, Partial Payment, and Open Debt'}
-                  </p>
-                  <SvgDonutChart
-                    data={salesAnalytics.statusDonut}
-                    totalLabel={isKu ? 'دۆخەکان' : 'Status'}
-                    isKu={isKu}
-                  />
-                </div>
-              </div>
-
-              {/* Revenue Curve */}
-              {salesAnalytics.trendPoints.length > 0 && (
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <TrendingUp className="w-4 h-4 text-sky-500" />
-                    <span>{isKu ? 'گەشەی دارایی بەپێی پسوولەکان' : 'Financial Revenue Growth Curve'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'ئاستی بەهای دارایی لەسەر زنجیرەی پسوولەکانی دوایی' : 'Smooth transaction revenue trajectory mapped chronologically'}
-                  </p>
+                {/* C. Logistics SvgAreaTrendChart: Volume across Inbound Shipments */}
+                <div className="col-span-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800/70 shadow-lg rounded-[2rem] p-6 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-sky-500" />
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isKu ? 'قەبارەی باری FunderMax' : 'Fundermax Inbound Trend'}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">Area Curve</span>
+                  </div>
                   <SvgAreaTrendChart
-                    data={salesAnalytics.trendPoints}
-                    lineColor="#0ea5e9"
-                    valuePrefix="$"
+                    data={logisticsTrendData}
+                    lineColor="#0284c7"
+                    fillGradientId="logisticsTrendGrad"
+                    height={190}
                     isKu={isKu}
                   />
                 </div>
-              )}
-            </div>
-          )}
+              </>
+            )}
 
-          {/* --------------------------------------------------------------- */}
-          {/* TAB 4: WAREHOUSE GOODS & HARDWARE STOCK                         */}
-          {/* --------------------------------------------------------------- */}
-          {activeTab === 'goods' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Goods Ticker */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                  <span className="text-xs font-semibold text-slate-500">{isKu ? 'کۆی کاڵاکان' : 'Product SKUs'}</span>
-                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                    {products.length}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'بابەتی جیاواز' : 'distinct hardware items'}</span>
+            {/* ========================================================================= */}
+            {/* UNAUTHORIZED LOCKOUT STATE (If user has zero permissions)                 */}
+            {/* ========================================================================= */}
+            {!canFinancial && !canLogistics && !canInventory && (
+              <div className="col-span-full p-12 text-center rounded-[2.5rem] bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-rose-200 dark:border-rose-900/60 space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto shadow-inner">
+                  <Lock className="w-8 h-8" />
                 </div>
-
-                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
-                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">{isKu ? 'کۆی دانەکان' : 'Total Units'}</span>
-                  <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-                    {products.reduce((acc, p) => acc + p.currentStock, 0).toLocaleString()}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'دانە لە مەخزەن' : 'units in warehouse'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
-                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{isKu ? 'کەمبووەوە' : 'Low Stock Alerts'}</span>
-                  <div className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400 mt-1">
-                    {products.filter((p) => p.currentStock <= p.minStock && p.currentStock > 0).length}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'پێویستی بە کڕینەوەیە' : 'near reorder threshold'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800">
-                  <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">{isKu ? 'تەواوبوو' : 'Out of Stock'}</span>
-                  <div className="text-2xl font-black font-mono text-rose-600 dark:text-rose-400 mt-1">
-                    {products.filter((p) => p.currentStock <= 0).length}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'دەستبەجێ پێویستە' : 'zero stock items'}</span>
-                </div>
-              </div>
-
-              {/* Goods Charts Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Stock Health Donut */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <PieChart className="w-4 h-4 text-amber-500" />
-                    <span>{isKu ? 'دۆخی بەردەستبوونی کاڵاکان' : 'Stock Threshold Health'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'پۆلێنکردن بەپێی بەردەست، کەمبووەوە و تەواوبوو' : 'Categorized by Healthy Stock, Low Reorder Alert, and Depleted Stock'}
-                  </p>
-                  <SvgDonutChart
-                    data={goodsAnalytics.healthDonut}
-                    totalLabel={isKu ? 'کۆی کاڵا' : 'Total Items'}
-                    isKu={isKu}
-                  />
-                </div>
-
-                {/* Warehouse Location Density */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <Boxes className="w-4 h-4 text-amber-500" />
-                    <span>{isKu ? 'خانە و شوێنەکانی کۆگا' : 'Warehouse Location Density'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'چڕی کەلوپەل لە خانەکانی مەخزەن' : 'Inventory concentration across storage bays and racks'}
-                  </p>
-                  {goodsAnalytics.locRanking.length > 0 ? (
-                    <SvgHorizontalRankingChart
-                      items={goodsAnalytics.locRanking}
-                      valueSuffix={isKu ? 'دانە' : 'units'}
-                      isKu={isKu}
-                    />
-                  ) : (
-                    <div className="h-48 flex items-center justify-center text-xs text-slate-400">
-                      {isKu ? 'هیچ شوێنێک دیاری نەکراوە' : 'No locations recorded'}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Goods Category Volume Bar Chart */}
-              {goodsAnalytics.catBars.length > 0 && (
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <BarChart3 className="w-4 h-4 text-amber-500" />
-                    <span>{isKu ? 'کەلوپەل بەپێی پۆلێن (Categories)' : 'Inventory Volume by Category'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'پێداویستی، دەسک، چەکمەجە، جومگە و هتد' : 'Stock unit volume distributed across Hinges, Slides, Screws, and Hardware Fittings'}
-                  </p>
-                  <SvgGroupedBarChart data={goodsAnalytics.catBars} height={200} isKu={isKu} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* --------------------------------------------------------------- */}
-          {/* TAB 5: SHIPPING & LOGISTICS                                     */}
-          {/* --------------------------------------------------------------- */}
-          {activeTab === 'shipping' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Shipping Ticker */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                  <span className="text-xs font-semibold text-slate-500">{isKu ? 'کۆی بارەکان' : 'Total Shipments'}</span>
-                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                    {shipments.length}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'بارنامەی گشتی' : 'dispatch manifests'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
-                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">{isKu ? 'گەیشتووە' : 'Delivered'}</span>
-                  <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-                    {shipments.filter((s) => s.status === 'delivered').length}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{shippingAnalytics.deliveredRate.toFixed(1)}% {isKu ? 'تەواوکراو' : 'completion'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800">
-                  <span className="text-xs font-semibold text-sky-700 dark:text-sky-400">{isKu ? 'لە ڕێگایە' : 'In Transit'}</span>
-                  <div className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400 mt-1">
-                    {shipments.filter((s) => s.status === 'in_transit').length}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'شۆفێر لە ڕێگادایە' : 'active en-route'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
-                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{isKu ? 'چاوەڕوانکراو' : 'Pending'}</span>
-                  <div className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400 mt-1">
-                    {shipments.filter((s) => s.status === 'pending').length}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{isKu ? 'ئامادەکاری بۆ بارکردن' : 'staged for loading'}</span>
-                </div>
-              </div>
-
-              {/* Shipping Charts Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Status Donut */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <PieChart className="w-4 h-4 text-purple-500" />
-                    <span>{isKu ? 'دۆخی گەیاندنی بارەکان' : 'Shipment Pipeline Status'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'ڕێژەی گەیشتوو، لە ڕێگا و چاوەڕوانکراو' : 'Fleet delivery lifecycle: Pending Dispatch, In-Transit, Delivered'}
-                  </p>
-                  <SvgDonutChart
-                    data={shippingAnalytics.statusDonut}
-                    totalLabel={isKu ? 'کۆی بار' : 'Shipments'}
-                    isKu={isKu}
-                  />
-                </div>
-
-                {/* Top Destinations */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                    <Truck className="w-4 h-4 text-purple-500" />
-                    <span>{isKu ? 'شوێنەکانی گەیاندن (Destinations)' : 'Top Destination Hubs'}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {isKu ? 'شار و شوێنەکانی زۆرترین باریان بۆ چووە' : 'Cargo volumes distributed across cities, workshops, and project sites'}
-                  </p>
-                  {shippingAnalytics.destRanking.length > 0 ? (
-                    <SvgHorizontalRankingChart
-                      items={shippingAnalytics.destRanking}
-                      valueSuffix={isKu ? 'دانە' : 'units'}
-                      isKu={isKu}
-                    />
-                  ) : (
-                    <div className="h-48 flex items-center justify-center text-xs text-slate-400">
-                      {isKu ? 'هیچ شوێنێک تۆمار نەکراوە' : 'No destinations recorded'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* =============================================================== */}
-          {/* DETAILED DATA ANALYSIS & TABULAR BREAKDOWN                      */}
-          {/* =============================================================== */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs print-avoid-break">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-emerald-500" />
-                  <span>{isKu ? 'شیکاری ورد و خشتەی ئامارەکان' : 'Tabular Analytics Breakdown'}</span>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                  {isKu ? 'دەستپێگەیشتن سنووردارکراوە' : 'Access Restricted • RBAC Security Active'}
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {isKu ? 'وردەکاری بڕگەکان بۆ لێکۆڵینەوە، بڕیار و چاپ' : 'Itemized data register for verification, analysis, and formal audit print'}
+                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                  {isKu
+                    ? 'ئەژمێرەکەت مۆڵەتی پێویستی نییە بۆ بینینی داتاکانی دارایی، گواستنەوە، یان کۆگای تەختەکان.'
+                    : 'Your user profile does not possess permissions to view financial ledgers, logistics status, or wood panel stock.'}
                 </p>
               </div>
+            )}
 
-              {/* Table Search Input (Screen Only) */}
-              <div className="relative w-full sm:w-64 no-print">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={tableSearch}
-                  onChange={(e) => setTableSearch(e.target.value)}
-                  placeholder={isKu ? 'گەڕان لە خشتەدا...' : 'Filter table rows...'}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-            </div>
-
-            {/* Responsive Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-750">
-              {activeTab === 'panels' ? (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
-                      <th className="p-2.5 font-mono">#Code</th>
-                      <th className="p-2.5">{isKu ? 'ناوی تەختە' : 'Material Name'}</th>
-                      <th className="p-2.5">{isKu ? 'جۆر' : 'Type'}</th>
-                      <th className="p-2.5">{isKu ? 'قەبارە' : 'Dimensions'}</th>
-                      <th className="p-2.5 text-center font-mono">{isKu ? 'کۆی گشتی' : 'Total Stock'}</th>
-                      <th className="p-2.5 text-center font-mono text-amber-600">{isKu ? 'گیراو' : 'Reserved'}</th>
-                      <th className="p-2.5 text-center font-mono text-emerald-600">{isKu ? 'بەردەست' : 'Available'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
-                    {materials
-                      .filter((m) =>
-                        !tableSearch ||
-                        m.code.toLowerCase().includes(tableSearch.toLowerCase()) ||
-                        m.name.toLowerCase().includes(tableSearch.toLowerCase()) ||
-                        m.type.toLowerCase().includes(tableSearch.toLowerCase())
-                      )
-                      .slice(0, 15)
-                      .map((m) => (
-                        <tr key={m.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                          <td className="p-2.5 font-mono font-bold text-slate-900 dark:text-white">#{m.code}</td>
-                          <td className="p-2.5 font-semibold text-slate-800 dark:text-slate-200">{m.name}</td>
-                          <td className="p-2.5">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                              {m.type}
-                            </span>
-                          </td>
-                          <td className="p-2.5 font-mono text-slate-500">{m.dimensions.formatted}</td>
-                          <td className="p-2.5 text-center font-mono font-bold text-slate-900 dark:text-white">
-                            {m.totalStock}
-                          </td>
-                          <td className="p-2.5 text-center font-mono font-bold text-amber-600 dark:text-amber-400">
-                            {m.allocatedStock}
-                          </td>
-                          <td className="p-2.5 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            {m.availableStock}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              ) : activeTab === 'sales' ? (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
-                      <th className="p-2.5 font-mono">Invoice #</th>
-                      <th className="p-2.5">{isKu ? 'فرۆشیار / بانک' : 'Seller / Bank'}</th>
-                      <th className="p-2.5">{isKu ? 'جۆر و بابەت' : 'Item / Type'}</th>
-                      <th className="p-2.5 text-right font-mono">{isKu ? 'کۆی پارە' : 'Total'}</th>
-                      <th className="p-2.5 text-right font-mono text-emerald-600">{isKu ? 'دراو' : 'Paid Now'}</th>
-                      <th className="p-2.5 text-right font-mono text-rose-600">{isKu ? 'قەرز' : 'Debt'}</th>
-                      <th className="p-2.5 text-center">{isKu ? 'دۆخ' : 'Status'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
-                    {transactions
-                      .filter((tx) =>
-                        !tableSearch ||
-                        (tx.code && tx.code.toLowerCase().includes(tableSearch.toLowerCase())) ||
-                        (tx.seller && tx.seller.toLowerCase().includes(tableSearch.toLowerCase())) ||
-                        (tx.material && tx.material.toLowerCase().includes(tableSearch.toLowerCase()))
-                      )
-                      .slice(0, 15)
-                      .map((tx) => (
-                        <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                          <td className="p-2.5 font-mono font-bold text-slate-900 dark:text-white">
-                            {tx.code || `#${tx.id.slice(-4)}`}
-                          </td>
-                          <td className="p-2.5 font-semibold text-slate-800 dark:text-slate-200">
-                            {tx.seller || 'General'}
-                          </td>
-                          <td className="p-2.5 text-slate-600 dark:text-slate-300">
-                            {tx.material || tx.panelType}
-                          </td>
-                          <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-white">
-                            {formatMoney(tx.totalAfterDiscount, tx.currency)}
-                          </td>
-                          <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            {formatMoney(tx.amountPaidNow, tx.currency)}
-                          </td>
-                          <td className="p-2.5 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
-                            {formatMoney(tx.combinedTotalDebt, tx.currency)}
-                          </td>
-                          <td className="p-2.5 text-center">
-                            <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                tx.status === 'completed'
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                  : tx.status === 'partial'
-                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                                  : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                              }`}
-                            >
-                              {tx.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              ) : activeTab === 'goods' ? (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
-                      <th className="p-2.5 font-mono">SKU</th>
-                      <th className="p-2.5">{isKu ? 'ناوی کاڵا' : 'Product Name'}</th>
-                      <th className="p-2.5">{isKu ? 'پۆلێن' : 'Category'}</th>
-                      <th className="p-2.5">{isKu ? 'شوێن لە کۆگا' : 'Location'}</th>
-                      <th className="p-2.5 text-center font-mono">{isKu ? 'بڕ لە کۆگا' : 'Current Stock'}</th>
-                      <th className="p-2.5 text-center font-mono text-slate-400">{isKu ? 'کەمترین بڕ' : 'Min Stock'}</th>
-                      <th className="p-2.5 text-right font-mono">{isKu ? 'نرخ' : 'Unit Price'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
-                    {products
-                      .filter((p) =>
-                        !tableSearch ||
-                        p.sku.toLowerCase().includes(tableSearch.toLowerCase()) ||
-                        p.name.toLowerCase().includes(tableSearch.toLowerCase()) ||
-                        p.category.toLowerCase().includes(tableSearch.toLowerCase())
-                      )
-                      .slice(0, 15)
-                      .map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                          <td className="p-2.5 font-mono font-bold text-slate-900 dark:text-white">{p.sku}</td>
-                          <td className="p-2.5 font-semibold text-slate-800 dark:text-slate-200">{p.name}</td>
-                          <td className="p-2.5 text-slate-500">{p.category}</td>
-                          <td className="p-2.5 font-mono text-slate-500">{p.location}</td>
-                          <td className="p-2.5 text-center font-mono font-bold text-slate-900 dark:text-white">
-                            {p.currentStock}
-                          </td>
-                          <td className="p-2.5 text-center font-mono text-slate-400">{p.minStock}</td>
-                          <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            ${p.price.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              ) : activeTab === 'shipping' ? (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
-                      <th className="p-2.5 font-mono">Tracking</th>
-                      <th className="p-2.5">{isKu ? 'شوێنی گەیشتن' : 'Destination'}</th>
-                      <th className="p-2.5">{isKu ? 'پوختەی بار' : 'Cargo Summary'}</th>
-                      <th className="p-2.5 text-center font-mono">{isKu ? 'بڕ' : 'Quantity'}</th>
-                      <th className="p-2.5 text-center">{isKu ? 'دۆخ' : 'Status'}</th>
-                      <th className="p-2.5 font-mono text-right">{isKu ? 'بەروار' : 'Created At'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
-                    {shipments
-                      .filter((s) =>
-                        !tableSearch ||
-                        s.trackingCode.toLowerCase().includes(tableSearch.toLowerCase()) ||
-                        s.destination.toLowerCase().includes(tableSearch.toLowerCase()) ||
-                        s.itemSummary.toLowerCase().includes(tableSearch.toLowerCase())
-                      )
-                      .slice(0, 15)
-                      .map((s) => (
-                        <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                          <td className="p-2.5 font-mono font-bold text-slate-900 dark:text-white">{s.trackingCode}</td>
-                          <td className="p-2.5 font-semibold text-slate-800 dark:text-slate-200">{s.destination}</td>
-                          <td className="p-2.5 text-slate-500">{s.itemSummary}</td>
-                          <td className="p-2.5 text-center font-mono font-bold text-slate-900 dark:text-white">
-                            {s.quantity}
-                          </td>
-                          <td className="p-2.5 text-center">
-                            <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                s.status === 'delivered'
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                  : s.status === 'in_transit'
-                                  ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                              }`}
-                            >
-                              {s.status}
-                            </span>
-                          </td>
-                          <td className="p-2.5 font-mono text-slate-400 text-right">{s.createdAt.slice(0, 10)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              ) : (
-                /* Cross-Division Master Table */
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
-                      <th className="p-2.5">{isKu ? 'بەشی سیستم' : 'Division Name'}</th>
-                      <th className="p-2.5">{isKu ? 'پۆلێنی سەرەکی' : 'Primary Metrics'}</th>
-                      <th className="p-2.5 text-center font-mono">{isKu ? 'کۆی بڕ / ژمارە' : 'Total Items / Volume'}</th>
-                      <th className="p-2.5 text-center font-mono text-amber-600">{isKu ? 'داواکاری چالاک' : 'Active Load'}</th>
-                      <th className="p-2.5 text-center font-mono text-emerald-600">{isKu ? 'تەندروستی ئیشکردن' : 'Health Status'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
-                    <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                      <td className="p-2.5 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Layers className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Wood Panels & Workshop</span>
-                      </td>
-                      <td className="p-2.5 text-slate-500">MDF, Plywood, HPL, Acrylic</td>
-                      <td className="p-2.5 text-center font-mono font-bold">{stats.totalStock.toLocaleString()}</td>
-                      <td className="p-2.5 text-center font-mono font-bold text-amber-600">
-                        {stats.totalAllocated.toLocaleString()} ({stats.totalOrders} orders)
-                      </td>
-                      <td className="p-2.5 text-center">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                          {stats.totalStock > 0 ? ((stats.totalAvailable / stats.totalStock) * 100).toFixed(0) : 100}% Ready
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                      <td className="p-2.5 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <ReceiptText className="w-3.5 h-3.5 text-sky-500" />
-                        <span>Sales POS & Finance</span>
-                      </td>
-                      <td className="p-2.5 text-slate-500">USD, IQD, EUR Multi-Currency</td>
-                      <td className="p-2.5 text-center font-mono font-bold">
-                        ${Math.round(salesAnalytics.totalGrossRevenueUsd).toLocaleString()}
-                      </td>
-                      <td className="p-2.5 text-center font-mono font-bold text-rose-600">
-                        ${Math.round(salesAnalytics.totalDebtUsd).toLocaleString()} Debt
-                      </td>
-                      <td className="p-2.5 text-center">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
-                          {salesAnalytics.recoveryRate.toFixed(0)}% Settled
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                      <td className="p-2.5 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Package className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Warehouse Hardware & Fittings</span>
-                      </td>
-                      <td className="p-2.5 text-slate-500">Fasteners, Joinery, Slides, Hinges</td>
-                      <td className="p-2.5 text-center font-mono font-bold">
-                        {products.reduce((acc, p) => acc + p.currentStock, 0).toLocaleString()}
-                      </td>
-                      <td className="p-2.5 text-center font-mono font-bold text-amber-600">
-                        {products.filter((p) => p.currentStock <= p.minStock).length} Reorders
-                      </td>
-                      <td className="p-2.5 text-center">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                          {goodsAnalytics.healthRate.toFixed(0)}% In-Stock
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                      <td className="p-2.5 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Truck className="w-3.5 h-3.5 text-purple-500" />
-                        <span>Shipping & Logistics</span>
-                      </td>
-                      <td className="p-2.5 text-slate-500">Fleet Dispatch & Site Delivery</td>
-                      <td className="p-2.5 text-center font-mono font-bold">{shipments.length} Runs</td>
-                      <td className="p-2.5 text-center font-mono font-bold text-sky-600">
-                        {shipments.filter((s) => s.status === 'in_transit').length} In Transit
-                      </td>
-                      <td className="p-2.5 text-center">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
-                          {shippingAnalytics.deliveredRate.toFixed(0)}% Delivered
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
-          {/* =============================================================== */}
-          {/* PRINT VERIFICATION & SIGN-OFF BLOCK                             */}
-          {/* =============================================================== */}
-          <div className="hidden print:block pt-8 border-t-2 border-slate-300 text-xs text-slate-800">
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <p className="font-bold text-slate-900 mb-1">System Verification Notice:</p>
-                <p className="text-slate-600 text-[11px] leading-relaxed">
-                  This visual analytics report was generated from Bako&apos;s Master System ({APP_CONFIG.version}) with SQLite Write-Ahead Logging (WAL) state persistence. All inventory units, multi-currency ledger balances, and workshop reservation allocations are verified accurate as of the execution timestamp.
-                </p>
-                <p className="text-slate-500 text-[10px] mt-2 font-mono">
-                  Report Ref: #BMS-ANL-{Date.now().toString().slice(-6)} • Operator: Bako Bayan Madhhar (07705488654)
-                </p>
-              </div>
-
-              <div className="flex flex-col justify-end">
-                <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1">
-                  <span className="font-bold">Authorized Supervisor Signature:</span>
-                  <span className="font-mono">Bako Bayan Madhhar</span>
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-500">
-                  <span>Official Signature / Stamp</span>
-                  <span>Date: {reportDate}</span>
-                </div>
-              </div>
-            </div>
           </div>
 
         </div>
 
-        {/* ================================================================= */}
-        {/* BOTTOM ACTION BAR (Screen Only)                                   */}
-        {/* ================================================================= */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between shrink-0 no-print">
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>{isKu ? 'هەموو چارتەکان بە شێوەی ڕاستەوخۆ لە داتابەیسەوە نوێ دەبنەوە' : 'Vector SVG charts computed in real-time from active SQLite WAL data'}</span>
-          </div>
-
+        {/* Footer Bar */}
+        <div className="px-6 sm:px-8 py-4 border-t border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 shrink-0">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-emerald-700 dark:hover:bg-emerald-600 text-xs font-bold transition-all cursor-pointer active:scale-95"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{isKu ? 'چاپکردنی ڕاپۆرت' : 'Print Report'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={closeVisualCharts}
-              className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
-            >
-              {isKu ? 'داخستن' : 'Close'}
-            </button>
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <span>
+              {isKu
+                ? 'پارێزراوە بە سیستەمی مۆڵەتپێدانی باکۆ بەیان بۆ کۆمپانیای شاسوار'
+                : 'Protected by Enterprise RBAC authorization for Shaswar Ahmad Co.'}
+            </span>
           </div>
+
+          <button
+            type="button"
+            onClick={closeVisualCharts}
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+          >
+            {isKu ? 'داخستن' : 'Close Dashboard'}
+          </button>
         </div>
-
       </div>
-    </div>
+    </div>,
+    document.body
   );
-
-  return createPortal(modalContent, document.body);
 };
 
 export default VisualChartsModal;
