@@ -194,6 +194,7 @@ export interface PanelTransaction {
   profitMargin: number;
   notes: string;
   images: string[];
+  hasImages?: boolean;
   status: 'completed' | 'partial' | 'debt';
   lastUpdated: string;
   items?: InvoiceItem[];

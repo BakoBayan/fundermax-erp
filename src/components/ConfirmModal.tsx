@@ -83,8 +83,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in duration-150 select-none"
-      onClick={handleCancelAction}
+      className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in duration-150 select-none cursor-pointer"
+      onPointerDown={(e) => e.target === e.currentTarget && handleCancelAction()}
       role="dialog"
       aria-modal="true"
     >

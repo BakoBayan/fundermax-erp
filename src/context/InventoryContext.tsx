@@ -61,6 +61,32 @@ import {
   formatMoney as rawFormatMoney
 } from "../lib/currency";
 import { autoCapitalizeFirstLetter } from "../utils/text";
+import { registerMergerInterceptor } from "../utils/imageUpload";
+import { idb } from "../lib/idb";
+
+function stripTxImages(tx: PanelTransaction): PanelTransaction {
+  const hasImages = Boolean(tx.hasImages || (Array.isArray(tx.images) && tx.images.length > 0));
+  return {
+    ...tx,
+    hasImages,
+    images: [],
+  };
+}
+
+function mergeById<T extends { id: string }>(existing?: T[], incoming?: T[]): T[] | undefined {
+  if (!incoming) return existing;
+  if (!existing || existing.length === 0) return [...incoming];
+  const map = new Map<string, T>();
+  for (const item of existing) map.set(item.id, item);
+  for (const item of incoming) map.set(item.id, item);
+  return Array.from(map.values());
+}
+
+function mergeStringSets(existing?: string[], incoming?: string[]): string[] | undefined {
+  if (!incoming) return existing;
+  if (!existing || existing.length === 0) return Array.from(new Set(incoming));
+  return Array.from(new Set([...existing, ...incoming]));
+}
 
 interface HistoryState {
   materials: PanelMaterial[];
@@ -71,6 +97,9 @@ interface HistoryState {
 }
 
 interface InventoryContextType {
+  // Cold Start & Hydration Status
+  isHydrated: boolean;
+
   // Navigation & Platform Module
   currentModule: PlatformModule;
   setCurrentModule: (m: PlatformModule) => void;
@@ -92,6 +121,18 @@ interface InventoryContextType {
   isAdminModalOpen: boolean;
   openAdminModal: () => void;
   closeAdminModal: () => void;
+
+  // Multi-Asset Image & Document Merger Modal (Standalone + Smart Interceptor)
+  isMergerModalOpen: boolean;
+  mergerInitialFiles: File[];
+  mergerIsIntercepted: boolean;
+  openMergerModal: (
+    files?: File[],
+    onConfirmApply?: (mergedDataUrl: string) => void,
+    onCancel?: () => void
+  ) => void;
+  closeMergerModal: () => void;
+  confirmMergerApply: (mergedDataUrl: string) => void;
 
   // Wood Panels & Orders
   materials: PanelMaterial[];
@@ -767,6 +808,63 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [searchParams, router, pathname]);
 
+  // Multi-Asset Image & Document Merger Modal State (Standalone + Smart Interceptor)
+  const [isMergerModalOpen, setIsMergerModalOpen] = useState(false);
+  const [mergerInitialFiles, setMergerInitialFiles] = useState<File[]>([]);
+  const [mergerIsIntercepted, setMergerIsIntercepted] = useState(false);
+  const mergerConfirmRef = useRef<((mergedDataUrl: string) => void) | null>(null);
+  const mergerCancelRef = useRef<(() => void) | null>(null);
+
+  const openMergerModal = useCallback(
+    (
+      files?: File[],
+      onConfirmApply?: (mergedDataUrl: string) => void,
+      onCancel?: () => void
+    ) => {
+      setMergerInitialFiles(files && files.length > 0 ? Array.from(files) : []);
+      setMergerIsIntercepted(Boolean(onConfirmApply));
+      mergerConfirmRef.current = onConfirmApply || null;
+      mergerCancelRef.current = onCancel || null;
+      setIsMergerModalOpen(true);
+    },
+    []
+  );
+
+  const closeMergerModal = useCallback(() => {
+    setIsMergerModalOpen(false);
+    setMergerInitialFiles([]);
+    setMergerIsIntercepted(false);
+    const cancelCb = mergerCancelRef.current;
+    mergerConfirmRef.current = null;
+    mergerCancelRef.current = null;
+    if (cancelCb) cancelCb();
+  }, []);
+
+  const confirmMergerApply = useCallback((mergedDataUrl: string) => {
+    const confirmCb = mergerConfirmRef.current;
+    mergerConfirmRef.current = null;
+    mergerCancelRef.current = null;
+    setIsMergerModalOpen(false);
+    setMergerInitialFiles([]);
+    setMergerIsIntercepted(false);
+    if (confirmCb) confirmCb(mergedDataUrl);
+  }, []);
+
+  useEffect(() => {
+    registerMergerInterceptor((files: File[]) => {
+      return new Promise<string | null>((resolve) => {
+        openMergerModal(
+          files,
+          (mergedDataUrl) => resolve(mergedDataUrl),
+          () => resolve(null)
+        );
+      });
+    });
+    return () => {
+      registerMergerInterceptor(null);
+    };
+  }, [openMergerModal]);
+
   // Unified Isolated Print Engine State
   const [activePrintJob, setActivePrintJob] = useState<PrintJob | null>(null);
 
@@ -814,49 +912,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActivePrintJob(null);
   }, []);
 
-  // Core Data States with Instant Local Hydration
-  const [materials, setMaterials] = useState<PanelMaterial[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const s = localStorage.getItem(STORAGE_MATERIALS);
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [customTypes, setCustomTypes] = useState<string[]>(() => {
-    if (typeof window === "undefined") return ["HPL"];
-    try {
-      const s = localStorage.getItem(STORAGE_TYPES);
-      return s ? JSON.parse(s) : ["HPL"];
-    } catch {
-      return ["HPL"];
-    }
-  });
-
-  const [transactions, setTransactions] = useState<PanelTransaction[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const s = localStorage.getItem(STORAGE_TRANSACTIONS);
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Core Data States (Hydrated asynchronously via IndexedDB to bypass 5MB localStorage limit)
+  const [materials, setMaterials] = useState<PanelMaterial[]>([]);
+  const [customTypes, setCustomTypes] = useState<string[]>(["HPL"]);
+  const [transactions, setTransactions] = useState<PanelTransaction[]>([]);
 
   const [salesStatusFilter, setSalesStatusFilter] = useState<'all' | 'completed' | 'debt' | 'partial'>('all');
   const [salesTimeframeFilter, setSalesTimeframeFilter] = useState<string>('all');
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const s = localStorage.getItem(STORAGE_PRODUCTS);
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [products, setProducts] = useState<Product[]>([]);
 
   const INITIAL_DEMO_SHIPMENTS: Shipment[] = [
     {
@@ -888,113 +952,32 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     },
   ];
 
-  const [shipments, setShipments] = useState<Shipment[]>(() => {
-    if (typeof window === "undefined") return INITIAL_DEMO_SHIPMENTS;
-    try {
-      const s = localStorage.getItem(STORAGE_SHIPMENTS);
-      if (s) {
-        const parsed = JSON.parse(s);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      return INITIAL_DEMO_SHIPMENTS;
-    } catch {
-      return INITIAL_DEMO_SHIPMENTS;
-    }
-  });
+  const [shipments, setShipments] = useState<Shipment[]>(INITIAL_DEMO_SHIPMENTS);
+  const [exchangeRates, setExchangeRatesState] = useState<ExchangeRates>(DEFAULT_EXCHANGE_RATES);
 
-  const [exchangeRates, setExchangeRatesState] = useState<ExchangeRates>(() => {
-    if (typeof window === "undefined") return DEFAULT_EXCHANGE_RATES;
-    try {
-      const s = localStorage.getItem(STORAGE_RATES);
-      if (!s) return DEFAULT_EXCHANGE_RATES;
-      const parsed = JSON.parse(s);
-      const usdToIqd = normalizeIqdRate(parsed.usdToIqd || parsed.USD_IQD || 1500);
-      const eurToUsd = typeof parsed.eurToUsd === 'number' && parsed.eurToUsd > 0 ? parsed.eurToUsd : (parsed.EUR_USD || 1.08);
-      const eurToIqd = normalizeIqdRate(parsed.eurToIqd || parsed.EUR_IQD || Math.round(usdToIqd * eurToUsd));
-      return {
-        ...DEFAULT_EXCHANGE_RATES,
-        ...parsed,
-        usdToIqd,
-        eurToUsd,
-        eurToIqd,
-      };
-    } catch {
-      return DEFAULT_EXCHANGE_RATES;
-    }
-  });
+  const DEFAULT_DROPDOWN_PRESETS: DropdownPresets = {
+    savedTypes: [],
+    savedProducts: [],
+    savedSellingTypes: [
+      'Wholesale (کۆ)',
+      'Retail (مفرد)',
+      'Per Piece (بە دانە)',
+      'Per m² (مەتر)',
+      'Project / Contractor (پڕۆژە)',
+      'Set (تاقم)',
+      'Cash (نەقد)',
+      'Debt (قەرز)',
+      'Credit (کڕێدیت)'
+    ],
+    savedSellers: [],
+    savedBanks: [],
+    savedPaymentTypes: ['کاش (Cash)', 'قەرز (Customer Debt)', 'ڕەسیدی کڕیار / پێشەکی (Store Credit)', 'حەواڵە / بانک (Bank / Transfer)'],
+    savedCategories: [],
+    savedLocations: [],
+    savedClients: []
+  };
 
-  const [dropdownPresets, setDropdownPresets] = useState<DropdownPresets>(() => {
-    const fallback: DropdownPresets = {
-      savedTypes: [],
-      savedProducts: [],
-      savedSellingTypes: [
-        'Wholesale (کۆ)',
-        'Retail (مفرد)',
-        'Per Piece (بە دانە)',
-        'Per m² (مەتر)',
-        'Project / Contractor (پڕۆژە)',
-        'Set (تاقم)',
-        'Cash (نەقد)',
-        'Debt (قەرز)',
-        'Credit (کڕێدیت)'
-      ],
-      savedSellers: [],
-      savedBanks: [],
-      savedPaymentTypes: ['کاش (Cash)', 'قەرز (Customer Debt)', 'ڕەسیدی کڕیار / پێشەکی (Store Credit)', 'حەواڵە / بانک (Bank / Transfer)'],
-      savedCategories: [],
-      savedLocations: [],
-      savedClients: []
-    };
-    if (typeof window === "undefined") return fallback;
-    try {
-      const s = localStorage.getItem(STORAGE_PRESETS);
-      if (!s) return fallback;
-      const parsed = JSON.parse(s);
-
-      const dummyExamples = new Set([
-        'MDF Standard', 'Acoustic Slat Panel', 'Melamine Board', 'Plywood Birch', 'uygjg',
-        'Natural Oak Veneer', 'American Walnut', 'Smoked Oak', 'Gloss White', 'Matte Anthracite', 'hfhft',
-        'Bako Bayan', 'Cashier Main', 'Showroom Sales',
-        'FIB (First Iraqi Bank)', 'RT Bank', 'Trade Bank of Iraq', 'Cash Drawer', 'hghgh',
-        'Hardware & Edge Banding', 'Veneer & Laminate', 'PVC Edging', 'Glues & Fasteners', 'Accessories',
-        'Bay A-1', 'Bay A-2', 'Bay B-1', 'Bay B-2', 'Bay C-1', 'Warehouse Floor'
-      ]);
-      const filterExamples = (list: unknown): string[] => {
-        if (!Array.isArray(list)) return [];
-        return list.filter((item): item is string => typeof item === 'string' && !dummyExamples.has(item.trim()));
-      };
-
-      return {
-        savedTypes: filterExamples(parsed.savedTypes),
-        savedProducts: filterExamples(parsed.savedProducts),
-        savedSellingTypes: Array.isArray(parsed.savedSellingTypes) && parsed.savedSellingTypes.length > 0 ? parsed.savedSellingTypes : fallback.savedSellingTypes,
-        savedSellers: filterExamples(parsed.savedSellers),
-        savedBanks: filterExamples(parsed.savedBanks),
-        savedPaymentTypes: (() => {
-          const list = Array.isArray(parsed.savedPaymentTypes) && parsed.savedPaymentTypes.length > 0 ? parsed.savedPaymentTypes : fallback.savedPaymentTypes;
-          const out: string[] = [];
-          list.forEach((item: unknown) => {
-            if (typeof item === 'string') {
-              if (item.includes('Debt / Credit') || item.includes('Debt/Credit')) {
-                if (!out.includes('Debt (قەرز)')) out.push('Debt (قەرز)');
-                if (!out.includes('Credit (کڕێدیت)')) out.push('Credit (کڕێدیت)');
-              } else {
-                if (!out.includes(item)) out.push(item);
-              }
-            }
-          });
-          if (!out.includes('Debt (قەرز)')) out.push('Debt (قەرز)');
-          if (!out.includes('Credit (کڕێدیت)')) out.push('Credit (کڕێدیت)');
-          return out;
-        })(),
-        savedCategories: filterExamples(parsed.savedCategories),
-        savedLocations: filterExamples(parsed.savedLocations),
-        savedClients: Array.isArray(parsed.savedClients) ? parsed.savedClients : [],
-      };
-    } catch {
-      return fallback;
-    }
-  });
+  const [dropdownPresets, setDropdownPresets] = useState<DropdownPresets>(DEFAULT_DROPDOWN_PRESETS);
 
   // State preservation: in-progress POS invoice form
   const [posDraft, setPosDraft] = useState<PosDraftState>(INITIAL_POS_DRAFT);
@@ -1055,9 +1038,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (savedSession) {
         const parsedSession = JSON.parse(savedSession);
         if (parsedSession && parsedSession.username && Date.now() < parsedSession.expiresAt) {
-          const savedUsers = localStorage.getItem(STORAGE_USERS);
-          const usersList: UserAccount[] = savedUsers ? JSON.parse(savedUsers) : INITIAL_USERS;
-          const matched = usersList.find((u) => u.username.toLowerCase() === String(parsedSession.username).toLowerCase());
+          const matched = INITIAL_USERS.find((u) => u.username.toLowerCase() === String(parsedSession.username).toLowerCase());
           if (matched) return { ...matched, isAuthenticated: true };
         }
       }
@@ -1065,45 +1046,96 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return null;
   });
 
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    if (typeof window === "undefined") return INITIAL_USERS;
-    try {
-      const s = localStorage.getItem(STORAGE_USERS);
-      if (s) {
-        const parsed: UserAccount[] = JSON.parse(s);
-        const hasShaswar = parsed.some((u) => u.username?.toLowerCase() === "shaswar");
-        if (!hasShaswar) {
-          const shaswarAcc = INITIAL_USERS.find((u) => u.username === "shaswar");
-          if (shaswarAcc) return [...parsed, shaswarAcc];
+  const [users, setUsers] = useState<UserAccount[]>(INITIAL_USERS);
+
+  // Activity Logs & Backups (Hydrated via IndexedDB)
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [backups, setBackups] = useState<BackupSnapshot[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Hydrate all main state blobs from IndexedDB on client mount
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [
+          cachedMats,
+          cachedTypes,
+          cachedTxs,
+          cachedProds,
+          cachedShips,
+          cachedRates,
+          cachedPresets,
+          cachedUsers,
+          cachedLogs,
+          cachedBackups,
+        ] = await Promise.all([
+          idb.get<PanelMaterial[]>(STORAGE_MATERIALS),
+          idb.get<string[]>(STORAGE_TYPES),
+          idb.get<PanelTransaction[]>(STORAGE_TRANSACTIONS),
+          idb.get<Product[]>(STORAGE_PRODUCTS),
+          idb.get<Shipment[]>(STORAGE_SHIPMENTS),
+          idb.get<ExchangeRates>(STORAGE_RATES),
+          idb.get<DropdownPresets>(STORAGE_PRESETS),
+          idb.get<UserAccount[]>(STORAGE_USERS),
+          idb.get<ActivityLogEntry[]>(STORAGE_LOGS),
+          idb.get<BackupSnapshot[]>(STORAGE_BACKUPS),
+        ]);
+
+        if (cancelled || lastServerTimestampRef.current > 0) return;
+
+        if (Array.isArray(cachedMats) && cachedMats.length > 0) setMaterials(cachedMats);
+        if (Array.isArray(cachedTypes) && cachedTypes.length > 0) setCustomTypes(cachedTypes);
+        if (Array.isArray(cachedTxs) && cachedTxs.length > 0) {
+          setTransactions(cachedTxs.map(stripTxImages));
         }
-        return parsed;
+        if (Array.isArray(cachedProds) && cachedProds.length > 0) setProducts(cachedProds);
+        if (Array.isArray(cachedShips) && cachedShips.length > 0) setShipments(cachedShips);
+        if (cachedRates && typeof cachedRates === "object") {
+          const usdToIqd = normalizeIqdRate(cachedRates.usdToIqd || cachedRates.USD_IQD || 1500);
+          const eurToUsd = typeof cachedRates.eurToUsd === "number" && cachedRates.eurToUsd > 0 ? cachedRates.eurToUsd : (cachedRates.EUR_USD || 1.08);
+          const eurToIqd = normalizeIqdRate(cachedRates.eurToIqd || cachedRates.EUR_IQD || Math.round(usdToIqd * eurToUsd));
+          setExchangeRatesState({
+            ...DEFAULT_EXCHANGE_RATES,
+            ...cachedRates,
+            usdToIqd,
+            eurToUsd,
+            eurToIqd,
+          });
+        }
+        if (cachedPresets && typeof cachedPresets === "object") {
+          setDropdownPresets({ ...DEFAULT_DROPDOWN_PRESETS, ...cachedPresets });
+        }
+        if (Array.isArray(cachedUsers) && cachedUsers.length > 0) {
+          const hasShaswar = cachedUsers.some((u) => u.username?.toLowerCase() === "shaswar");
+          const shaswarAcc = INITIAL_USERS.find((u) => u.username === "shaswar");
+          const finalUsers = !hasShaswar && shaswarAcc ? [...cachedUsers, shaswarAcc] : cachedUsers;
+          setUsers(finalUsers);
+          try {
+            const savedSession = localStorage.getItem(STORAGE_SESSION);
+            if (savedSession) {
+              const parsedSession = JSON.parse(savedSession);
+              if (parsedSession?.username && Date.now() < parsedSession.expiresAt) {
+                const matched = finalUsers.find((u) => u.username.toLowerCase() === String(parsedSession.username).toLowerCase());
+                if (matched) setCurrentUser({ ...matched, isAuthenticated: true });
+              }
+            }
+          } catch {}
+        }
+        if (Array.isArray(cachedLogs)) setActivityLogs(cachedLogs);
+        if (Array.isArray(cachedBackups)) setBackups(cachedBackups);
+      } catch (err) {
+        console.error("IDB hydration failed:", err);
+      } finally {
+        if (!cancelled) {
+          setIsHydrated(true);
+        }
       }
-      return INITIAL_USERS;
-    } catch {
-      return INITIAL_USERS;
-    }
-  });
-
-  // Activity Logs & Backups
-  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const s = localStorage.getItem(STORAGE_LOGS);
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [backups, setBackups] = useState<BackupSnapshot[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const s = localStorage.getItem(STORAGE_BACKUPS);
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Undo / Redo History
   const [history, setHistory] = useState<HistoryState[]>([]);
@@ -1252,9 +1284,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       setActivityLogs((prev) => {
         const updated = [entry, ...prev].slice(0, 300);
-        try {
-          localStorage.setItem(STORAGE_LOGS, JSON.stringify(updated));
-        } catch {}
+        void idb.set(STORAGE_LOGS, updated);
         return updated;
       });
     },
@@ -1263,61 +1293,119 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const clearActivityLogs = useCallback(() => {
     setActivityLogs([]);
-    try {
-      localStorage.removeItem(STORAGE_LOGS);
-    } catch {}
+    void idb.remove(STORAGE_LOGS);
   }, []);
 
-  // Multi-device server sync
+  // Multi-device server sync (debounced & coalesced granular delta pushes)
+  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPushPayloadRef = useRef<{
+    delta?: boolean;
+    materials?: PanelMaterial[];
+    deletedMaterialIds?: string[];
+    customTypes?: string[];
+    transactions?: PanelTransaction[];
+    deletedTransactionIds?: string[];
+    products?: Product[];
+    deletedProductIds?: string[];
+    shipments?: Shipment[];
+    deletedShipmentIds?: string[];
+    exchangeRates?: ExchangeRates;
+    dropdownPresets?: DropdownPresets;
+    users?: UserAccount[];
+  }>({});
+  const pullInFlightRef = useRef<boolean>(false);
+  const lastPullTimeRef = useRef<number>(0);
+  const hasInitialPulledRef = useRef<boolean>(false);
+
   const pushToServer = useCallback(
     async (payload: {
+      delta?: boolean;
       materials?: PanelMaterial[];
+      deletedMaterialIds?: string[];
       customTypes?: string[];
       transactions?: PanelTransaction[];
+      deletedTransactionIds?: string[];
       products?: Product[];
+      deletedProductIds?: string[];
       shipments?: Shipment[];
+      deletedShipmentIds?: string[];
       exchangeRates?: ExchangeRates;
       dropdownPresets?: DropdownPresets;
       users?: UserAccount[];
     }) => {
-      setSyncStatus("syncing");
-      try {
-        const res = await fetch("/api/sync", {
-          method: "POST",
-          cache: "no-store",
-          next: { revalidate: 0 } as any,
-          headers: {
-            "Content-Type": "application/json",
-            "Pragma": "no-cache",
-            "Cache-Control": "no-store, max-age=0",
-            "x-user-name": currentUser?.username || "System",
-            "x-user-role": currentUser?.role || "Staff",
-            "x-user-permissions": JSON.stringify(userPermissions),
-          },
-          body: JSON.stringify(payload),
-        });
+      const prev = pendingPushPayloadRef.current;
+      const isFullWipe = payload.delta === false;
+      pendingPushPayloadRef.current = isFullWipe
+        ? { ...payload, delta: false }
+        : {
+            ...prev,
+            delta: true,
+            materials: mergeById(prev.materials, payload.materials),
+            deletedMaterialIds: mergeStringSets(prev.deletedMaterialIds, payload.deletedMaterialIds),
+            customTypes: payload.customTypes ?? prev.customTypes,
+            transactions: mergeById(prev.transactions, payload.transactions),
+            deletedTransactionIds: mergeStringSets(prev.deletedTransactionIds, payload.deletedTransactionIds),
+            products: mergeById(prev.products, payload.products),
+            deletedProductIds: mergeStringSets(prev.deletedProductIds, payload.deletedProductIds),
+            shipments: mergeById(prev.shipments, payload.shipments),
+            deletedShipmentIds: mergeStringSets(prev.deletedShipmentIds, payload.deletedShipmentIds),
+            exchangeRates: payload.exchangeRates ?? prev.exchangeRates,
+            dropdownPresets: payload.dropdownPresets ?? prev.dropdownPresets,
+            users: payload.users ?? prev.users,
+          };
+      if (pushTimerRef.current) {
+        clearTimeout(pushTimerRef.current);
+      }
+      pushTimerRef.current = setTimeout(async () => {
+        const mergedPayload = pendingPushPayloadRef.current;
+        pendingPushPayloadRef.current = {};
+        pushTimerRef.current = null;
+        setSyncStatus("syncing");
+        try {
+          const res = await fetch("/api/sync", {
+            method: "POST",
+            cache: "no-store",
+            next: { revalidate: 0 } as any,
+            headers: {
+              "Content-Type": "application/json",
+              "Pragma": "no-cache",
+              "Cache-Control": "no-store, max-age=0",
+              "x-user-name": currentUser?.username || "System",
+              "x-user-role": currentUser?.role || "Staff",
+              "x-user-permissions": JSON.stringify(userPermissions),
+            },
+            body: JSON.stringify(mergedPayload),
+          });
 
-        if (res.ok) {
-          setIsOnline(true);
-          setSyncStatus("synced");
-          if ("BroadcastChannel" in window) {
-            const bc = new BroadcastChannel("bako_sync");
-            bc.postMessage({ type: "SYNC_UPDATE" });
-            bc.close();
+          if (res.ok) {
+            setIsOnline(true);
+            setSyncStatus("synced");
+            if ("BroadcastChannel" in window) {
+              const bc = new BroadcastChannel("bako_sync");
+              bc.postMessage({ type: "SYNC_UPDATE" });
+              bc.close();
+            }
+          } else {
+            setSyncStatus("offline");
           }
-        } else {
+        } catch {
+          setIsOnline(false);
           setSyncStatus("offline");
         }
-      } catch {
-        setIsOnline(false);
-        setSyncStatus("offline");
-      }
+      }, 250);
     },
     [currentUser, userPermissions]
   );
 
-  // Pull server sync with real-time SQLite WAL health verification
+  // Pull server sync with strict ref-gated cooldown (never fires multiple times in the same second)
   const pullFromServer = useCallback(async () => {
+    const now = Date.now();
+    if (pullInFlightRef.current || now - lastPullTimeRef.current < 1500) {
+      return;
+    }
+    pullInFlightRef.current = true;
+    lastPullTimeRef.current = now;
+
     const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
     try {
       const res = await fetch("/api/sync", {
@@ -1364,24 +1452,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         if (Array.isArray(data.materials)) {
           setMaterials(data.materials);
-          localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(data.materials));
+          void idb.set(STORAGE_MATERIALS, data.materials);
         }
         if (Array.isArray(data.customTypes)) {
           const list = data.customTypes.length > 0 ? data.customTypes : ["HPL"];
           setCustomTypes(list);
-          localStorage.setItem(STORAGE_TYPES, JSON.stringify(list));
+          void idb.set(STORAGE_TYPES, list);
         }
         if (Array.isArray(data.transactions)) {
-          setTransactions(data.transactions);
-          localStorage.setItem(STORAGE_TRANSACTIONS, JSON.stringify(data.transactions));
+          const lightTxs = (data.transactions as PanelTransaction[]).map(stripTxImages);
+          setTransactions(lightTxs);
+          void idb.set(STORAGE_TRANSACTIONS, lightTxs);
         }
         if (Array.isArray(data.products)) {
           setProducts(data.products);
-          localStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(data.products));
+          void idb.set(STORAGE_PRODUCTS, data.products);
         }
         if (Array.isArray(data.shipments)) {
           setShipments(data.shipments);
-          localStorage.setItem(STORAGE_SHIPMENTS, JSON.stringify(data.shipments));
+          void idb.set(STORAGE_SHIPMENTS, data.shipments);
         }
         if (data.exchangeRates) {
           const usdToIqd = normalizeIqdRate(data.exchangeRates.usdToIqd || data.exchangeRates.USD_IQD || 1500);
@@ -1397,15 +1486,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             eurToIqd,
           };
           setExchangeRatesState(normalized);
-          localStorage.setItem(STORAGE_RATES, JSON.stringify(normalized));
+          void idb.set(STORAGE_RATES, normalized);
         }
         if (data.dropdownPresets) {
           setDropdownPresets(data.dropdownPresets);
-          localStorage.setItem(STORAGE_PRESETS, JSON.stringify(data.dropdownPresets));
+          void idb.set(STORAGE_PRESETS, data.dropdownPresets);
         }
         if (Array.isArray(data.users) && data.users.length > 0) {
           setUsers(data.users);
-          localStorage.setItem(STORAGE_USERS, JSON.stringify(data.users));
+          void idb.set(STORAGE_USERS, data.users);
         }
       } else {
         setIsOnline(false);
@@ -1424,6 +1513,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isLiveConnected: false,
         lastVerified: "Offline (Local Storage Active)",
       }));
+    } finally {
+      pullInFlightRef.current = false;
     }
   }, []);
 
@@ -1443,61 +1534,32 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   }, [pullFromServer]);
 
-  // Relaxed background synchronization & active tab telemetry (60s relaxed interval, active window only)
+  // Passive network status indicator only (NO background polling, NO focus/visibility auto-fetching)
   useEffect(() => {
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
-
-    const performSyncIfFocused = () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      if (simulatedOffline || !navigator.onLine) return;
-      pullFromServer().catch(() => {});
-    };
-
     const handleOnline = () => {
       if (simulatedOffline) return;
       setIsOnline(true);
-      setSyncStatus("syncing");
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      reconnectTimeout = setTimeout(() => {
-        performSyncIfFocused();
-      }, 500);
+      setSyncStatus("synced");
     };
 
     const handleOffline = () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       setIsOnline(false);
       setSyncStatus("offline");
       setWalHealth((w) => ({ ...w, isLiveConnected: false, latencyMs: 0 }));
     };
 
-    const handleVisibilityOrFocus = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        performSyncIfFocused();
-      }
-    };
-
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
       window.addEventListener("offline", handleOffline);
-      window.addEventListener("focus", handleVisibilityOrFocus);
-      document.addEventListener("visibilitychange", handleVisibilityOrFocus);
-
-      // Relaxed 60-second polling interval, only active when tab is focused
-      pollInterval = setInterval(performSyncIfFocused, 60000);
     }
 
     return () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (pollInterval) clearInterval(pollInterval);
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
-        window.removeEventListener("focus", handleVisibilityOrFocus);
-        document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       }
     };
-  }, [simulatedOffline, pullFromServer]);
+  }, [simulatedOffline]);
 
   // Explicit Interactive Real-time Health Check
   const pingHealthCheck = useCallback(async (): Promise<{ success: boolean; latencyMs: number; message: string }> => {
@@ -1567,18 +1629,21 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         message: "Network unreachable. Local storage cache preserves 100% of data offline.",
       };
     }
-  }, []);
+  }, [simulatedOffline]);
 
-  // Initial pull on mount and local cross-tab sync listener
+  // Initial pull strictly once on mount and local cross-tab sync listener
   useEffect(() => {
-    pullFromServer();
+    if (!hasInitialPulledRef.current) {
+      hasInitialPulledRef.current = true;
+      void pullFromServer();
+    }
 
     let bc: BroadcastChannel | null = null;
     if (typeof window !== "undefined" && "BroadcastChannel" in window) {
       bc = new BroadcastChannel("bako_sync");
       bc.onmessage = (event) => {
         if (event.data?.type === "SYNC_UPDATE") {
-          pullFromServer();
+          void pullFromServer();
         }
       };
     }
@@ -1618,7 +1683,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMaterials(target.materials);
     setCustomTypes(target.customTypes);
     setTransactions(target.transactions);
-    pushToServer({ materials: target.materials, customTypes: target.customTypes, transactions: target.transactions });
+    void idb.set(STORAGE_MATERIALS, target.materials);
+    void idb.set(STORAGE_TYPES, target.customTypes);
+    void idb.set(STORAGE_TRANSACTIONS, target.transactions);
+    pushToServer({ delta: false, materials: target.materials, customTypes: target.customTypes, transactions: target.transactions });
     setHistoryIndex(targetIdx);
 
     if (target.affectedId) {
@@ -1638,7 +1706,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMaterials(target.materials);
     setCustomTypes(target.customTypes);
     setTransactions(target.transactions);
-    pushToServer({ materials: target.materials, customTypes: target.customTypes, transactions: target.transactions });
+    void idb.set(STORAGE_MATERIALS, target.materials);
+    void idb.set(STORAGE_TYPES, target.customTypes);
+    void idb.set(STORAGE_TRANSACTIONS, target.transactions);
+    pushToServer({ delta: false, materials: target.materials, customTypes: target.customTypes, transactions: target.transactions });
     setHistoryIndex(targetIdx);
 
     if (target.affectedId) {
@@ -1721,11 +1792,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const updated = [newMat, ...materials];
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, newMat.id, `Added panel: ${newMat.name} (${newMat.code})`);
-      pushToServer({ materials: updated });
+      pushToServer({ delta: true, materials: [newMat] });
       logActivity("ADD_PANEL", `Added panel: ${newMat.name} (${newMat.code})`);
     },
     [materials, customTypes, transactions, getNextPanelCode, pushStateToHistory, pushToServer, logActivity]
@@ -1775,11 +1844,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const updated = [...newMats, ...materials];
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, undefined, `Batch added ${newMats.length} panels`);
-      pushToServer({ materials: updated });
+      pushToServer({ delta: true, materials: newMats });
       logActivity("BATCH_ADD_PANELS", `Added ${newMats.length} panels`);
     },
     [materials, customTypes, transactions, pushStateToHistory, pushToServer, logActivity]
@@ -1800,6 +1867,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         imageUrl?: string;
       }>
     ) => {
+      let editedMat: PanelMaterial | null = null;
       const updated = materials.map((m) => {
         if (m.id !== id) return m;
         const length = updates.length ?? m.dimensions.length;
@@ -1808,7 +1876,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const totalStock = updates.totalStock ?? m.totalStock;
         const availableStock = Math.max(0, totalStock - m.allocatedStock);
 
-        return {
+        editedMat = {
           ...m,
           code: updates.code ? autoCapitalizeFirstLetter(updates.code.trim()) : m.code,
           name: updates.name ? autoCapitalizeFirstLetter(updates.name.trim()) : m.name,
@@ -1825,14 +1893,13 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : m.imageUrl,
           updatedAt: new Date().toISOString(),
         };
+        return editedMat;
       });
 
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, id, `Edited panel: ${updates.name || id}`);
-      pushToServer({ materials: updated });
+      if (editedMat) pushToServer({ delta: true, materials: [editedMat] });
       logActivity("EDIT_PANEL", `Edited panel: ${updates.name || id}`);
     },
     [materials, customTypes, transactions, pushStateToHistory, pushToServer, logActivity]
@@ -1843,11 +1910,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const target = materials.find((m) => m.id === id);
       const updated = materials.filter((m) => m.id !== id);
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, undefined, `Deleted panel: ${target?.name || id}`);
-      pushToServer({ materials: updated });
+      pushToServer({ delta: true, deletedMaterialIds: [id] });
       logActivity("DELETE_PANEL", `Deleted panel: ${target?.name || id}`);
     },
     [materials, customTypes, transactions, pushStateToHistory, pushToServer, logActivity]
@@ -1855,22 +1920,22 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const quickStepStock = useCallback(
     (materialId: string, delta: number) => {
+      let changedMat: PanelMaterial | null = null;
       const updated = materials.map((m) => {
         if (m.id !== materialId) return m;
         const newTotal = Math.max(0, m.totalStock + delta);
         const newAvailable = Math.max(0, newTotal - m.allocatedStock);
-        return {
+        changedMat = {
           ...m,
           totalStock: newTotal,
           availableStock: newAvailable,
           updatedAt: new Date().toISOString(),
         };
+        return changedMat;
       });
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ materials: updated });
+      void idb.set(STORAGE_MATERIALS, updated);
+      if (changedMat) pushToServer({ delta: true, materials: [changedMat] });
     },
     [materials, pushToServer]
   );
@@ -1914,25 +1979,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         doorSpec: order.doorSpec,
       };
 
+      let changedMat: PanelMaterial | null = null;
       const updated = materials.map((m) => {
         if (m.id !== materialId) return m;
         const newAllocated = m.allocatedStock + requestedQty;
         const newAvailable = Math.max(0, m.totalStock - newAllocated);
-        return {
+        changedMat = {
           ...m,
           allocatedStock: newAllocated,
           availableStock: newAvailable,
           activeOrders: [newOrder, ...m.activeOrders],
           updatedAt: new Date().toISOString(),
         };
+        return changedMat;
       });
 
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, materialId, `Created order ${orderNumber} for ${order.client}`);
-      pushToServer({ materials: updated });
+      if (changedMat) pushToServer({ delta: true, materials: [changedMat] });
       logActivity("CREATE_ORDER", `Order #${orderNumber} for ${order.client} (${requestedQty} panels)`);
 
       return { success: true, message: "Order allocated successfully" };
@@ -1953,6 +2018,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         doorSpec?: DoorOrderSpec;
       }>
     ) => {
+      let changedMat: PanelMaterial | null = null;
       const updated = materials.map((m) => {
         if (m.id !== materialId) return m;
         let newOrders = m.activeOrders.map((ord) => {
@@ -1972,21 +2038,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const newAllocated = activeReservedOrders.reduce((acc, o) => acc + o.quantity, 0);
         const newAvailable = Math.max(0, m.totalStock - newAllocated);
 
-        return {
+        changedMat = {
           ...m,
           allocatedStock: newAllocated,
           availableStock: newAvailable,
           activeOrders: newOrders,
           updatedAt: new Date().toISOString(),
         };
+        return changedMat;
       });
 
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, materialId, `Edited order #${orderId}`);
-      pushToServer({ materials: updated });
+      if (changedMat) pushToServer({ delta: true, materials: [changedMat] });
       logActivity("EDIT_ORDER", `Edited order #${orderId}`);
     },
     [materials, customTypes, transactions, pushStateToHistory, pushToServer, logActivity]
@@ -1994,6 +2059,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const finalizeOrder = useCallback(
     (materialId: string, orderId: string) => {
+      let changedMat: PanelMaterial | null = null;
       const updated = materials.map((m) => {
         if (m.id !== materialId) return m;
         const targetOrder = m.activeOrders.find((o) => o.id === orderId);
@@ -2013,7 +2079,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           };
         });
 
-        return {
+        changedMat = {
           ...m,
           totalStock: newTotalStock,
           allocatedStock: newAllocated,
@@ -2021,14 +2087,13 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           activeOrders: newOrders,
           updatedAt: new Date().toISOString(),
         };
+        return changedMat;
       });
 
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, materialId, `Finalized order #${orderId}`);
-      pushToServer({ materials: updated });
+      if (changedMat) pushToServer({ delta: true, materials: [changedMat] });
       logActivity("FINALIZE_ORDER", `Finalized order #${orderId}`);
     },
     [materials, customTypes, transactions, pushStateToHistory, pushToServer, logActivity]
@@ -2036,6 +2101,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteOrder = useCallback(
     (materialId: string, orderId: string) => {
+      let changedMat: PanelMaterial | null = null;
       const updated = materials.map((m) => {
         if (m.id !== materialId) return m;
         const target = m.activeOrders.find((o) => o.id === orderId);
@@ -2048,21 +2114,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           newAvailable = Math.max(0, m.totalStock - newAllocated);
         }
 
-        return {
+        changedMat = {
           ...m,
           allocatedStock: newAllocated,
           availableStock: newAvailable,
           activeOrders: newOrders,
           updatedAt: new Date().toISOString(),
         };
+        return changedMat;
       });
 
       setMaterials(updated);
-      try {
-        localStorage.setItem(STORAGE_MATERIALS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_MATERIALS, updated);
       pushStateToHistory(updated, customTypes, transactions, materialId, `Deleted order #${orderId}`);
-      pushToServer({ materials: updated });
+      if (changedMat) pushToServer({ delta: true, materials: [changedMat] });
       logActivity("DELETE_ORDER", `Deleted order #${orderId}`);
     },
     [materials, customTypes, transactions, pushStateToHistory, pushToServer, logActivity]
@@ -2075,10 +2140,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!trimmed || customTypes.includes(trimmed)) return;
       const updated = [...customTypes, trimmed];
       setCustomTypes(updated);
-      try {
-        localStorage.setItem(STORAGE_TYPES, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ customTypes: updated });
+      void idb.set(STORAGE_TYPES, updated);
+      pushToServer({ delta: true, customTypes: updated });
     },
     [customTypes, pushToServer]
   );
@@ -2088,10 +2151,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (type === "HPL") return;
       const updated = customTypes.filter((t) => t !== type);
       setCustomTypes(updated);
-      try {
-        localStorage.setItem(STORAGE_TYPES, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ customTypes: updated });
+      void idb.set(STORAGE_TYPES, updated);
+      pushToServer({ delta: true, customTypes: updated });
     },
     [customTypes, pushToServer]
   );
@@ -2125,17 +2186,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return res;
   };
 
-  // Sales / POS Transactions CRUD
+  // Sales / POS Transactions CRUD (Granular Delta Push + Image-Stripped Global State)
   const addTransaction = useCallback(
     (tx: PanelTransaction) => {
       const sanitized = sanitizeTransactionData(tx) as PanelTransaction;
-      const updated = [sanitized, ...transactions];
+      const lightTx = stripTxImages(sanitized);
+      const updated = [lightTx, ...transactions.filter((t) => t.id !== lightTx.id)];
       setTransactions(updated);
-      try {
-        localStorage.setItem(STORAGE_TRANSACTIONS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_TRANSACTIONS, updated);
       pushStateToHistory(materials, customTypes, updated, sanitized.id, `Recorded sales invoice #${sanitized.code || sanitized.id}`);
-      pushToServer({ transactions: updated });
+      pushToServer({ delta: true, transactions: [sanitized] });
       logActivity("RECORD_SALE", `Invoice #${sanitized.code || sanitized.id} - ${sanitized.sellingAmount} ${sanitized.currency || 'USD'}`, undefined, 'sale', sanitized.sellingAmount, sanitized.currency);
     },
     [transactions, materials, customTypes, pushStateToHistory, pushToServer, logActivity]
@@ -2144,13 +2204,31 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const editTransaction = useCallback(
     (id: string, updates: Partial<PanelTransaction>) => {
       const sanitizedUpdates = sanitizeTransactionData(updates);
-      const updated = transactions.map((t) => (t.id === id ? { ...t, ...sanitizedUpdates, lastUpdated: new Date().toISOString() } : t));
+      const nowIso = new Date().toISOString();
+      let dirtyTx: PanelTransaction | null = null;
+      const updated = transactions.map((t) => {
+        if (t.id !== id) return t;
+        const fullMerged: PanelTransaction = {
+          ...t,
+          ...sanitizedUpdates,
+          lastUpdated: nowIso,
+        };
+        dirtyTx = fullMerged;
+        return stripTxImages(fullMerged);
+      });
+      if (!dirtyTx) {
+        const fallbackMerged = {
+          id,
+          ...sanitizedUpdates,
+          lastUpdated: nowIso,
+        } as PanelTransaction;
+        dirtyTx = fallbackMerged;
+        updated.unshift(stripTxImages(fallbackMerged));
+      }
       setTransactions(updated);
-      try {
-        localStorage.setItem(STORAGE_TRANSACTIONS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_TRANSACTIONS, updated);
       pushStateToHistory(materials, customTypes, updated, id, `Updated invoice #${updates.code || id}`);
-      pushToServer({ transactions: updated });
+      pushToServer({ delta: true, transactions: [dirtyTx] });
       logActivity("EDIT_SALE", `Updated invoice #${updates.code || id}`);
     },
     [transactions, materials, customTypes, pushStateToHistory, pushToServer, logActivity]
@@ -2161,11 +2239,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const target = transactions.find((t) => t.id === id);
       const updated = transactions.filter((t) => t.id !== id);
       setTransactions(updated);
-      try {
-        localStorage.setItem(STORAGE_TRANSACTIONS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_TRANSACTIONS, updated);
       pushStateToHistory(materials, customTypes, updated, undefined, `Deleted invoice #${target?.code || id}`);
-      pushToServer({ transactions: updated });
+      pushToServer({ delta: true, deletedTransactionIds: [id] });
       logActivity("DELETE_SALE", `Deleted invoice #${target?.code || id}`);
     },
     [transactions, materials, customTypes, pushStateToHistory, pushToServer, logActivity]
@@ -2184,10 +2260,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         [category]: [...currentList, trimmed],
       };
       setDropdownPresets(updatedPresets);
-      try {
-        localStorage.setItem(STORAGE_PRESETS, JSON.stringify(updatedPresets));
-      } catch {}
-      pushToServer({ dropdownPresets: updatedPresets });
+      void idb.set(STORAGE_PRESETS, updatedPresets);
+      pushToServer({ delta: true, dropdownPresets: updatedPresets });
     },
     [dropdownPresets, pushToServer]
   );
@@ -2200,10 +2274,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         [category]: currentList.filter((item) => item !== val),
       };
       setDropdownPresets(updatedPresets);
-      try {
-        localStorage.setItem(STORAGE_PRESETS, JSON.stringify(updatedPresets));
-      } catch {}
-      pushToServer({ dropdownPresets: updatedPresets });
+      void idb.set(STORAGE_PRESETS, updatedPresets);
+      pushToServer({ delta: true, dropdownPresets: updatedPresets });
     },
     [dropdownPresets, pushToServer]
   );
@@ -2212,10 +2284,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const setExchangeRates = useCallback(
     (rates: ExchangeRates) => {
       setExchangeRatesState(rates);
-      try {
-        localStorage.setItem(STORAGE_RATES, JSON.stringify(rates));
-      } catch {}
-      pushToServer({ exchangeRates: rates });
+      void idb.set(STORAGE_RATES, rates);
+      pushToServer({ delta: true, exchangeRates: rates });
     },
     [pushToServer]
   );
@@ -2251,10 +2321,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
       const updated = [sanitized, ...products];
       setProducts(updated);
-      try {
-        localStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ products: updated });
+      void idb.set(STORAGE_PRODUCTS, updated);
+      pushToServer({ delta: true, products: [sanitized] });
       logActivity("ADD_PRODUCT", `Added product: ${sanitized.name} (${sanitized.sku})`);
     },
     [products, pushToServer, logActivity]
@@ -2269,12 +2337,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         category: updates.category ? autoCapitalizeFirstLetter(updates.category.trim()) : updates.category,
         location: updates.location ? autoCapitalizeFirstLetter(updates.location.trim()) : updates.location,
       };
-      const updated = products.map((p) => (p.id === id ? { ...p, ...sanitizedUpdates, lastUpdated: new Date().toISOString() } : p));
+      let changedProd: Product | null = null;
+      const updated = products.map((p) => {
+        if (p.id !== id) return p;
+        changedProd = { ...p, ...sanitizedUpdates, lastUpdated: new Date().toISOString() };
+        return changedProd;
+      });
       setProducts(updated);
-      try {
-        localStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ products: updated });
+      void idb.set(STORAGE_PRODUCTS, updated);
+      if (changedProd) pushToServer({ delta: true, products: [changedProd] });
     },
     [products, pushToServer]
   );
@@ -2283,10 +2354,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     (id: string) => {
       const updated = products.filter((p) => p.id !== id);
       setProducts(updated);
-      try {
-        localStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ products: updated });
+      void idb.set(STORAGE_PRODUCTS, updated);
+      pushToServer({ delta: true, deletedProductIds: [id] });
     },
     [products, pushToServer]
   );
@@ -2300,10 +2369,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
       const updated = [sanitized, ...shipments];
       setShipments(updated);
-      try {
-        localStorage.setItem(STORAGE_SHIPMENTS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ shipments: updated });
+      void idb.set(STORAGE_SHIPMENTS, updated);
+      pushToServer({ delta: true, shipments: [sanitized] });
       logActivity("DISPATCH_SHIPMENT", `Shipment ${sanitized.trackingCode} to ${sanitized.destination}`);
     },
     [shipments, pushToServer, logActivity]
@@ -2311,12 +2378,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateShipmentStatus = useCallback(
     (id: string, status: ShipmentStatus) => {
-      const updated = shipments.map((s) => (s.id === id ? { ...s, status } : s));
+      let changedShipment: Shipment | null = null;
+      const updated = shipments.map((s) => {
+        if (s.id !== id) return s;
+        changedShipment = { ...s, status };
+        return changedShipment;
+      });
       setShipments(updated);
-      try {
-        localStorage.setItem(STORAGE_SHIPMENTS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ shipments: updated });
+      void idb.set(STORAGE_SHIPMENTS, updated);
+      if (changedShipment) pushToServer({ delta: true, shipments: [changedShipment] });
     },
     [shipments, pushToServer]
   );
@@ -2325,10 +2395,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     (id: string) => {
       const updated = shipments.filter((s) => s.id !== id);
       setShipments(updated);
-      try {
-        localStorage.setItem(STORAGE_SHIPMENTS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ shipments: updated });
+      void idb.set(STORAGE_SHIPMENTS, updated);
+      pushToServer({ delta: true, deletedShipmentIds: [id] });
     },
     [shipments, pushToServer]
   );
@@ -2422,10 +2490,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
       const updated = [...users, account];
       setUsers(updated);
-      try {
-        localStorage.setItem(STORAGE_USERS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ users: updated });
+      void idb.set(STORAGE_USERS, updated);
+      pushToServer({ delta: true, users: updated });
       logActivity("ADD_USER", `Added user account: ${account.displayName} (${account.role})`);
       return true;
     },
@@ -2442,10 +2508,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const updated = users.filter((u) => u.username.toLowerCase() !== username.toLowerCase());
       setUsers(updated);
-      try {
-        localStorage.setItem(STORAGE_USERS, JSON.stringify(updated));
-      } catch {}
-      pushToServer({ users: updated });
+      void idb.set(STORAGE_USERS, updated);
+      pushToServer({ delta: true, users: updated });
       logActivity("DELETE_USER", `Deleted user account: ${username}`);
       return true;
     },
@@ -2474,9 +2538,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
       });
       setUsers(updated);
-      try {
-        localStorage.setItem(STORAGE_USERS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_USERS, updated);
 
       if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
         const curUpdated = {
@@ -2488,7 +2550,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setCurrentUser(curUpdated);
       }
 
-      pushToServer({ users: updated });
+      pushToServer({ delta: true, users: updated });
       logActivity("UPDATE_USER", `Updated account: ${username}`);
       return true;
     },
@@ -2510,9 +2572,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
       });
       setUsers(updated);
-      try {
-        localStorage.setItem(STORAGE_USERS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_USERS, updated);
 
       if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
         const curUpdated = { ...currentUser, permissions };
@@ -2526,7 +2586,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         } catch {}
       }
 
-      pushToServer({ users: updated });
+      pushToServer({ delta: true, users: updated });
       logActivity(
         "UPDATE_PERMISSIONS",
         `Updated permissions for account: @${username}`,
@@ -2582,9 +2642,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
       const updated = [snap, ...backups].slice(0, 30);
       setBackups(updated);
-      try {
-        localStorage.setItem(STORAGE_BACKUPS, JSON.stringify(updated));
-      } catch {}
+      void idb.set(STORAGE_BACKUPS, updated);
       logActivity("BACKUP_CREATED", `Created manual snapshot: ${snap.label}`);
     },
     [materials, customTypes, transactions, products, shipments, backups, logActivity]
@@ -2644,7 +2702,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTransactions([]);
     setProducts([]);
     setShipments([]);
-    pushToServer({ materials: [], customTypes: ["HPL"], transactions: [], products: [], shipments: [] });
+    void idb.set(STORAGE_MATERIALS, []);
+    void idb.set(STORAGE_TYPES, ["HPL"]);
+    void idb.set(STORAGE_TRANSACTIONS, []);
+    void idb.set(STORAGE_PRODUCTS, []);
+    void idb.set(STORAGE_SHIPMENTS, []);
+    pushToServer({ delta: false, materials: [], customTypes: ["HPL"], transactions: [], products: [], shipments: [] });
     logActivity("WIPE_DATABASE", "Wiped active database cleanly");
   }, [pushToServer, logActivity]);
 
@@ -2692,6 +2755,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const value: InventoryContextType = {
+    isHydrated,
     currentModule,
     setCurrentModule,
     activeSection,
@@ -2706,6 +2770,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     isAdminModalOpen,
     openAdminModal,
     closeAdminModal,
+    isMergerModalOpen,
+    mergerInitialFiles,
+    mergerIsIntercepted,
+    openMergerModal,
+    closeMergerModal,
+    confirmMergerApply,
     materials,
     customTypes,
     stats,

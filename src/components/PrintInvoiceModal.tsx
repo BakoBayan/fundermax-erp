@@ -23,11 +23,13 @@ import {
   AlertTriangle,
   Minimize2,
   Share2,
-  Mail
+  Mail,
+  Monitor
 } from 'lucide-react';
 import { PanelTransaction } from '@/types/inventory';
 import { openWhatsAppReceipt, openEmailReceipt } from '@/lib/receiptFormatter';
 import { useInventory } from '../context/InventoryContext';
+import { readImageFiles } from '../utils/imageUpload';
 
 export interface PrintableImageItem {
   id: string;
@@ -233,34 +235,26 @@ export default function PrintInvoiceModal({
     openEmailReceipt(tx, formatMoney, shareLang);
   };
 
-  const handleUploadCustomImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!file.type.startsWith('image/')) continue;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        if (dataUrl) {
-          const newImg: PrintableImageItem = {
-            id: `custom-img-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            url: dataUrl,
-            width: 180,
-            align: 'center',
-            source: 'custom',
-            title: file.name || 'Additional Image',
-            included: true
-          };
-          setImages(prev => [...prev, newImg]);
-          setActiveImageId(newImg.id);
-          setIsImageDrawerOpen(true);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleUploadCustomImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (selectedFiles.length === 0) return;
+
+    const urls = await readImageFiles(selectedFiles);
+    if (urls.length > 0) {
+      const addedItems: PrintableImageItem[] = urls.map((dataUrl, idx) => ({
+        id: `custom-img-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+        url: dataUrl,
+        width: 180,
+        align: 'center',
+        source: 'custom',
+        title: selectedFiles.length === 1 ? selectedFiles[0].name : 'Merged Document Sheet',
+        included: true,
+      }));
+      setImages((prev) => [...prev, ...addedItems]);
+      setActiveImageId(addedItems[addedItems.length - 1].id);
+      setIsImageDrawerOpen(true);
+    }
   };
 
   const toggleImageIncluded = (id: string) => {
@@ -293,22 +287,16 @@ export default function PrintInvoiceModal({
 
   const printableImages = images.filter(img => img.included);
 
-  const invoiceDateStr = new Date(tx.timestamp).toLocaleString('en-GB', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+  const invoiceDateStr = new Date(tx.timestamp).toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
   });
 
   const modalContent = (
     <div 
       id="print-invoice-modal-backdrop"
       className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xs flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150 select-none"
-      onClick={(e) => {
-        // Clicking backdrop directly exits modal
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* ========================================================================= */}
       {/* FLOATING TOP-RIGHT EMERGENCY CLOSE BUTTON (Guaranteed Exit at all times)  */}
@@ -529,7 +517,7 @@ export default function PrintInvoiceModal({
                   <input 
                     type="file" 
                     ref={fileInputRef}
-                    accept="image/*" 
+                    accept="image/*,.pdf,application/pdf" 
                     multiple 
                     className="hidden" 
                     onChange={handleUploadCustomImage} 
@@ -815,6 +803,10 @@ export default function PrintInvoiceModal({
               <div className="text-center text-[9.5px] pt-1.5 space-y-1 font-mono">
                 <p className="font-black uppercase tracking-wider">THANK YOU FOR YOUR BUSINESS</p>
                 <p>Bako&apos;s Master System • v{APP_CONFIG.version}</p>
+                <p className="text-[8.5px] text-slate-600 flex items-center justify-center gap-1">
+                  <Monitor className="w-2.5 h-2.5 inline shrink-0" />
+                  <span>Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654</span>
+                </p>
                 <div className="pt-2 text-center text-[9px] text-slate-700 font-mono">
                   - - - - - - - - - - - - - - - - - - - - - - - -
                   <span className="block mt-0.5 font-bold">{lang === 'en' ? '[ CUT HERE ]' : '[ CUT HERE / لێرە بیبڕە ]'}</span>
@@ -1134,6 +1126,12 @@ export default function PrintInvoiceModal({
                   <Phone className="w-2.5 h-2.5 inline fill-current text-blue-600" />
                   <span>07705488654</span>
                 </span>
+                <span>•</span>
+                <span>Printed: {new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+              </p>
+              <p className="text-[8.5px] sm:text-[9.5px] text-slate-600 font-semibold flex items-center justify-center gap-1 pt-0.5">
+                <Monitor className="w-3 h-3 inline text-indigo-600 shrink-0" />
+                <span>Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654</span>
               </p>
               </div>
             </div>

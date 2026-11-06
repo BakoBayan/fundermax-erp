@@ -155,8 +155,8 @@ export const BatchPrintModal: React.FC<BatchPrintModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-150"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-150 cursor-pointer"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         className="w-full max-w-3xl max-h-[92vh] bg-white dark:bg-slate-850 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-750 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"

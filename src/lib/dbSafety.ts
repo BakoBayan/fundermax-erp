@@ -112,17 +112,16 @@ export async function backfillMoneySnapshots(db: Client): Promise<void> {
   const rows = res.rows as unknown as Row[];
   if (rows.length === 0) return;
   const updateSql = `UPDATE transactions SET charged_amount = ?, charged_currency = ?, exchange_rate_applied = ?, base_usd_equivalent = ? WHERE id = ?`;
-  await runInTransaction(db, async () => {
-    for (const r of rows) {
-      const cur = isCurrencyCode(r.currency) ? r.currency : 'USD';
-      const rate = legacyRatePerUsd(cur, Number(r.currency_rate) || undefined);
-      const amount = roundMoney(Number(r.total_after_discount) || 0, cur);
-      await db.execute({
-        sql: updateSql,
-        args: [amount, cur, rate, baseUsdFromRate(amount, cur, rate), String(r.id)],
-      });
-    }
+  const stmts = rows.map((r) => {
+    const cur = isCurrencyCode(r.currency) ? r.currency : 'USD';
+    const rate = legacyRatePerUsd(cur, Number(r.currency_rate) || undefined);
+    const amount = roundMoney(Number(r.total_after_discount) || 0, cur);
+    return {
+      sql: updateSql,
+      args: [amount, cur, rate, baseUsdFromRate(amount, cur, rate), String(r.id)],
+    };
   });
+  await db.batch(stmts, 'write');
 }
 
 // ---------------------------------------------------------------------------
@@ -209,9 +208,17 @@ function stripHeavy(row: Row): Row {
   return out;
 }
 
+const LIGHTWEIGHT_SOFT_COLS: Record<SoftTable, string> = {
+  materials: 'id, code, name, type, total_stock, allocated_stock, available_stock, deleted_at',
+  orders: 'id, material_id, order_number, client, quantity, date, status, deleted_at',
+  transactions: 'id, code, timestamp, total_after_discount, currency, client, status, deleted_at',
+  products: 'id, sku, name, category, current_stock, price, deleted_at',
+  shipments: 'id, tracking_code, destination, item_summary, quantity, status, deleted_at',
+};
+
 /**
  * Marks every live row of `table` whose id is not in `keepIds` as deleted (never DELETEs).
- * Each removal is written to the audit log with the pre-deletion state.
+ * Uses a single SQL `IN (...)` statement instead of an N+1 loop and excludes base64 image columns.
  */
 export async function softDeleteMissing(
   db: Client,
@@ -219,19 +226,30 @@ export async function softDeleteMissing(
   keepIds: Set<string>,
   auditAction: string
 ): Promise<number> {
-  const liveRes = await db.execute(`SELECT * FROM ${table} WHERE is_deleted = 0`);
+  const cols = LIGHTWEIGHT_SOFT_COLS[table] || 'id';
+  const liveRes = await db.execute(`SELECT ${cols} FROM ${table} WHERE is_deleted = 0`);
   const live = liveRes.rows as unknown as Row[];
-  const markSql = `UPDATE ${table} SET is_deleted = 1, deleted_at = ? WHERE id = ?`;
+  const toDelete = live.filter((row) => !keepIds.has(String(row.id)));
+  if (toDelete.length === 0) return 0;
+
   const now = new Date().toISOString();
-  let count = 0;
-  for (const row of live) {
+  const ids = toDelete.map((r) => String(r.id));
+  const placeholders = ids.map(() => '?').join(', ');
+  await db.execute({
+    sql: `UPDATE ${table} SET is_deleted = 1, deleted_at = ? WHERE id IN (${placeholders})`,
+    args: [now, ...ids],
+  });
+
+  for (const row of toDelete) {
     const id = String(row.id);
-    if (keepIds.has(id)) continue;
-    await db.execute({ sql: markSql, args: [now, id] });
-    await writeAuditLog(db, auditAction, { table, id, before: stripHeavy(row), after: { is_deleted: 1, deleted_at: now } });
-    count++;
+    await writeAuditLog(db, auditAction, {
+      table,
+      id,
+      before: stripHeavy(row),
+      after: { is_deleted: 1, deleted_at: now },
+    });
   }
-  return count;
+  return toDelete.length;
 }
 
 export interface TrashItem {
@@ -257,14 +275,18 @@ function labelFor(table: SoftTable, r: Row): string {
 }
 
 export async function listSoftDeleted(db: Client): Promise<TrashItem[]> {
+  const queries = SOFT_TABLES.map((table) => ({
+    sql: `SELECT ${LIGHTWEIGHT_SOFT_COLS[table]} FROM ${table} WHERE is_deleted = 1 ORDER BY deleted_at DESC`,
+    args: [],
+  }));
+  const results = await db.batch(queries, 'read');
   const items: TrashItem[] = [];
-  for (const table of SOFT_TABLES) {
-    const res = await db.execute(`SELECT * FROM ${table} WHERE is_deleted = 1 ORDER BY deleted_at DESC`);
-    const rows = res.rows as unknown as Row[];
+  SOFT_TABLES.forEach((table, idx) => {
+    const rows = (results[idx]?.rows ?? []) as unknown as Row[];
     for (const r of rows) {
       items.push({ table, id: String(r.id), label: labelFor(table, r), deletedAt: String(r.deleted_at ?? '') });
     }
-  }
+  });
   return items.sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1));
 }
 

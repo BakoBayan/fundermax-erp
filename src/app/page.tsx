@@ -65,6 +65,10 @@ const VisualChartsModal = dynamic(
   () => import('@/components/VisualChartsModal').then((mod) => mod.VisualChartsModal),
   { loading: () => <p>Loading...</p> }
 );
+const MultiAssetMergerModal = dynamic(
+  () => import('@/components/MultiAssetMergerModal').then((mod) => mod.MultiAssetMergerModal),
+  { loading: () => <p>Loading...</p> }
+);
 const CopyrightModal = dynamic(
   () => import('@/components/CopyrightModal').then((mod) => mod.CopyrightModal),
   { loading: () => <p>Loading...</p> }
@@ -144,6 +148,7 @@ const AccessDeniedView: React.FC<{
 
 function WarehouseApp() {
   const {
+    isHydrated,
     currentModule,
     setCurrentModule,
     effectiveMode,
@@ -205,10 +210,12 @@ function WarehouseApp() {
 
   const allFlattenedOrders = useMemo(() => {
     const list: { order: OrderAllocation; material: PanelMaterial }[] = [];
-    materials.forEach((mat) => {
-      mat.activeOrders.forEach((ord) => {
-        list.push({ order: ord, material: mat });
-      });
+    (Array.isArray(materials) ? materials : []).forEach((mat) => {
+      if (mat && Array.isArray(mat.activeOrders)) {
+        mat.activeOrders.forEach((ord) => {
+          if (ord) list.push({ order: ord, material: mat });
+        });
+      }
     });
     return list;
   }, [materials]);
@@ -304,16 +311,6 @@ function WarehouseApp() {
       setCurrentModule('hub');
     }
   }, [currentModule, userPermissions, currentUser, setCurrentModule]);
-
-  // If user is not logged in, render the secure Login screen
-  if (!currentUser) {
-    return (
-      <>
-        <LoginScreen />
-        <CopyrightModal />
-      </>
-    );
-  }
 
   const handleOpenMaterialModal = (matToEdit?: PanelMaterial | null) => {
     setMaterialToEdit(matToEdit || null);
@@ -723,6 +720,172 @@ function WarehouseApp() {
     );
   };
 
+  const handleOpenBatchPrintModal = React.useCallback(() => {
+    setIsBatchPrintModalOpen(true);
+  }, []);
+
+  const selectedPrintItemIdsSet = React.useMemo(() => {
+    return new Set(selectedPrintQueue.map((q) => q.id));
+  }, [selectedPrintQueue]);
+
+  const activeMainContent = React.useMemo(() => {
+    if (!currentUser) return null;
+    switch (currentModule) {
+      case 'hub':
+        return <ModuleHub onOpenBatchPrint={handleOpenBatchPrintModal} />;
+      case 'panels':
+        return userPermissions.canViewPanels ? (
+          effectiveMode === 'pc' ? (
+            <>
+              <div className="hidden md:block">
+                <ExcelGrid
+                  onOpenOrderModal={handleOpenOrderModal}
+                  onOpenMaterialModal={handleOpenMaterialModal}
+                  onSelectOrderForDetails={setSelectedOrderForDetails}
+                  onPrintIndividualItem={handlePrintIndividual}
+                  selectedPrintItemIds={selectedPrintItemIdsSet}
+                  onTogglePrintQueueItem={handleTogglePrintQueueItem}
+                  onNavigateToOrders={() => setCurrentModule('orders')}
+                />
+              </div>
+              <div className="block md:hidden">
+                <MobileView
+                  onOpenOrderModal={handleOpenOrderModal}
+                  onOpenMaterialModal={handleOpenMaterialModal}
+                  onSelectOrderForDetails={setSelectedOrderForDetails}
+                  onPrintIndividualItem={handlePrintIndividual}
+                  selectedPrintItemIds={selectedPrintItemIdsSet}
+                  onTogglePrintQueueItem={handleTogglePrintQueueItem}
+                  onNavigateToOrders={() => setCurrentModule('orders')}
+                />
+              </div>
+            </>
+          ) : (
+            <MobileView
+              onOpenOrderModal={handleOpenOrderModal}
+              onOpenMaterialModal={handleOpenMaterialModal}
+              onSelectOrderForDetails={setSelectedOrderForDetails}
+              onPrintIndividualItem={handlePrintIndividual}
+              selectedPrintItemIds={selectedPrintItemIdsSet}
+              onTogglePrintQueueItem={handleTogglePrintQueueItem}
+              onNavigateToOrders={() => setCurrentModule('orders')}
+            />
+          )
+        ) : (
+          <AccessDeniedView
+            moduleName={language === 'ku' ? 'تەختەکان و بڕینی وەرشە' : 'Wood Panels & Workshop Cutting'}
+            onReturn={() => setCurrentModule('hub')}
+            language={language}
+          />
+        );
+      case 'orders':
+        return userPermissions.canViewPanels ? (
+          <OrdersSection
+            onOpenOrderModal={handleOpenOrderModal}
+            onSelectOrderForDetails={setSelectedOrderForDetails}
+            onPrintIndividualItem={handlePrintIndividual}
+            selectedPrintItemIds={selectedPrintItemIdsSet}
+            onTogglePrintQueueItem={handleTogglePrintQueueItem}
+          />
+        ) : (
+          <AccessDeniedView
+            moduleName={language === 'ku' ? 'داواکاری کڕیاران و مەخزەن' : 'Order Allocations & Workshop Reservations'}
+            onReturn={() => setCurrentModule('hub')}
+            language={language}
+          />
+        );
+      case 'sales':
+        return userPermissions.canViewSales ? (
+          <SalesSection />
+        ) : (
+          <AccessDeniedView
+            message="Sales POS Restricted"
+            moduleName={language === 'ku' ? 'دەستپێگەیشتن ڕێگاپێدراو نییە • فرۆشتن و پسوولەی کاش (POS)' : 'Sales POS Restricted'}
+            onReturn={() => setCurrentModule('hub')}
+            language={language}
+          />
+        );
+      case 'goods':
+        return userPermissions.canViewWarehouse ? (
+          <WarehouseGoodsSection />
+        ) : (
+          <AccessDeniedView
+            moduleName={language === 'ku' ? 'کڕین و دابینکەران' : 'Purchases & Suppliers'}
+            onReturn={() => setCurrentModule('hub')}
+            language={language}
+          />
+        );
+      case 'shipping':
+        return userPermissions.canViewWarehouse ? (
+          <ShippingPipeline />
+        ) : (
+          <AccessDeniedView
+            moduleName={language === 'ku' ? 'هێڵی گواستنەوە و بارەکان' : 'Shipping Pipeline'}
+            onReturn={() => setCurrentModule('hub')}
+            language={language}
+          />
+        );
+      case 'audit':
+        return currentUser?.role?.toLowerCase() === 'admin' ? (
+          <AuditBackupsSection />
+        ) : (
+          <AccessDeniedView
+            moduleName={language === 'ku' ? 'داتابەیس و چاودێری سیستەم' : 'Database Backups & Audit Trail'}
+            onReturn={() => setCurrentModule('hub')}
+            language={language}
+          />
+        );
+      case 'profit':
+        return userPermissions.canViewFinancialAnalytics ? (
+          <ExecutiveProfitSuite />
+        ) : (
+          <AccessDeniedView
+            moduleName={language === 'ku' ? 'قازانج و حسَاباتی بەڕێوەبەر' : 'Executive Profit & Financial Analytics'}
+            onReturn={() => setCurrentModule('hub')}
+            language={language}
+          />
+        );
+      default:
+        return null;
+    }
+  }, [
+    currentModule,
+    handleOpenBatchPrintModal,
+    userPermissions,
+    effectiveMode,
+    handleOpenOrderModal,
+    handleOpenMaterialModal,
+    handlePrintIndividual,
+    selectedPrintItemIdsSet,
+    handleTogglePrintQueueItem,
+    setCurrentModule,
+    language,
+    currentUser,
+  ]);
+
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center select-none text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <span className="font-mono font-bold text-xs text-slate-400 tracking-widest uppercase">
+            Loading Bako Master System...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not logged in, render the secure Login screen
+  if (!currentUser) {
+    return (
+      <>
+        <LoginScreen />
+        <CopyrightModal />
+      </>
+    );
+  }
+
   return (
     <div className="relative h-auto md:min-h-screen flex flex-col bg-slate-100/60 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors w-full max-w-full overflow-x-hidden">
       {/* Global Ambient Background Motion Elements (Vivid & Clean on Light/Dark Canvas) */}
@@ -877,137 +1040,7 @@ function WarehouseApp() {
 
       {/* Dynamic Main Workspace Container */}
       <main className="h-auto md:flex-1 flex flex-col w-full max-w-full min-h-0 overflow-x-hidden pb-4 md:pb-16 no-print print:hidden">
-        {currentModule === 'hub' && (
-          <ModuleHub
-            onOpenBatchPrint={() => setIsBatchPrintModalOpen(true)}
-          />
-        )}
-
-        {currentModule === 'panels' && (
-          userPermissions.canViewPanels ? (
-            effectiveMode === 'pc' ? (
-              <>
-                <div className="hidden md:block">
-                  <ExcelGrid
-                    onOpenOrderModal={handleOpenOrderModal}
-                    onOpenMaterialModal={handleOpenMaterialModal}
-                    onSelectOrderForDetails={setSelectedOrderForDetails}
-                    onPrintIndividualItem={handlePrintIndividual}
-                    selectedPrintItemIds={new Set(selectedPrintQueue.map((q) => q.id))}
-                    onTogglePrintQueueItem={handleTogglePrintQueueItem}
-                    onNavigateToOrders={() => setCurrentModule('orders')}
-                  />
-                </div>
-                <div className="block md:hidden">
-                  <MobileView
-                    onOpenOrderModal={handleOpenOrderModal}
-                    onOpenMaterialModal={handleOpenMaterialModal}
-                    onSelectOrderForDetails={setSelectedOrderForDetails}
-                    onPrintIndividualItem={handlePrintIndividual}
-                    selectedPrintItemIds={new Set(selectedPrintQueue.map((q) => q.id))}
-                    onTogglePrintQueueItem={handleTogglePrintQueueItem}
-                    onNavigateToOrders={() => setCurrentModule('orders')}
-                  />
-                </div>
-              </>
-            ) : (
-              <MobileView
-                onOpenOrderModal={handleOpenOrderModal}
-                onOpenMaterialModal={handleOpenMaterialModal}
-                onSelectOrderForDetails={setSelectedOrderForDetails}
-                onPrintIndividualItem={handlePrintIndividual}
-                selectedPrintItemIds={new Set(selectedPrintQueue.map((q) => q.id))}
-                onTogglePrintQueueItem={handleTogglePrintQueueItem}
-                onNavigateToOrders={() => setCurrentModule('orders')}
-              />
-            )
-          ) : (
-            <AccessDeniedView
-              moduleName={language === 'ku' ? 'تەختەکان و بڕینی وەرشە' : 'Wood Panels & Workshop Cutting'}
-              onReturn={() => setCurrentModule('hub')}
-              language={language}
-            />
-          )
-        )}
-
-        {currentModule === 'orders' && (
-          userPermissions.canViewPanels ? (
-            <OrdersSection
-              onOpenOrderModal={handleOpenOrderModal}
-              onSelectOrderForDetails={setSelectedOrderForDetails}
-              onPrintIndividualItem={handlePrintIndividual}
-              selectedPrintItemIds={new Set(selectedPrintQueue.map((q) => q.id))}
-              onTogglePrintQueueItem={handleTogglePrintQueueItem}
-            />
-          ) : (
-            <AccessDeniedView
-              moduleName={language === 'ku' ? 'داواکاری کڕیاران و مەخزەن' : 'Order Allocations & Workshop Reservations'}
-              onReturn={() => setCurrentModule('hub')}
-              language={language}
-            />
-          )
-        )}
-
-        {currentModule === 'sales' && (
-          userPermissions.canViewSales ? (
-            <SalesSection />
-          ) : (
-            <AccessDeniedView
-              message="Sales POS Restricted"
-              moduleName={language === 'ku' ? 'دەستپێگەیشتن ڕێگاپێدراو نییە • فرۆشتن و پسوولەی کاش (POS)' : 'Sales POS Restricted'}
-              onReturn={() => setCurrentModule('hub')}
-              language={language}
-            />
-          )
-        )}
-
-        {currentModule === 'goods' && (
-          userPermissions.canViewWarehouse ? (
-            <WarehouseGoodsSection />
-          ) : (
-            <AccessDeniedView
-              moduleName={language === 'ku' ? 'کڕین و دابینکەران' : 'Purchases & Suppliers'}
-              onReturn={() => setCurrentModule('hub')}
-              language={language}
-            />
-          )
-        )}
-
-        {currentModule === 'shipping' && (
-          userPermissions.canViewWarehouse ? (
-            <ShippingPipeline />
-          ) : (
-            <AccessDeniedView
-              moduleName={language === 'ku' ? 'هێڵی گواستنەوە و بارەکان' : 'Shipping Pipeline'}
-              onReturn={() => setCurrentModule('hub')}
-              language={language}
-            />
-          )
-        )}
-
-        {currentModule === 'audit' && (
-          currentUser?.role?.toLowerCase() === 'admin' ? (
-            <AuditBackupsSection />
-          ) : (
-            <AccessDeniedView
-              moduleName={language === 'ku' ? 'داتابەیس و چاودێری سیستەم' : 'Database Backups & Audit Trail'}
-              onReturn={() => setCurrentModule('hub')}
-              language={language}
-            />
-          )
-        )}
-
-        {currentModule === 'profit' && (
-          userPermissions.canViewFinancialAnalytics ? (
-            <ExecutiveProfitSuite />
-          ) : (
-            <AccessDeniedView
-              moduleName={language === 'ku' ? 'قازانج و حسَاباتی بەڕێوەبەر' : 'Executive Profit & Financial Analytics'}
-              onReturn={() => setCurrentModule('hub')}
-              language={language}
-            />
-          )
-        )}
+        {activeMainContent}
       </main>
 
       {/* Fixed Bottom Navigation Bar (Mobile Only: 5 Thumb Tabs) */}
@@ -1113,6 +1146,9 @@ function WarehouseApp() {
 
       {/* Standalone Visual Charts & Analytics Engine Modal */}
       <VisualChartsModal />
+
+      {/* Standalone & Smart-Intercepted Multi-Asset Image & PDF Merger Modal */}
+      <MultiAssetMergerModal />
 
       {/* Statutory Copyright, Intellectual Property & Project Commissioning Modal */}
       <CopyrightModal />

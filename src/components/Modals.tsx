@@ -7,6 +7,7 @@ import { DoorOrderSpec, DoorOpeningDirection, DoorTypeCategory } from "../types/
 import { SearchableDropdown } from "./SearchableDropdown";
 import { X, Image as ImageIcon, Trash2, ZoomIn, DoorClosed, Compass, Camera, Check } from "lucide-react";
 import { autoCapitalizeFirstLetter } from "../utils/text";
+import { readImageFiles, extractClipboardFiles } from "../utils/imageUpload";
 
 // ==========================================
 // 1. MATERIAL / PANEL MODAL (ADD / EDIT)
@@ -30,6 +31,8 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
     addMaterial,
     editMaterial,
     setZoomedImage,
+    isMergerModalOpen,
+    openMergerModal,
   } = useInventory();
 
   const [code, setCode] = useState("");
@@ -70,17 +73,35 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
     }
   }, [isOpen, materialToEdit]);
 
+  useEffect(() => {
+    if (!isOpen || isMergerModalOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const pastedFiles = extractClipboardFiles(e.clipboardData);
+      if (pastedFiles.length === 0) return;
+      e.preventDefault();
+      openMergerModal(pastedFiles, (mergedDataUrl) => {
+        if (mergedDataUrl) {
+          setImageUrl(mergedDataUrl);
+        }
+      });
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [isOpen, isMergerModalOpen, openMergerModal]);
+
   if (!isOpen) return null;
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const results = await readImageFiles(files);
+    if (results.length > 0) {
+      setImageUrl(results[0]);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -128,8 +149,8 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
 
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -209,7 +230,8 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
                 <span>{t.attachImage}</span>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.pdf,application/pdf"
+                  multiple
                   onChange={handleImageUpload}
                   className="hidden"
                 />
@@ -374,6 +396,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     removeFromDropdownPresets,
     isViewer,
     language,
+    isMergerModalOpen,
+    openMergerModal,
   } = useInventory();
 
   const isKu = language === 'ku';
@@ -474,6 +498,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setErrorMsg("");
   }, [isOpen, orderToEdit, preselectedMaterialId, materials]);
 
+  useEffect(() => {
+    if (!isOpen || isMergerModalOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const pastedFiles = extractClipboardFiles(e.clipboardData);
+      if (pastedFiles.length === 0) return;
+      e.preventDefault();
+      openMergerModal(pastedFiles, (mergedDataUrl) => {
+        if (mergedDataUrl) {
+          setImageUrl(mergedDataUrl);
+        }
+      });
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [isOpen, isMergerModalOpen, openMergerModal]);
+
   if (!isOpen) return null;
 
   const maxAvailable = currentMaterial
@@ -484,15 +526,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   const qtyNum = parseInt(quantity) || 0;
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const results = await readImageFiles(files);
+    if (results.length > 0) {
+      setImageUrl(results[0]);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -558,8 +600,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -905,7 +947,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 <span>{jobType === "door" ? (isKu ? "وێنە بگرە یان دیزاین هەڵبژێرە" : "Upload Photo / Design") : t.attachImage}</span>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.pdf,application/pdf"
+                  multiple
                   onChange={handleImageUpload}
                   className="hidden"
                 />

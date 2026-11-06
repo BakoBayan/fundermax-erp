@@ -22,8 +22,8 @@ export const StockMathModal: React.FC<StockMathModalProps> = ({ material, onClos
 
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-      onClick={onClose}
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 cursor-pointer"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
       dir={isKu ? 'rtl' : 'ltr'}
     >
       <div

@@ -62,8 +62,8 @@ export const NetworkShareModal: React.FC<NetworkShareModalProps> = ({ isOpen, on
 
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 select-none"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 select-none cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}

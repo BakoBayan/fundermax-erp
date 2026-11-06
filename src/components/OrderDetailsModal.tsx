@@ -135,8 +135,8 @@ Bako's Master System`;
 
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 no-print print:hidden select-none"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 no-print print:hidden select-none cursor-pointer"
     >
       <div
         className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-850 rounded-t-2xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-200 dark:border-slate-750 w-full max-w-lg overflow-y-auto max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200"

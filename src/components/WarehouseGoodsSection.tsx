@@ -111,9 +111,7 @@ const ModalShell: React.FC<{ title: string; onClose: () => void; children: React
 }) => (
   <div
     className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150 no-print select-none"
-    onMouseDown={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}
+    onPointerDown={(e) => e.target === e.currentTarget && onClose()}
   >
     <div
       className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[85dvh] sm:max-h-[90dvh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150 flex flex-col`}

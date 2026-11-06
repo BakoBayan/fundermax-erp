@@ -50,8 +50,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose, onO
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-sm animate-in fade-in duration-150"
-      onClick={onClose}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-sm animate-in fade-in duration-150 cursor-pointer"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         className="w-full max-w-sm bg-white dark:bg-slate-850 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-750 overflow-hidden animate-in zoom-in-95 duration-150"

@@ -598,6 +598,14 @@ export async function generateMasterPDF(
     color: rgb(0.55, 0.6, 0.68),
   });
 
+  page.drawText(sanitizeText("Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654"), {
+    x: margin,
+    y: footerLineY - 26,
+    size: 7,
+    font: fontBold,
+    color: rgb(0.45, 0.5, 0.6),
+  });
+
   page.drawText(sanitizeText("Valid Document - Page 1 of 1"), {
     x: width - margin - 110,
     y: footerLineY - 14,
@@ -605,8 +613,12 @@ export async function generateMasterPDF(
     font: fontRegular,
     color: rgb(0.4, 0.45, 0.52),
   });
-  page.drawText(sanitizeText(`Record Timestamp: ${new Date().toISOString()}`), {
-    x: width - margin - 150,
+  const formattedTimestamp = new Date().toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  page.drawText(sanitizeText(`Record Timestamp: ${formattedTimestamp}`), {
+    x: width - margin - 165,
     y: footerLineY - 26,
     size: 7,
     font: fontRegular,

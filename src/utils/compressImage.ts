@@ -2,6 +2,7 @@ export interface CompressImageOptions {
   maxDimension?: number;
   quality?: number;
   mimeType?: 'image/jpeg' | 'image/png' | 'image/webp';
+  maxSizeKb?: number;
 }
 
 export interface CompressImageResult {
@@ -13,7 +14,7 @@ export interface CompressImageResult {
 
 /**
  * Bulletproof global client-side image compression & normalization utility.
- * Features multi-layered fallbacks and yields to prevent UI freezes.
+ * Features multi-layered fallbacks, target KB enforcement (default 150KB), and yields to prevent UI freezes.
  */
 export async function compressImage(
   file: File,
@@ -23,6 +24,7 @@ export async function compressImage(
     maxDimension = 1200,
     quality = 0.8,
     mimeType = 'image/jpeg',
+    maxSizeKb = 150,
   } = options;
 
   // Fallback 1: Non-image files (PDFs, docs) bypass canvas safely
@@ -90,7 +92,23 @@ export async function compressImage(
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          const base64 = canvas.toDataURL(mimeType, quality);
+          let activeQuality = quality;
+          let base64 = canvas.toDataURL(mimeType, activeQuality);
+
+          // Iteratively enforce maxSizeKb (e.g. 150KB) for JPEG/WEBP
+          if (maxSizeKb > 0 && mimeType !== 'image/png') {
+            const targetMaxBytes = maxSizeKb * 1024;
+            const estimateBytes = (b64: string) => Math.round(((b64.length - (b64.indexOf(',') + 1)) * 3) / 4);
+            const testQualities = [activeQuality, 0.72, 0.64, 0.55, 0.45, 0.35];
+            for (const q of testQualities) {
+              if (q > activeQuality) continue;
+              activeQuality = q;
+              base64 = canvas.toDataURL(mimeType, activeQuality);
+              if (estimateBytes(base64) <= targetMaxBytes) {
+                break;
+              }
+            }
+          }
 
           canvas.toBlob(
             (blob) => {
@@ -110,7 +128,7 @@ export async function compressImage(
               });
             },
             mimeType,
-            quality
+            activeQuality
           );
         } catch {
           resolve({ base64: rawDataUrl, file, width: img.width, height: img.height });

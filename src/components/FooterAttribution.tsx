@@ -32,7 +32,7 @@ export const FooterAttribution: React.FC = () => {
           </span>
         </button>
 
-        {/* Right: Prominent Phone Contact Badge & System Engine Indicator */}
+        {/* Right: Prominent Phone Contact Badge, Email & System Engine Indicator */}
         <div className="flex items-center gap-2 md:gap-2.5 flex-wrap justify-center md:justify-end">
           {/* Direct Phone Call Button */}
           <a
@@ -46,6 +46,10 @@ export const FooterAttribution: React.FC = () => {
             </span>
             <span className="font-mono font-black text-[11px] md:text-xs text-emerald-900 dark:text-emerald-200 tracking-wider">
               07705488654
+            </span>
+            <span className="text-emerald-400/60 font-bold px-0.5">•</span>
+            <span className="font-mono text-[10px] md:text-[11px] font-bold lowercase text-emerald-800 dark:text-emerald-300">
+              bakobayan.official@gmail.com
             </span>
           </a>
 

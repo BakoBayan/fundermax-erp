@@ -47,7 +47,7 @@ export const SvgDonutChart: React.FC<{
   totalValue?: string | number;
   size?: number;
   isKu?: boolean;
-}> = ({ data, totalLabel, totalValue, size = 260, isKu = false }) => {
+}> = React.memo(({ data = [], totalLabel, totalValue, size = 260, isKu = false }) => {
   const [activeHoverIdx, setActiveHoverIdx] = useState<number | null>(null);
 
   const total = useMemo(() => {
@@ -111,7 +111,7 @@ export const SvgDonutChart: React.FC<{
 
   return (
     <div className="flex flex-col items-center w-full">
-      <div className="relative flex items-center justify-center transform-gpu will-change-transform" style={{ width: size, height: size }}>
+      <div className="relative flex items-center justify-center transform-gpu" style={{ width: size, height: size }}>
         <svg
           width={size}
           height={size}
@@ -208,7 +208,7 @@ export const SvgDonutChart: React.FC<{
       </div>
     </div>
   );
-};
+});
 
 export interface BarGroupItem {
   category: string;
@@ -223,7 +223,7 @@ export interface BarGroupItem {
 export const SvgGroupedBarChart: React.FC<{
   data: BarGroupItem[];
   height?: number;
-}> = ({ data, height = 230 }) => {
+}> = React.memo(({ data = [], height = 230 }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const maxValue = useMemo(() => {
@@ -286,7 +286,7 @@ export const SvgGroupedBarChart: React.FC<{
   return (
     <div className="w-full flex flex-col">
       <div className="w-full overflow-x-auto">
-        <div className="transform-gpu will-change-transform" style={{ minWidth: width, width: '100%' }}>
+        <div className="transform-gpu" style={{ minWidth: width, width: '100%' }}>
           <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="select-none overflow-visible">
             {gridLines.map((gl) => (
               <g key={gl.i}>
@@ -382,7 +382,7 @@ export const SvgGroupedBarChart: React.FC<{
       )}
     </div>
   );
-};
+});
 
 export interface TrendPoint {
   label: string;
@@ -396,14 +396,16 @@ export const SvgAreaTrendChart: React.FC<{
   height?: number;
   valuePrefix?: string;
   isKu?: boolean;
-}> = ({
-  data,
+}> = React.memo(({
+  data = [],
   lineColor = '#0ea5e9',
   fillGradientId = 'trendGradient',
   height = 200,
   valuePrefix = '',
   isKu = false,
 }) => {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
   const chartWidth = 520;
   const paddingLeft = 40;
   const paddingRight = 20;
@@ -414,14 +416,14 @@ export const SvgAreaTrendChart: React.FC<{
 
   const maxVal = useMemo(() => {
     let m = 1;
-    data.forEach((p) => {
+    (data || []).forEach((p) => {
       if (p.value > m) m = p.value;
     });
     return Math.max(Math.ceil((m * 1.15) / 10) * 10, 10);
   }, [data]);
 
   const points = useMemo(() => {
-    if (data.length === 0) return [];
+    if (!data || data.length === 0) return [];
     const step = data.length > 1 ? innerW / (data.length - 1) : innerW;
     return data.map((d, i) => {
       const x = paddingLeft + (data.length > 1 ? i * step : innerW / 2);
@@ -454,9 +456,17 @@ export const SvgAreaTrendChart: React.FC<{
     return `${pathD} L ${last.x} ${paddingTop + innerH} L ${first.x} ${paddingTop + innerH} Z`;
   }, [pathD, points, innerH, paddingTop]);
 
+  if (!data || data.length === 0) {
+    return (
+      <div className="w-full flex items-center justify-center text-slate-400 text-xs font-mono" style={{ height }}>
+        {isKu ? 'هیچ داتایەک بەردەست نییە' : 'No trend data available'}
+      </div>
+    );
+  }
+
   return (
     <div className="w-full overflow-x-auto">
-      <div className="transform-gpu will-change-transform" style={{ minWidth: chartWidth, width: '100%' }}>
+      <div className="transform-gpu" style={{ minWidth: chartWidth, width: '100%' }}>
         <svg width="100%" height={height} viewBox={`0 0 ${chartWidth} ${height}`} className="select-none overflow-visible">
           <defs>
             <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
@@ -467,7 +477,18 @@ export const SvgAreaTrendChart: React.FC<{
           {areaD && <path d={areaD} fill={`url(#${fillGradientId})`} />}
           {pathD && <path d={pathD} fill="none" stroke={lineColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
           {points.map((pt, i) => (
-            <circle key={i} cx={pt.x} cy={pt.y} r="4" fill={lineColor} stroke="#fff" strokeWidth="2" className="cursor-pointer hover:r-6 transition-all" />
+            <circle
+              key={i}
+              cx={pt.x}
+              cy={pt.y}
+              r={hoveredIdx === i ? 6 : 4}
+              fill={hoveredIdx === i ? '#ffffff' : lineColor}
+              stroke={lineColor}
+              strokeWidth={hoveredIdx === i ? 3 : 2}
+              className="cursor-pointer"
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+            />
           ))}
           {/* Axis points */}
           {points.map((pt, i) => (
@@ -475,11 +496,36 @@ export const SvgAreaTrendChart: React.FC<{
               {pt.label}
             </text>
           ))}
+          {/* Decoupled Floating Tooltip */}
+          {hoveredIdx !== null && points[hoveredIdx] && (
+            <g transform={`translate(${points[hoveredIdx].x}, ${Math.max(22, points[hoveredIdx].y - 12)})`} className="pointer-events-none">
+              <rect
+                x="-36"
+                y="-22"
+                width="72"
+                height="20"
+                rx="6"
+                fill="#0f172a"
+                className="drop-shadow-md"
+              />
+              <text
+                x="0"
+                y="-8"
+                textAnchor="middle"
+                fill="#ffffff"
+                fontSize="10"
+                fontWeight="bold"
+                className="font-mono select-none"
+              >
+                {valuePrefix}{points[hoveredIdx].value.toLocaleString()}
+              </text>
+            </g>
+          )}
         </svg>
       </div>
     </div>
   );
-};
+});
 
 // ============================================================================
 // MAIN EXECUTIVE VISUAL CHARTS MODAL COMPONENT (RBAC Protected Bento Grid)
@@ -754,7 +800,7 @@ export const VisualChartsModal: React.FC = () => {
       className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-6 md:p-8 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto cursor-pointer"
       role="dialog"
       aria-modal="true"
-      onClick={closeVisualCharts}
+      onPointerDown={(e) => e.target === e.currentTarget && closeVisualCharts()}
     >
       {/* Executive Bento Container */}
       <div

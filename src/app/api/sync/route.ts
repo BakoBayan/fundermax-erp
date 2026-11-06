@@ -1,24 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { unstable_noStore as noStore, revalidatePath } from "next/cache";
+import { unstable_noStore as noStore } from "next/cache";
 import {
   getUnifiedDataFromDB,
   saveUnifiedDataToDB,
-  getDatabaseHealth,
+  buildHealthFromUnified,
   withActor,
   writeAuditLog,
   getDB,
 } from "@/lib/db";
 import type { UserModulePermissions, UserRole } from "@/types/inventory";
 
+export const dynamic = "force-dynamic";
 
-export const revalidate = 3600;
-
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   noStore();
   try {
-    const data = await getUnifiedDataFromDB();
-    const health = await getDatabaseHealth();
+    const { searchParams } = new URL(req.url);
+    const sinceParam = searchParams.get("since");
+    const since = sinceParam ? parseInt(sinceParam, 10) || 0 : 0;
+
+    // Strictly omit images_json on sync — initial sync payload must be pure text data
+    const data = await getUnifiedDataFromDB({ includeImages: false, since });
+    const health = buildHealthFromUnified(data);
+
     return NextResponse.json(
       { ...data, health },
       {
@@ -123,7 +127,6 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await withActor(actor, () => saveUnifiedDataToDB(body));
-    revalidatePath('/', 'layout');
     return NextResponse.json(result, {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Building2,
   X,
@@ -9,9 +9,6 @@ import {
   AlertCircle,
   Plus,
   Coins,
-  Receipt,
-  ArrowRight,
-  TrendingDown,
 } from 'lucide-react';
 import { InboundShipment } from '../types/warehouse';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
@@ -32,6 +29,82 @@ interface SupplierSummary {
   shipments: InboundShipment[];
 }
 
+const SupplierLedgerRow: React.FC<{
+  sup: SupplierSummary;
+  isKu: boolean;
+  onPay: (sup: SupplierSummary) => void;
+}> = React.memo(({ sup, isKu, onPay }) => {
+  const sym = sup.currency === 'EUR' ? '€' : '$';
+  const hasDebt = sup.balanceOwed > 0;
+
+  return (
+    <tr className="even:bg-slate-50/70 dark:even:bg-slate-900/20 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors">
+      {/* Name */}
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 font-bold text-xs">
+            {sup.supplier.charAt(0)}
+          </div>
+          <div>
+            <span className="font-bold text-slate-900 dark:text-white block">
+              {sup.supplier}
+            </span>
+            <span className="text-[10px] text-slate-400">
+              {sup.shipments.length} {isKu ? 'وەجبە' : 'batches'}
+            </span>
+          </div>
+        </div>
+      </td>
+
+      {/* Phone */}
+      <td className="py-3 px-4">
+        {sup.phone ? (
+          <a
+            href={`tel:${sup.phone}`}
+            className="inline-flex items-center gap-1 font-mono text-sky-600 dark:text-sky-400 hover:underline"
+            dir="ltr"
+          >
+            <Phone className="w-3 h-3" />
+            <span>{sup.phone}</span>
+          </a>
+        ) : (
+          <span className="text-slate-400 font-mono">-</span>
+        )}
+      </td>
+
+      {/* Total Paid */}
+      <td className="py-3 px-4 text-end font-mono font-bold text-emerald-600 dark:text-emerald-400">
+        {sym}{sup.totalPaid.toLocaleString()}
+      </td>
+
+      {/* Current Balance Owed (In Red) */}
+      <td className="py-3 px-4 text-end font-mono font-black text-rose-600 dark:text-rose-400 text-sm">
+        {hasDebt ? (
+          <span>{sym}{sup.balanceOwed.toLocaleString()}</span>
+        ) : (
+          <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+            {isKu ? 'تەواو دراوە' : 'Zero Debt'}
+          </span>
+        )}
+      </td>
+
+      {/* Quick Action: + Pay Supplier */}
+      <td className="py-3 px-4 text-center">
+        <button
+          type="button"
+          onClick={() => onPay(sup)}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-750 active:scale-95 text-white border border-slate-700 font-bold text-[11px] shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+          title={isKu ? 'پارەدان بە دابینکەر' : 'Pay Supplier'}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>{isKu ? 'پارەدان بە دابینکەر' : '+ Pay Supplier'}</span>
+        </button>
+      </td>
+    </tr>
+  );
+});
+SupplierLedgerRow.displayName = 'SupplierLedgerRow';
+
 export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
   isOpen,
   onClose,
@@ -46,6 +119,23 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
   const [payAmount, setPayAmount] = useState<string>('');
   const [payError, setPayError] = useState<string>('');
   const [paySuccess, setPaySuccess] = useState<string>('');
+  const [visibleLimit, setVisibleLimit] = useState<number>(50);
+
+  const evaluateInlineMath = useCallback((raw: string): string => {
+    if (!raw || !raw.trim()) return '';
+    try {
+      const sanitized = raw.replace(/[^0-9+\-*/.()]/g, '');
+      if (!sanitized) return raw;
+      // eslint-disable-next-line no-new-func
+      const result = new Function(`return (${sanitized})`)();
+      if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
+        return String(Math.round(result * 100) / 100);
+      }
+      return raw;
+    } catch {
+      return raw;
+    }
+  }, []);
 
   // Group active shipments by supplier
   const supplierLedger = useMemo(() => {
@@ -95,9 +185,7 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
     return supplierLedger.reduce((sum, s) => sum + s.totalPaid, 0);
   }, [supplierLedger]);
 
-  if (!isOpen) return null;
-
-  const handleOpenPayDrawer = (sup: SupplierSummary) => {
+  const handleOpenPayDrawer = useCallback((sup: SupplierSummary) => {
     setPayingSupplier(sup);
     setPayError('');
     setPaySuccess('');
@@ -121,14 +209,18 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
       setSelectedShipmentId('');
       setPayAmount('');
     }
-  };
+  }, []);
+
+  if (!isOpen) return null;
 
   const handleConfirmPayment = (e: React.FormEvent) => {
     e.preventDefault();
     setPayError('');
     setPaySuccess('');
 
-    const amt = parseFloat(payAmount);
+    const resolvedPay = evaluateInlineMath(payAmount);
+    if (resolvedPay !== payAmount) setPayAmount(resolvedPay);
+    const amt = parseFloat(resolvedPay);
     if (isNaN(amt) || amt <= 0) {
       setPayError(isKu ? 'تکایە بڕی دروست دیاری بکە.' : 'Please enter a valid positive payment amount.');
       return;
@@ -172,8 +264,8 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
 
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 select-none"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 select-none cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -309,14 +401,18 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
                     {isKu ? 'بڕی پارەدان' : 'Payment Amount'}
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="any"
-                    min="0.01"
                     required
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value)}
-                    placeholder="0.00"
+                    onBlur={() => setPayAmount((prev) => evaluateInlineMath(prev))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setPayAmount((prev) => evaluateInlineMath(prev));
+                      }
+                    }}
+                    placeholder="0.00 (e.g. 150+50)"
                     className="w-full h-10 px-3 text-sm font-bold font-mono rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
                   />
                 </div>
@@ -349,10 +445,10 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="overflow-x-auto max-h-[52vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800">
               <table className="w-full text-start border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
+                <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-xs shadow-2xs">
+                  <tr className="border-b border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <th className="py-3 px-4">{isKu ? 'ناوی دابینکەر' : 'Supplier Name'}</th>
                     <th className="py-3 px-4">{isKu ? 'تەلەفۆن' : 'Phone'}</th>
                     <th className="py-3 px-4 text-end">{isKu ? 'کۆی پارەی دراو' : 'Total Paid'}</th>
@@ -361,81 +457,29 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                  {supplierLedger.map((sup) => {
-                    const sym = sup.currency === 'EUR' ? '€' : '$';
-                    const hasDebt = sup.balanceOwed > 0;
-
-                    return (
-                      <tr
-                        key={sup.supplier}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        {/* Name */}
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 font-bold text-xs">
-                              {sup.supplier.charAt(0)}
-                            </div>
-                            <div>
-                              <span className="font-bold text-slate-900 dark:text-white block">
-                                {sup.supplier}
-                              </span>
-                              <span className="text-[10px] text-slate-400">
-                                {sup.shipments.length} {isKu ? 'وەجبە' : 'batches'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Phone */}
-                        <td className="py-3 px-4">
-                          {sup.phone ? (
-                            <a
-                              href={`tel:${sup.phone}`}
-                              className="inline-flex items-center gap-1 font-mono text-sky-600 dark:text-sky-400 hover:underline"
-                              dir="ltr"
-                            >
-                              <Phone className="w-3 h-3" />
-                              <span>{sup.phone}</span>
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 font-mono">-</span>
-                          )}
-                        </td>
-
-                        {/* Total Paid */}
-                        <td className="py-3 px-4 text-end font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                          {sym}{sup.totalPaid.toLocaleString()}
-                        </td>
-
-                        {/* Current Balance Owed (In Red) */}
-                        <td className="py-3 px-4 text-end font-mono font-black text-rose-600 dark:text-rose-400 text-sm">
-                          {hasDebt ? (
-                            <span>{sym}{sup.balanceOwed.toLocaleString()}</span>
-                          ) : (
-                            <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">
-                              {isKu ? 'تەواو دراوە' : 'Zero Debt'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Quick Action: + Pay Supplier */}
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenPayDrawer(sup)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-750 active:scale-95 text-white border border-slate-700 font-bold text-[11px] shadow-2xs transition-all cursor-pointer whitespace-nowrap"
-                            title={isKu ? 'پارەدان بە دابینکەر' : 'Pay Supplier'}
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>{isKu ? 'پارەدان بە دابینکەر' : '+ Pay Supplier'}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {supplierLedger.slice(0, visibleLimit).map((sup) => (
+                    <SupplierLedgerRow
+                      key={sup.supplier}
+                      sup={sup}
+                      isKu={isKu}
+                      onPay={handleOpenPayDrawer}
+                    />
+                  ))}
                 </tbody>
               </table>
+              {supplierLedger.length > visibleLimit && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleLimit((prev) => prev + 50)}
+                    className="px-4 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-750 cursor-pointer"
+                  >
+                    {isKu
+                      ? `پیشاندانی زیاتر (${supplierLedger.length - visibleLimit} ماوە)`
+                      : `Show More (${supplierLedger.length - visibleLimit} remaining)`}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

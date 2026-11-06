@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { idb } from '../lib/idb';
 import {
   DEFAULT_LOCATIONS,
   EMPTY_WAREHOUSE_STATE,
@@ -36,8 +37,15 @@ function normalize(raw: unknown): WarehouseOpsState {
   const r = raw as Partial<WarehouseOpsState>;
   const locations = Array.isArray(r.locations) && r.locations.length > 0 ? r.locations : DEFAULT_LOCATIONS;
   const hasWorkshop = locations.some((l) => l.id === WORKSHOP_LOCATION_ID);
+  const shipments: InboundShipment[] = Array.isArray(r.shipments)
+    ? r.shipments.map((s) => ({
+        ...s,
+        hasAttachments: Boolean(s.hasAttachments || (Array.isArray(s.attachments) && s.attachments.length > 0)),
+        attachments: [],
+      }))
+    : [];
   return {
-    shipments: Array.isArray(r.shipments) ? r.shipments : [],
+    shipments,
     locations: hasWorkshop ? locations : [...locations, DEFAULT_LOCATIONS[DEFAULT_LOCATIONS.length - 1]],
     allocations: Array.isArray(r.allocations) ? r.allocations : [],
     transfers: Array.isArray(r.transfers) ? r.transfers : [],
@@ -50,16 +58,36 @@ function emit(): void {
 }
 
 function persistLocal(): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-  } catch {
-    // storage full or unavailable: server copy remains the source of truth
-  }
+  void idb.set(STORAGE_KEY, current);
 }
 
-async function pushToServer(): Promise<void> {
+let isSyncingFromServer = false;
+let lastWarehouseSyncAt = 0;
+let warehousePushTimer: ReturnType<typeof setTimeout> | null = null;
+let isDirtyFlag = false;
+
+const pendingUpsertedShipments = new Map<string, InboundShipment>();
+const pendingDeletedShipmentIds = new Set<string>();
+let pendingLocationsDirty = false;
+let pendingAllocationsDirty = false;
+let pendingTransfersDirty = false;
+
+async function pushToServerImmediate(): Promise<void> {
+  const upserts = Array.from(pendingUpsertedShipments.values());
+  const deletedIds = Array.from(pendingDeletedShipmentIds.values());
+  const sendLocations = pendingLocationsDirty ? current.locations : undefined;
+  const sendAllocations = pendingAllocationsDirty ? current.allocations : undefined;
+  const sendTransfers = pendingTransfersDirty ? current.transfers : undefined;
+
+  pendingUpsertedShipments.clear();
+  pendingDeletedShipmentIds.clear();
+  pendingLocationsDirty = false;
+  pendingAllocationsDirty = false;
+  pendingTransfersDirty = false;
+
   try {
-    localStorage.setItem(DIRTY_KEY, '1');
+    isDirtyFlag = true;
+    void idb.set(DIRTY_KEY, '1');
     const res = await fetch('/api/warehouse', {
       method: 'POST',
       cache: 'no-store',
@@ -69,7 +97,15 @@ async function pushToServer(): Promise<void> {
         'Pragma': 'no-cache',
         'Cache-Control': 'no-store, max-age=0',
       },
-      body: JSON.stringify({ state: current }),
+      body: JSON.stringify({
+        delta: true,
+        updatedAt: current.updatedAt,
+        upsertedShipments: upserts.length > 0 ? upserts : undefined,
+        deletedShipmentIds: deletedIds.length > 0 ? deletedIds : undefined,
+        locations: sendLocations,
+        allocations: sendAllocations,
+        transfers: sendTransfers,
+      }),
     });
     const data = (await res.json()) as { success?: boolean; stale?: boolean; state?: unknown };
     serverReachable = true;
@@ -78,14 +114,52 @@ async function pushToServer(): Promise<void> {
       persistLocal();
       emit();
     }
-    if (data.success || data.stale) localStorage.removeItem(DIRTY_KEY);
+    if (data.success || data.stale) {
+      isDirtyFlag = false;
+      void idb.remove(DIRTY_KEY);
+    }
   } catch {
-    serverReachable = false; // offline: dirty flag keeps the pending write for the next sync
+    // Re-queue if network failed
+    for (const sh of upserts) {
+      if (!pendingUpsertedShipments.has(sh.id)) {
+        pendingUpsertedShipments.set(sh.id, sh);
+      }
+    }
+    for (const id of deletedIds) {
+      pendingDeletedShipmentIds.add(id);
+    }
+    if (sendLocations) pendingLocationsDirty = true;
+    if (sendAllocations) pendingAllocationsDirty = true;
+    if (sendTransfers) pendingTransfersDirty = true;
+    serverReachable = false;
   }
 }
 
+function pushToServer(): void {
+  isDirtyFlag = true;
+  void idb.set(DIRTY_KEY, '1');
+  if (warehousePushTimer) clearTimeout(warehousePushTimer);
+  warehousePushTimer = setTimeout(() => {
+    warehousePushTimer = null;
+    void pushToServerImmediate();
+  }, 250);
+}
+
 async function syncFromServer(): Promise<void> {
+  const now = Date.now();
+  if (isSyncingFromServer || now - lastWarehouseSyncAt < 1500) {
+    return;
+  }
+  isSyncingFromServer = true;
+  lastWarehouseSyncAt = now;
+
   try {
+    if (warehousePushTimer) {
+      clearTimeout(warehousePushTimer);
+      warehousePushTimer = null;
+      await pushToServerImmediate();
+    }
+
     const res = await fetch('/api/warehouse', {
       cache: 'no-store',
       next: { revalidate: 0 } as any,
@@ -97,7 +171,8 @@ async function syncFromServer(): Promise<void> {
     const data = (await res.json()) as { state?: unknown };
     serverReachable = true;
     const server = data.state ? normalize(data.state) : null;
-    const dirty = localStorage.getItem(DIRTY_KEY) === '1';
+    const storedDirty = await idb.get<string>(DIRTY_KEY);
+    const dirty = isDirtyFlag || storedDirty === '1';
     if (server && (!dirty || server.updatedAt > current.updatedAt)) {
       if (server.updatedAt >= current.updatedAt) {
         current = server;
@@ -106,33 +181,93 @@ async function syncFromServer(): Promise<void> {
         return;
       }
     }
-    if (dirty || (!server && current.updatedAt > 0) || (server && current.updatedAt > server.updatedAt)) {
-      await pushToServer();
+    if (dirty && (pendingUpsertedShipments.size > 0 || pendingDeletedShipmentIds.size > 0 || pendingLocationsDirty || pendingAllocationsDirty || pendingTransfersDirty)) {
+      await pushToServerImmediate();
     }
   } catch {
     serverReachable = false;
+  } finally {
+    isSyncingFromServer = false;
   }
 }
 
 function init(): void {
   if (initialized || typeof window === 'undefined') return;
   initialized = true;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) current = normalize(JSON.parse(raw));
-  } catch {
-    current = EMPTY_WAREHOUSE_STATE;
-  }
-  emit();
-  void syncFromServer();
-  window.addEventListener('online', () => void syncFromServer());
+  void (async () => {
+    try {
+      const cached = await idb.get<WarehouseOpsState>(STORAGE_KEY);
+      if (cached && current.updatedAt === 0) {
+        current = normalize(cached);
+        emit();
+      }
+      const dirtyVal = await idb.get<string>(DIRTY_KEY);
+      if (dirtyVal === '1') {
+        isDirtyFlag = true;
+      }
+    } catch {}
+    await syncFromServer();
+  })();
 }
 
-function commit(mutator: (s: WarehouseOpsState) => WarehouseOpsState): void {
-  current = { ...mutator(current), updatedAt: Date.now() };
+function commit(
+  mutator: (s: WarehouseOpsState) => WarehouseOpsState,
+  deltaInfo?: {
+    upsertedShipments?: InboundShipment[];
+    deletedShipmentIds?: string[];
+    locationsDirty?: boolean;
+    allocationsDirty?: boolean;
+    transfersDirty?: boolean;
+  }
+): void {
+  const prev = current;
+  const next = { ...mutator(current), updatedAt: Date.now() };
+
+  if (deltaInfo?.upsertedShipments) {
+    for (const sh of deltaInfo.upsertedShipments) {
+      pendingUpsertedShipments.set(sh.id, sh);
+    }
+  } else if (next.shipments !== prev.shipments) {
+    const prevById = new Map(prev.shipments.map((s) => [s.id, s]));
+    for (const sh of next.shipments) {
+      const old = prevById.get(sh.id);
+      if (!old || old !== sh) {
+        if (sh.isDeleted === 1 && old?.isDeleted !== 1) {
+          pendingDeletedShipmentIds.add(sh.id);
+        } else {
+          pendingUpsertedShipments.set(sh.id, sh);
+        }
+      }
+    }
+  }
+
+  if (deltaInfo?.deletedShipmentIds) {
+    for (const id of deltaInfo.deletedShipmentIds) {
+      pendingDeletedShipmentIds.add(id);
+    }
+  }
+  if (deltaInfo?.locationsDirty || next.locations !== prev.locations) {
+    pendingLocationsDirty = true;
+  }
+  if (deltaInfo?.allocationsDirty || next.allocations !== prev.allocations) {
+    pendingAllocationsDirty = true;
+  }
+  if (deltaInfo?.transfersDirty || next.transfers !== prev.transfers) {
+    pendingTransfersDirty = true;
+  }
+
+  // Strip base64 attachments from in-memory state after queuing the delta payload
+  current = {
+    ...next,
+    shipments: next.shipments.map((s) => ({
+      ...s,
+      hasAttachments: Boolean(s.hasAttachments || (Array.isArray(s.attachments) && s.attachments.length > 0)),
+      attachments: [],
+    })),
+  };
   persistLocal();
   emit();
-  void pushToServer();
+  pushToServer();
 }
 
 function subscribe(listener: Listener): () => void {
@@ -209,9 +344,11 @@ export function useWarehouseOps() {
     const paymentStatus: SupplierPaymentStatus = invTotal <= 0 ? 'PAID' : debt <= 0 ? 'PAID' : paid > 0 ? 'PARTIAL_DEBT' : 'UNPAID';
 
     commit((s) => {
+      const targetId = input.id || uid('inb');
+      const existing = s.shipments.find((sh) => sh.id === targetId);
       const shipment: InboundShipment = {
-        id: input.id || uid('inb'),
-        batchCode: input.batchCode?.trim() || nextBatchCode(s.shipments, input.arrivalDate),
+        id: targetId,
+        batchCode: input.batchCode?.trim() || existing?.batchCode || nextBatchCode(s.shipments, input.arrivalDate),
         supplier: input.supplier.trim(),
         supplierName: input.supplier.trim(),
         supplierContact: input.supplierContact.trim(),
@@ -227,7 +364,7 @@ export function useWarehouseOps() {
           expectedQty: Math.max(0, i.expectedQty),
           receivedQty: Math.max(0, i.receivedQty),
         })),
-        createdAt: now,
+        createdAt: existing?.createdAt || now,
         updatedAt: now,
         isDeleted: 0,
         deletedAt: null,
@@ -237,7 +374,23 @@ export function useWarehouseOps() {
         supplierDebtRemaining: debt,
         paymentStatus,
       };
-      return { ...s, shipments: [shipment, ...s.shipments] };
+      const exists = s.shipments.some((sh) => sh.id === shipment.id);
+      if (!exists) {
+        return { ...s, shipments: [shipment, ...s.shipments] };
+      }
+      let replaced = false;
+      const deduplicated = s.shipments.reduce<InboundShipment[]>((acc, sh) => {
+        if (sh.id === shipment.id) {
+          if (!replaced) {
+            acc.push(shipment);
+            replaced = true;
+          }
+        } else {
+          acc.push(sh);
+        }
+        return acc;
+      }, []);
+      return { ...s, shipments: deduplicated };
     });
     return { ok: true };
   }, []);

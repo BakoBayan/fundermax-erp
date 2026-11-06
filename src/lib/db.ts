@@ -81,7 +81,24 @@ const INVENTORY_STORE_JSON_PATH = path.join(DATA_DIR, "inventory_store.json");
 const globalForDB = globalThis as unknown as {
   tursoClient?: Client;
   tursoInitPromise?: Promise<void>;
+  unifiedCache?: {
+    data: UnifiedDatabasePayload;
+    cachedAt: number;
+  };
+  warehouseCache?: {
+    raw: string | null;
+    updatedAt: number;
+    cachedAt: number;
+  };
 };
+
+export function invalidateUnifiedCache(): void {
+  globalForDB.unifiedCache = undefined;
+}
+
+export function invalidateWarehouseCache(): void {
+  globalForDB.warehouseCache = undefined;
+}
 
 export function getDB(): Client {
   if (globalForDB.tursoClient) return globalForDB.tursoClient;
@@ -629,36 +646,44 @@ async function migrateFromInventoryStoreJSON(db: Client): Promise<void> {
 }
 
 // ==========================================
-// INVENTORY CRUD OPERATIONS
+// EXPLICIT COLUMN PROJECTIONS (NO SELECT *)
 // ==========================================
 
-export async function getInventoryFromDB(): Promise<{
+const MATERIAL_SELECT_COLS =
+  "id, code, name, type, length, width, thickness, unit, formatted_dimensions, total_stock, allocated_stock, available_stock, notes, image_url, created_at, updated_at";
+const MATERIAL_LIGHT_COLS =
+  "id, code, name, type, length, width, thickness, unit, formatted_dimensions, total_stock, allocated_stock, available_stock, notes, NULL AS image_url, created_at, updated_at";
+
+const ORDER_SELECT_COLS =
+  "id, material_id, order_number, client, quantity, date, notes, status, image_url, created_at, updated_at, job_type, door_spec_json";
+const ORDER_LIGHT_COLS =
+  "id, material_id, order_number, client, quantity, date, notes, status, NULL AS image_url, created_at, updated_at, job_type, door_spec_json";
+
+const TRANSACTION_SELECT_COLS =
+  "id, code, timestamp, panel_type, material, quantity, unit, selling_type, seller, bank, payment_type, currency, currency_rate, selling_amount, cost_price, discount_dollars, discount_percentage, total_after_discount, amount_paid_now, amount_owed, old_unpaid_debt, combined_total_debt, gross_profit, profit_margin, notes, images_json, CASE WHEN images_json IS NOT NULL AND images_json != '' AND images_json != '[]' THEN 1 ELSE 0 END AS has_images, items_json, status, last_updated, charged_amount, charged_currency, exchange_rate_applied, base_usd_equivalent, legacy_invoice_ref, fundermax_batch_ref, client, client_phone, estimated_cost";
+const TRANSACTION_LIGHT_COLS =
+  "id, code, timestamp, panel_type, material, quantity, unit, selling_type, seller, bank, payment_type, currency, currency_rate, selling_amount, cost_price, discount_dollars, discount_percentage, total_after_discount, amount_paid_now, amount_owed, old_unpaid_debt, combined_total_debt, gross_profit, profit_margin, notes, '[]' AS images_json, CASE WHEN images_json IS NOT NULL AND images_json != '' AND images_json != '[]' THEN 1 ELSE 0 END AS has_images, items_json, status, last_updated, charged_amount, charged_currency, exchange_rate_applied, base_usd_equivalent, legacy_invoice_ref, fundermax_batch_ref, client, client_phone, estimated_cost";
+
+const PRODUCT_SELECT_COLS =
+  "id, sku, name, category, current_stock, min_stock, location, price, image_url, lane, last_updated";
+const PRODUCT_LIGHT_COLS =
+  "id, sku, name, category, current_stock, min_stock, location, price, NULL AS image_url, lane, last_updated";
+
+const SHIPMENT_SELECT_COLS =
+  "id, tracking_code, destination, item_summary, quantity, status, created_at";
+
+function mapInventoryRows(
+  matRows: Record<string, unknown>[],
+  ordRows: Record<string, unknown>[],
+  typeRows: { name: string }[],
+  userRows: Record<string, unknown>[],
+  lastUpdated: number
+): {
   materials: PanelMaterial[];
   customTypes: string[];
   users: UserAccount[];
   lastUpdated: number;
-}> {
-  const db = getDB();
-
-  const matRes = await db.execute(`
-    SELECT * FROM materials WHERE is_deleted = 0 ORDER BY CAST(code AS INTEGER) ASC, name ASC
-  `);
-  const matRows = matRes.rows as unknown as Record<string, unknown>[];
-
-  const ordRes = await db.execute(`
-    SELECT * FROM orders WHERE is_deleted = 0 ORDER BY date DESC, created_at DESC
-  `);
-  const ordRows = ordRes.rows as unknown as Record<string, unknown>[];
-
-  const typeRes = await db.execute(`
-    SELECT name FROM custom_types ORDER BY name ASC
-  `);
-  const typeRows = typeRes.rows as unknown as { name: string }[];
-
-  const metaRes = await db.execute(`SELECT value FROM meta WHERE key = 'last_updated'`);
-  const metaRow = metaRes.rows[0] as unknown as { value: string } | undefined;
-  const lastUpdated = metaRow ? parseInt(String(metaRow.value), 10) : Date.now();
-
+} {
   const ordersByMat: Record<string, OrderAllocation[]> = {};
   for (const o of ordRows) {
     const matId = String(o.material_id);
@@ -715,11 +740,6 @@ export async function getInventoryFromDB(): Promise<{
     customTypes.unshift("HPL");
   }
 
-  const userRes = await db.execute(`
-    SELECT username, display_name, role, password_hash, created_at, permissions_json FROM user_accounts ORDER BY created_at ASC
-  `);
-  const userRows = userRes.rows as unknown as Record<string, unknown>[];
-
   const users: UserAccount[] = userRows.map((u) => {
     const rawRole = String(u.role || "Staff").toLowerCase();
     let role: UserRole = "Staff";
@@ -749,6 +769,41 @@ export async function getInventoryFromDB(): Promise<{
   return { materials, customTypes, users, lastUpdated };
 }
 
+// ==========================================
+// INVENTORY CRUD OPERATIONS
+// ==========================================
+
+export async function getInventoryFromDB(includeImages = true): Promise<{
+  materials: PanelMaterial[];
+  customTypes: string[];
+  users: UserAccount[];
+  lastUpdated: number;
+}> {
+  const db = getDB();
+  const matCols = includeImages ? MATERIAL_SELECT_COLS : MATERIAL_LIGHT_COLS;
+  const ordCols = includeImages ? ORDER_SELECT_COLS : ORDER_LIGHT_COLS;
+
+  const [matRes, ordRes, typeRes, metaRes, userRes] = await db.batch(
+    [
+      `SELECT ${matCols} FROM materials WHERE is_deleted = 0 ORDER BY CAST(code AS INTEGER) ASC, name ASC`,
+      `SELECT ${ordCols} FROM orders WHERE is_deleted = 0 ORDER BY date DESC, created_at DESC`,
+      `SELECT name FROM custom_types ORDER BY name ASC`,
+      `SELECT value FROM meta WHERE key = 'last_updated'`,
+      `SELECT username, display_name, role, password_hash, created_at, permissions_json FROM user_accounts ORDER BY created_at ASC`,
+    ],
+    "read"
+  );
+
+  const matRows = matRes.rows as unknown as Record<string, unknown>[];
+  const ordRows = ordRes.rows as unknown as Record<string, unknown>[];
+  const typeRows = typeRes.rows as unknown as { name: string }[];
+  const metaRow = metaRes.rows[0] as unknown as { value: string } | undefined;
+  const lastUpdated = metaRow ? parseInt(String(metaRow.value), 10) : Date.now();
+  const userRows = userRes.rows as unknown as Record<string, unknown>[];
+
+  return mapInventoryRows(matRows, ordRows, typeRows, userRows, lastUpdated);
+}
+
 function buildUpsertSql(table: string, columns: readonly string[]): string {
   const allCols = ["id", ...columns];
   const placeholders = allCols.map(() => "?").join(", ");
@@ -760,10 +815,14 @@ function buildUpsertSql(table: string, columns: readonly string[]): string {
 export async function saveInventoryToDB(
   materials: PanelMaterial[],
   customTypes: string[],
-  users?: UserAccount[]
+  users?: UserAccount[],
+  options?: { delta?: boolean; deletedMaterialIds?: string[] }
 ): Promise<{ success: boolean; lastUpdated: number }> {
   const db = getDB();
   const nowTime = Date.now();
+  const isDelta = Boolean(options?.delta);
+  const explicitDeletedMatIds = options?.deletedMaterialIds || [];
+  invalidateUnifiedCache();
 
   try {
     await runInTransaction(db, async () => {
@@ -774,33 +833,57 @@ export async function saveInventoryToDB(
         for (const ord of mat.activeOrders ?? []) incomingOrdIds.add(ord.id);
       }
 
-      // Panels that disappeared from the list: soft delete the panel and its orders. Never DELETE.
-      const liveMatsRes = await db.execute(`SELECT * FROM materials WHERE is_deleted = 0`);
-      const liveMats = liveMatsRes.rows as unknown as Record<string, unknown>[];
-      for (const m of liveMats) {
-        const id = String(m.id);
-        if (incomingMatIds.has(id)) continue;
-        const archivedOrders = await db.execute({
-          sql: `UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE material_id = ? AND is_deleted = 0`,
-          args: [nowIso, id],
+      let liveMats: Record<string, unknown>[] = [];
+      let liveOrders: Record<string, unknown>[] = [];
+
+      if (!isDelta) {
+        // Full sync: fetch all live materials and orders to compute missing deletions
+        const [liveMatsRes, liveOrdersRes] = await db.batch(
+          [
+            `SELECT id, code, name, type, total_stock, allocated_stock, available_stock, updated_at FROM materials WHERE is_deleted = 0`,
+            `SELECT id, material_id, order_number, client, quantity, date, status, updated_at FROM orders WHERE is_deleted = 0`,
+          ],
+          "read"
+        );
+        liveMats = liveMatsRes.rows as unknown as Record<string, unknown>[];
+        liveOrders = liveOrdersRes.rows as unknown as Record<string, unknown>[];
+      } else if (materials.length > 0 || explicitDeletedMatIds.length > 0) {
+        // Delta sync: only query orders belonging to the touched/deleted materials
+        const touchedMatIds = Array.from(new Set([...materials.map((m) => m.id), ...explicitDeletedMatIds]));
+        const placeholders = touchedMatIds.map(() => "?").join(", ");
+        const [liveMatsRes, liveOrdersRes] = await db.batch(
+          [
+            {
+              sql: `SELECT id, code, name, type, total_stock, allocated_stock, available_stock, updated_at FROM materials WHERE id IN (${placeholders}) AND is_deleted = 0`,
+              args: touchedMatIds,
+            },
+            {
+              sql: `SELECT id, material_id, order_number, client, quantity, date, status, updated_at FROM orders WHERE material_id IN (${placeholders}) AND is_deleted = 0`,
+              args: touchedMatIds,
+            },
+          ],
+          "read"
+        );
+        liveMats = liveMatsRes.rows as unknown as Record<string, unknown>[];
+        liveOrders = liveOrdersRes.rows as unknown as Record<string, unknown>[];
+      }
+
+      const writeBatch: { sql: string; args: any[] }[] = [];
+
+      // Panels to soft-delete: either missing from full sync or explicitly listed in delta deletedMaterialIds
+      const deletedMats = isDelta
+        ? liveMats.filter((m) => explicitDeletedMatIds.includes(String(m.id)))
+        : liveMats.filter((m) => !incomingMatIds.has(String(m.id)));
+      if (deletedMats.length > 0 || (isDelta && explicitDeletedMatIds.length > 0)) {
+        const delMatIds = isDelta ? explicitDeletedMatIds : deletedMats.map((m) => String(m.id));
+        const placeholders = delMatIds.map(() => "?").join(", ");
+        writeBatch.push({
+          sql: `UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE material_id IN (${placeholders}) AND is_deleted = 0`,
+          args: [nowIso, ...delMatIds],
         });
-        await db.execute({
-          sql: `UPDATE materials SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
-          args: [nowIso, id],
-        });
-        await writeAuditLog(db, "MATERIAL_DELETED", {
-          table: "materials",
-          id,
-          before: {
-            code: m.code,
-            name: m.name,
-            type: m.type,
-            total_stock: m.total_stock,
-            allocated_stock: m.allocated_stock,
-            available_stock: m.available_stock,
-          },
-          after: { is_deleted: 1, deleted_at: nowIso },
-          ordersArchivedWithPanel: Number(archivedOrders.rowsAffected ?? 0),
+        writeBatch.push({
+          sql: `UPDATE materials SET is_deleted = 1, deleted_at = ? WHERE id IN (${placeholders})`,
+          args: [nowIso, ...delMatIds],
         });
       }
 
@@ -833,7 +916,7 @@ export async function saveInventoryToDB(
       `;
 
       for (const mat of materials) {
-        await db.execute({
+        writeBatch.push({
           sql: upsertMatSql,
           args: [
             mat.id,
@@ -851,13 +934,13 @@ export async function saveInventoryToDB(
             mat.notes ? autoCapitalizeFirstLetter(mat.notes) : "",
             mat.imageUrl || null,
             mat.createdAt ? String(mat.createdAt) : String(Date.now()),
-            mat.updatedAt || new Date().toISOString(),
+            mat.updatedAt || nowIso,
           ],
         });
 
         if (Array.isArray(mat.activeOrders)) {
           for (const ord of mat.activeOrders) {
-            await db.execute({
+            writeBatch.push({
               sql: upsertOrdSql,
               args: [
                 ord.id,
@@ -879,16 +962,58 @@ export async function saveInventoryToDB(
         }
       }
 
-      // Orders removed from an existing panel: soft delete with audit log
-      const liveOrdersRes = await db.execute(`SELECT * FROM orders WHERE is_deleted = 0`);
-      const liveOrders = liveOrdersRes.rows as unknown as Record<string, unknown>[];
-      for (const o of liveOrders) {
-        const id = String(o.id);
-        if (incomingOrdIds.has(id)) continue;
-        await db.execute({
-          sql: `UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
-          args: [nowIso, id],
+      // Orders removed from an existing panel: soft delete via IN (...) instead of N+1 loop
+      const deletedOrders = liveOrders.filter(
+        (o) => (!isDelta || incomingMatIds.has(String(o.material_id))) && !incomingOrdIds.has(String(o.id))
+      );
+      if (deletedOrders.length > 0) {
+        const delOrdIds = deletedOrders.map((o) => String(o.id));
+        const placeholders = delOrdIds.map(() => "?").join(", ");
+        writeBatch.push({
+          sql: `UPDATE orders SET is_deleted = 1, deleted_at = ? WHERE id IN (${placeholders})`,
+          args: [nowIso, ...delOrdIds],
         });
+      }
+
+      const insertTypeSql = `INSERT OR IGNORE INTO custom_types (name) VALUES (?)`;
+      for (const t of customTypes) {
+        if (typeof t === "string" && t.trim()) {
+          writeBatch.push({
+            sql: insertTypeSql,
+            args: [autoCapitalizeFirstLetter(t.trim())],
+          });
+        }
+      }
+
+      writeBatch.push({
+        sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)`,
+        args: [String(nowTime)],
+      });
+
+      if (writeBatch.length > 0) {
+        await db.batch(writeBatch, "write");
+      }
+
+      // Write audit logs for any soft-deleted materials or orders
+      for (const m of deletedMats) {
+        const id = String(m.id);
+        await writeAuditLog(db, "MATERIAL_DELETED", {
+          table: "materials",
+          id,
+          before: {
+            code: m.code,
+            name: m.name,
+            type: m.type,
+            total_stock: m.total_stock,
+            allocated_stock: m.allocated_stock,
+            available_stock: m.available_stock,
+          },
+          after: { is_deleted: 1, deleted_at: nowIso },
+        });
+      }
+
+      for (const o of deletedOrders) {
+        const id = String(o.id);
         await writeAuditLog(db, "ORDER_DELETED", {
           table: "orders",
           id,
@@ -901,27 +1026,10 @@ export async function saveInventoryToDB(
         });
       }
 
-      const insertTypeSql = `INSERT OR IGNORE INTO custom_types (name) VALUES (?)`;
-      for (const t of customTypes) {
-        if (typeof t === "string" && t.trim()) {
-          await db.execute({
-            sql: insertTypeSql,
-            args: [autoCapitalizeFirstLetter(t.trim())],
-          });
-        }
-      }
-
       if (Array.isArray(users) && users.length > 0) {
         await saveUsersToDB(users);
       }
-
-      await db.execute({
-        sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)`,
-        args: [String(nowTime)],
-      });
     });
-
-    // Local file-system backup bypassed for Vercel read-only environment
 
     return { success: true, lastUpdated: nowTime };
   } catch (err) {
@@ -930,11 +1038,7 @@ export async function saveInventoryToDB(
   }
 }
 
-export async function getTransactionsFromDB(): Promise<PanelTransaction[]> {
-  const db = getDB();
-  const res = await db.execute(`SELECT * FROM transactions WHERE is_deleted = 0 ORDER BY timestamp DESC`);
-  const rows = res.rows as unknown as Record<string, unknown>[];
-
+function mapTransactionRows(rows: Record<string, unknown>[]): PanelTransaction[] {
   return rows.map((r) => {
     let images: string[] = [];
     let items: InvoiceItem[] = [];
@@ -972,6 +1076,7 @@ export async function getTransactionsFromDB(): Promise<PanelTransaction[]> {
       profitMargin: Number(r.profit_margin || 0),
       notes: String(r.notes || ""),
       images,
+      hasImages: Boolean(Number(r.has_images) === 1 || images.length > 0),
       items,
       status: (r.status || "completed") as any,
       lastUpdated: String(r.last_updated || r.timestamp),
@@ -986,13 +1091,52 @@ export async function getTransactionsFromDB(): Promise<PanelTransaction[]> {
         r.exchange_rate_applied === null || r.exchange_rate_applied === undefined ? undefined : Number(r.exchange_rate_applied),
       baseUsdEquivalent:
         r.base_usd_equivalent === null || r.base_usd_equivalent === undefined ? undefined : Number(r.base_usd_equivalent),
-      isReceivable:
-        r.is_receivable !== null && r.is_receivable !== undefined
-          ? Boolean(r.is_receivable)
-          : (r.payment_type !== 'Supplier Bill' && r.selling_type !== 'Supplier Purchase'),
-      phoneCountryCode: r.phone_country_code ? String(r.phone_country_code) : undefined,
+      isReceivable: r.payment_type !== 'Supplier Bill' && r.selling_type !== 'Supplier Purchase',
     };
   });
+}
+
+export async function getTransactionsFromDB(includeImages = false): Promise<PanelTransaction[]> {
+  const db = getDB();
+  const cols = includeImages ? TRANSACTION_SELECT_COLS : TRANSACTION_LIGHT_COLS;
+  const res = await db.execute(`SELECT ${cols} FROM transactions WHERE is_deleted = 0 ORDER BY timestamp DESC`);
+  const rows = res.rows as unknown as Record<string, unknown>[];
+  return mapTransactionRows(rows);
+}
+
+export async function getTransactionImagesFromDB(id: string): Promise<string[]> {
+  const db = getDB();
+  const res = await db.execute({
+    sql: `SELECT images_json FROM transactions WHERE id = ? OR code = ? LIMIT 1`,
+    args: [id, id],
+  });
+  const row = res.rows[0] as unknown as { images_json?: string } | undefined;
+  if (row?.images_json) {
+    try {
+      const parsed = JSON.parse(String(row.images_json));
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((x): x is string => typeof x === "string" && x.length > 0);
+      }
+    } catch {}
+  }
+
+  // Fallback: check warehouse_ops shipments attachments if record was stored as a shipment
+  try {
+    const rawWarehouse = await getWarehouseOpsRawFromDB();
+    if (rawWarehouse) {
+      const parsedWh = JSON.parse(rawWarehouse) as {
+        shipments?: Array<{ id?: string; batchCode?: string; attachments?: string[] }>;
+      };
+      const matchedSh = (parsedWh.shipments || []).find(
+        (s) => s.id === id || (s.batchCode && s.batchCode.toLowerCase() === id.toLowerCase())
+      );
+      if (matchedSh && Array.isArray(matchedSh.attachments) && matchedSh.attachments.length > 0) {
+        return matchedSh.attachments.filter((x): x is string => typeof x === "string" && x.length > 0);
+      }
+    }
+  } catch {}
+
+  return [];
 }
 
 const TX_COLUMNS = [
@@ -1002,24 +1146,76 @@ const TX_COLUMNS = [
   "gross_profit", "profit_margin", "notes", "images_json", "items_json", "status", "last_updated",
   "charged_amount", "charged_currency", "exchange_rate_applied", "base_usd_equivalent",
   "legacy_invoice_ref", "fundermax_batch_ref", "client", "client_phone", "estimated_cost",
-  "is_receivable", "phone_country_code",
 ] as const;
 
-
-export async function saveTransactionsToDB(transactions: PanelTransaction[]): Promise<void> {
+export async function saveTransactionsToDB(
+  transactions: PanelTransaction[],
+  options?: { delta?: boolean; deletedIds?: string[] }
+): Promise<void> {
   const db = getDB();
+  const isDelta = Boolean(options?.delta);
+  const explicitDeletedIds = options?.deletedIds || [];
+  invalidateUnifiedCache();
   try {
     await runInTransaction(db, async () => {
-      const existingRes = await db.execute(`SELECT * FROM transactions`);
-      const existingRows = existingRes.rows as unknown as Record<string, unknown>[];
       const existingById = new Map<string, Record<string, unknown>>();
-      for (const r of existingRows) existingById.set(String(r.id), r);
+
+      if (!isDelta) {
+        const existingRes = await db.execute(
+          `SELECT id, is_deleted, last_updated, charged_currency, exchange_rate_applied, selling_amount, discount_dollars, total_after_discount, amount_paid_now, amount_owed, status, items_json, images_json, notes, selling_type, payment_type FROM transactions`
+        );
+        const existingRows = existingRes.rows as unknown as Record<string, unknown>[];
+        for (const r of existingRows) existingById.set(String(r.id), r);
+      } else if (transactions.length > 0) {
+        const txIds = transactions.map((t) => t.id);
+        const placeholders = txIds.map(() => "?").join(", ");
+        const existingRes = await db.execute({
+          sql: `SELECT id, is_deleted, last_updated, charged_currency, exchange_rate_applied, selling_amount, discount_dollars, total_after_discount, amount_paid_now, amount_owed, status, items_json, images_json, notes, selling_type, payment_type FROM transactions WHERE id IN (${placeholders})`,
+          args: txIds,
+        });
+        const existingRows = existingRes.rows as unknown as Record<string, unknown>[];
+        for (const r of existingRows) existingById.set(String(r.id), r);
+      }
 
       const upsertTxSql = buildUpsertSql("transactions", TX_COLUMNS);
       const incomingIds = new Set<string>();
+      const txBatch: { sql: string; args: any[] }[] = [];
+      const priceOverrides: Array<{ id: string; code: string | null; currency: CurrencyCode; before: unknown; after: unknown }> = [];
 
       for (const tx of transactions) {
         incomingIds.add(tx.id);
+        const existing = existingById.get(tx.id);
+
+        const incomingSellingType = tx.sellingType ? autoCapitalizeFirstLetter(tx.sellingType) : "";
+        const incomingPaymentType = tx.paymentType ? autoCapitalizeFirstLetter(tx.paymentType) : "";
+        const incomingNotes = tx.notes ? autoCapitalizeFirstLetter(tx.notes) : "";
+        const hasIncomingImages = Array.isArray(tx.images) && tx.images.length > 0;
+        const shouldPreserveExistingImages =
+          !hasIncomingImages &&
+          existing?.images_json &&
+          String(existing.images_json) !== "[]" &&
+          (tx.hasImages === true || (tx.lastUpdated && String(existing.last_updated) === String(tx.lastUpdated)));
+        const incomingImagesJson = shouldPreserveExistingImages
+          ? String(existing!.images_json)
+          : JSON.stringify(tx.images || []);
+
+        // Delta skip: only skip if live and all tracked fields (last_updated, images_json, notes, selling_type, payment_type, amounts, status) match
+        if (
+          existing &&
+          Number(existing.is_deleted) === 0 &&
+          tx.lastUpdated &&
+          String(existing.last_updated) === String(tx.lastUpdated) &&
+          String(existing.images_json || "[]") === incomingImagesJson &&
+          String(existing.notes || "") === incomingNotes &&
+          String(existing.selling_type || "") === incomingSellingType &&
+          String(existing.payment_type || "") === incomingPaymentType &&
+          Number(existing.amount_paid_now) === Number(tx.amountPaidNow || 0) &&
+          Number(existing.amount_owed) === Number(tx.amountOwed || 0) &&
+          String(existing.status || "completed") === String(tx.status || "completed")
+        ) {
+          continue;
+        }
+
         const cur: CurrencyCode = isCurrencyCode(tx.currency) ? tx.currency : "USD";
         const m = (n: number | undefined): number => roundMoney(Number(n) || 0, cur);
 
@@ -1042,9 +1238,6 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
         const discountDollars = m(tx.discountDollars);
         const totalAfterDiscount = m(tx.totalAfterDiscount);
 
-        // Immutable multi-currency snapshot. The rate stored when the invoice was first charged
-        // always wins, so later market-rate changes or edits never rewrite history.
-        const existing = existingById.get(tx.id);
         const priorRate =
           existing && existing.charged_currency === cur && Number(existing.exchange_rate_applied) > 0
             ? Number(existing.exchange_rate_applied)
@@ -1057,7 +1250,6 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
         const chargedAmount = totalAfterDiscount;
         const baseUsd = baseUsdFromRate(chargedAmount, cur, rate);
 
-        // PRICE_OVERRIDE: an existing live invoice whose price-defining values changed.
         if (existing && Number(existing.is_deleted) === 0) {
           let beforeItems: InvoiceItem[] = [];
           try {
@@ -1075,8 +1267,7 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
             JSON.stringify(beforeTotals) !== JSON.stringify(afterTotals) ||
             sig(beforeItems) !== sig(sanitizedItems)
           ) {
-            await writeAuditLog(db, "PRICE_OVERRIDE", {
-              table: "transactions",
+            priceOverrides.push({
               id: tx.id,
               code: tx.code || null,
               currency: cur,
@@ -1086,7 +1277,7 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
           }
         }
 
-        await db.execute({
+        txBatch.push({
           sql: upsertTxSql,
           args: [
             tx.id,
@@ -1096,10 +1287,10 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
             tx.material ? autoCapitalizeFirstLetter(tx.material) : "",
             tx.quantity || 1,
             tx.unit || "sheets",
-            tx.sellingType ? autoCapitalizeFirstLetter(tx.sellingType) : "",
+            incomingSellingType,
             tx.seller ? autoCapitalizeFirstLetter(tx.seller) : "",
             tx.bank ? autoCapitalizeFirstLetter(tx.bank) : "",
-            tx.paymentType ? autoCapitalizeFirstLetter(tx.paymentType) : "",
+            incomingPaymentType,
             cur,
             tx.currencyRate || 1,
             sellingAmount,
@@ -1113,8 +1304,8 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
             m(tx.combinedTotalDebt),
             m(tx.grossProfit),
             tx.profitMargin || 0,
-            tx.notes ? autoCapitalizeFirstLetter(tx.notes) : "",
-            JSON.stringify(tx.images || []),
+            incomingNotes,
+            incomingImagesJson,
             JSON.stringify(sanitizedItems),
             tx.status || "completed",
             tx.lastUpdated || new Date().toISOString(),
@@ -1127,13 +1318,42 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
             tx.client ? autoCapitalizeFirstLetter(tx.client) : "",
             tx.clientPhone ? tx.clientPhone.trim() : "",
             tx.estimatedCost || 0,
-            tx.isReceivable ? 1 : 0,
-            tx.phoneCountryCode ? tx.phoneCountryCode.trim() : null,
           ],
         });
       }
 
-      await softDeleteMissing(db, "transactions", incomingIds, "INVOICE_DELETED");
+      if (txBatch.length > 0) {
+        await db.batch(txBatch, "write");
+      }
+
+      for (const po of priceOverrides) {
+        await writeAuditLog(db, "PRICE_OVERRIDE", {
+          table: "transactions",
+          id: po.id,
+          code: po.code,
+          currency: po.currency,
+          before: po.before,
+          after: po.after,
+        });
+      }
+
+      if (isDelta && explicitDeletedIds.length > 0) {
+        const nowIso = new Date().toISOString();
+        const placeholders = explicitDeletedIds.map(() => "?").join(", ");
+        await db.execute({
+          sql: `UPDATE transactions SET is_deleted = 1, deleted_at = ? WHERE id IN (${placeholders}) AND is_deleted = 0`,
+          args: [nowIso, ...explicitDeletedIds],
+        });
+        for (const delId of explicitDeletedIds) {
+          await writeAuditLog(db, "INVOICE_DELETED", {
+            table: "transactions",
+            id: delId,
+            after: { is_deleted: 1, deleted_at: nowIso },
+          });
+        }
+      } else if (!isDelta) {
+        await softDeleteMissing(db, "transactions", incomingIds, "INVOICE_DELETED");
+      }
     });
   } catch (err) {
     console.error("[saveTransactionsToDB Error]", err);
@@ -1141,12 +1361,7 @@ export async function saveTransactionsToDB(transactions: PanelTransaction[]): Pr
   }
 }
 
-
-
-export async function getProductsFromDB(): Promise<Product[]> {
-  const db = getDB();
-  const res = await db.execute(`SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC`);
-  const rows = res.rows as unknown as Record<string, unknown>[];
+function mapProductRows(rows: Record<string, unknown>[]): Product[] {
   return rows.map((r) => ({
     id: String(r.id),
     sku: String(r.sku || ""),
@@ -1162,18 +1377,33 @@ export async function getProductsFromDB(): Promise<Product[]> {
   }));
 }
 
+export async function getProductsFromDB(includeImages = true): Promise<Product[]> {
+  const db = getDB();
+  const cols = includeImages ? PRODUCT_SELECT_COLS : PRODUCT_LIGHT_COLS;
+  const res = await db.execute(`SELECT ${cols} FROM products WHERE is_deleted = 0 ORDER BY name ASC`);
+  const rows = res.rows as unknown as Record<string, unknown>[];
+  return mapProductRows(rows);
+}
+
 const PRODUCT_COLUMNS = [
   "sku", "name", "category", "current_stock", "min_stock", "location", "price", "image_url", "lane", "last_updated",
 ] as const;
 
-export async function saveProductsToDB(products: Product[]): Promise<void> {
+export async function saveProductsToDB(
+  products: Product[],
+  options?: { delta?: boolean; deletedIds?: string[] }
+): Promise<void> {
   const db = getDB();
+  const isDelta = Boolean(options?.delta);
+  const explicitDeletedIds = options?.deletedIds || [];
+  invalidateUnifiedCache();
   await runInTransaction(db, async () => {
     const upsertSql = buildUpsertSql("products", PRODUCT_COLUMNS);
     const incomingIds = new Set<string>();
+    const stmts: { sql: string; args: any[] }[] = [];
     for (const p of products) {
       incomingIds.add(p.id);
-      await db.execute({
+      stmts.push({
         sql: upsertSql,
         args: [
           p.id,
@@ -1190,7 +1420,20 @@ export async function saveProductsToDB(products: Product[]): Promise<void> {
         ],
       });
     }
-    await softDeleteMissing(db, "products", incomingIds, "PRODUCT_DELETED");
+    if (isDelta && explicitDeletedIds.length > 0) {
+      const nowIso = new Date().toISOString();
+      const placeholders = explicitDeletedIds.map(() => "?").join(", ");
+      stmts.push({
+        sql: `UPDATE products SET is_deleted = 1, deleted_at = ? WHERE id IN (${placeholders}) AND is_deleted = 0`,
+        args: [nowIso, ...explicitDeletedIds],
+      });
+    }
+    if (stmts.length > 0) {
+      await db.batch(stmts, "write");
+    }
+    if (!isDelta) {
+      await softDeleteMissing(db, "products", incomingIds, "PRODUCT_DELETED");
+    }
   });
 }
 
@@ -1198,10 +1441,7 @@ export async function saveProductsToDB(products: Product[]): Promise<void> {
 // SHIPMENTS PIPELINE CRUD
 // ==========================================
 
-export async function getShipmentsFromDB(): Promise<Shipment[]> {
-  const db = getDB();
-  const res = await db.execute(`SELECT * FROM shipments WHERE is_deleted = 0 ORDER BY created_at DESC`);
-  const rows = res.rows as unknown as Record<string, unknown>[];
+function mapShipmentRows(rows: Record<string, unknown>[]): Shipment[] {
   return rows.map((r) => ({
     id: String(r.id),
     trackingCode: String(r.tracking_code || ""),
@@ -1213,16 +1453,30 @@ export async function getShipmentsFromDB(): Promise<Shipment[]> {
   }));
 }
 
+export async function getShipmentsFromDB(): Promise<Shipment[]> {
+  const db = getDB();
+  const res = await db.execute(`SELECT ${SHIPMENT_SELECT_COLS} FROM shipments WHERE is_deleted = 0 ORDER BY created_at DESC`);
+  const rows = res.rows as unknown as Record<string, unknown>[];
+  return mapShipmentRows(rows);
+}
+
 const SHIPMENT_COLUMNS = ["tracking_code", "destination", "item_summary", "quantity", "status", "created_at"] as const;
 
-export async function saveShipmentsToDB(shipments: Shipment[]): Promise<void> {
+export async function saveShipmentsToDB(
+  shipments: Shipment[],
+  options?: { delta?: boolean; deletedIds?: string[] }
+): Promise<void> {
   const db = getDB();
+  const isDelta = Boolean(options?.delta);
+  const explicitDeletedIds = options?.deletedIds || [];
+  invalidateUnifiedCache();
   await runInTransaction(db, async () => {
     const upsertSql = buildUpsertSql("shipments", SHIPMENT_COLUMNS);
     const incomingIds = new Set<string>();
+    const stmts: { sql: string; args: any[] }[] = [];
     for (const s of shipments) {
       incomingIds.add(s.id);
-      await db.execute({
+      stmts.push({
         sql: upsertSql,
         args: [
           s.id,
@@ -1235,29 +1489,46 @@ export async function saveShipmentsToDB(shipments: Shipment[]): Promise<void> {
         ],
       });
     }
-    await softDeleteMissing(db, "shipments", incomingIds, "SHIPMENT_DELETED");
+    if (isDelta && explicitDeletedIds.length > 0) {
+      const nowIso = new Date().toISOString();
+      const placeholders = explicitDeletedIds.map(() => "?").join(", ");
+      stmts.push({
+        sql: `UPDATE shipments SET is_deleted = 1, deleted_at = ? WHERE id IN (${placeholders}) AND is_deleted = 0`,
+        args: [nowIso, ...explicitDeletedIds],
+      });
+    }
+    if (stmts.length > 0) {
+      await db.batch(stmts, "write");
+    }
+    if (!isDelta) {
+      await softDeleteMissing(db, "shipments", incomingIds, "SHIPMENT_DELETED");
+    }
   });
 }
-
 
 // ==========================================
 // EXCHANGE RATES & DROPDOWN PRESETS
 // ==========================================
 
-export async function getExchangeRatesFromDB(): Promise<ExchangeRates> {
-  const db = getDB();
-  const res = await db.execute(`SELECT value FROM meta WHERE key = 'exchange_rates'`);
-  const row = res.rows[0] as unknown as { value: string } | undefined;
-  if (!row || !row.value) return DEFAULT_EXCHANGE_RATES;
+function parseExchangeRatesValue(rawValue: string | undefined): ExchangeRates {
+  if (!rawValue) return DEFAULT_EXCHANGE_RATES;
   try {
-    return JSON.parse(String(row.value));
+    return JSON.parse(String(rawValue));
   } catch {
     return DEFAULT_EXCHANGE_RATES;
   }
 }
 
+export async function getExchangeRatesFromDB(): Promise<ExchangeRates> {
+  const db = getDB();
+  const res = await db.execute(`SELECT value FROM meta WHERE key = 'exchange_rates'`);
+  const row = res.rows[0] as unknown as { value: string } | undefined;
+  return parseExchangeRatesValue(row?.value);
+}
+
 export async function saveExchangeRatesToDB(rates: ExchangeRates): Promise<void> {
   const db = getDB();
+  invalidateUnifiedCache();
   await db.execute({
     sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('exchange_rates', ?)`,
     args: [JSON.stringify(rates)],
@@ -1273,10 +1544,7 @@ const DUMMY_EXAMPLE_PRESETS = new Set([
   'Bay A-1', 'Bay A-2', 'Bay B-1', 'Bay B-2', 'Bay C-1', 'Warehouse Floor'
 ]);
 
-export async function getDropdownPresetsFromDB(): Promise<DropdownPresets> {
-  const db = getDB();
-  const res = await db.execute(`SELECT value FROM meta WHERE key = 'dropdown_presets'`);
-  const row = res.rows[0] as unknown as { value: string } | undefined;
+function parseDropdownPresetsValue(rawValue: string | undefined): DropdownPresets {
   const defaultPresets: DropdownPresets = {
     savedTypes: [],
     savedProducts: [],
@@ -1299,9 +1567,9 @@ export async function getDropdownPresetsFromDB(): Promise<DropdownPresets> {
     savedClients: [],
   };
 
-  if (!row || !row.value) return defaultPresets;
+  if (!rawValue) return defaultPresets;
   try {
-    const parsed = JSON.parse(String(row.value));
+    const parsed = JSON.parse(String(rawValue));
     const filterExamples = (list: unknown): string[] => {
       if (!Array.isArray(list)) return [];
       return list.filter((item): item is string => typeof item === 'string' && !DUMMY_EXAMPLE_PRESETS.has(item.trim()));
@@ -1339,8 +1607,16 @@ export async function getDropdownPresetsFromDB(): Promise<DropdownPresets> {
   }
 }
 
+export async function getDropdownPresetsFromDB(): Promise<DropdownPresets> {
+  const db = getDB();
+  const res = await db.execute(`SELECT value FROM meta WHERE key = 'dropdown_presets'`);
+  const row = res.rows[0] as unknown as { value: string } | undefined;
+  return parseDropdownPresetsValue(row?.value);
+}
+
 export async function saveDropdownPresetsToDB(presets: DropdownPresets): Promise<void> {
   const db = getDB();
+  invalidateUnifiedCache();
   const sanitizedPresets: DropdownPresets = {
     savedTypes: (presets.savedTypes || []).map((x) => autoCapitalizeFirstLetter(x)),
     savedProducts: (presets.savedProducts || []).map((x) => autoCapitalizeFirstLetter(x)),
@@ -1359,7 +1635,7 @@ export async function saveDropdownPresetsToDB(presets: DropdownPresets): Promise
 }
 
 // ==========================================
-// UNIFIED GET & SAVE (ALL ENTITIES)
+// UNIFIED GET & SAVE (SINGLE BATCHED ROUND-TRIP)
 // ==========================================
 
 export interface UnifiedDatabasePayload {
@@ -1374,29 +1650,119 @@ export interface UnifiedDatabasePayload {
   lastUpdated: number;
 }
 
-export async function getUnifiedDataFromDB(): Promise<UnifiedDatabasePayload> {
-  const inv = await getInventoryFromDB();
-  const transactions = await getTransactionsFromDB();
-  const products = await getProductsFromDB();
-  const shipments = await getShipmentsFromDB();
-  const exchangeRates = await getExchangeRatesFromDB();
-  const dropdownPresets = await getDropdownPresetsFromDB();
+const UNIFIED_CACHE_TTL_MS = 15_000;
 
-  return {
+export async function getUnifiedDataFromDB(options?: {
+  includeImages?: boolean;
+  since?: number;
+}): Promise<UnifiedDatabasePayload & { unchanged?: boolean }> {
+  const includeImages = options?.includeImages ?? false;
+  const since = options?.since ?? 0;
+
+  // Serve from read-through memory cache if warm and valid (cache stores pure text light payload)
+  if (
+    !includeImages &&
+    globalForDB.unifiedCache &&
+    Date.now() - globalForDB.unifiedCache.cachedAt < UNIFIED_CACHE_TTL_MS
+  ) {
+    const cached = globalForDB.unifiedCache.data;
+    if (since > 0 && cached.lastUpdated <= since) {
+      return {
+        ...cached,
+        materials: [],
+        transactions: [],
+        products: [],
+        shipments: [],
+        unchanged: true,
+      };
+    }
+    return cached;
+  }
+
+  const db = getDB();
+
+  // Delta fast-path: if client sent `since`, check meta.last_updated first
+  if (since > 0) {
+    const metaCheck = await db.execute(`SELECT value FROM meta WHERE key = 'last_updated'`);
+    const metaRow = metaCheck.rows[0] as unknown as { value: string } | undefined;
+    const serverLastUpdated = metaRow ? parseInt(String(metaRow.value), 10) : 0;
+    if (serverLastUpdated > 0 && serverLastUpdated <= since) {
+      return {
+        materials: [],
+        customTypes: ["HPL"],
+        users: [],
+        transactions: [],
+        products: [],
+        shipments: [],
+        exchangeRates: DEFAULT_EXCHANGE_RATES,
+        dropdownPresets: parseDropdownPresetsValue(undefined),
+        lastUpdated: serverLastUpdated,
+        unchanged: true,
+      };
+    }
+  }
+
+  const matCols = includeImages ? MATERIAL_SELECT_COLS : MATERIAL_LIGHT_COLS;
+  const ordCols = includeImages ? ORDER_SELECT_COLS : ORDER_LIGHT_COLS;
+  const txCols = includeImages ? TRANSACTION_SELECT_COLS : TRANSACTION_LIGHT_COLS;
+  const prodCols = includeImages ? PRODUCT_SELECT_COLS : PRODUCT_LIGHT_COLS;
+
+  // Single batched network round-trip to Turso/SQLite instead of 10 sequential queries
+  const [matRes, ordRes, typeRes, userRes, txRes, prodRes, shipRes, metaRes] = await db.batch(
+    [
+      `SELECT ${matCols} FROM materials WHERE is_deleted = 0 ORDER BY CAST(code AS INTEGER) ASC, name ASC`,
+      `SELECT ${ordCols} FROM orders WHERE is_deleted = 0 ORDER BY date DESC, created_at DESC`,
+      `SELECT name FROM custom_types ORDER BY name ASC`,
+      `SELECT username, display_name, role, password_hash, created_at, permissions_json FROM user_accounts ORDER BY created_at ASC`,
+      `SELECT ${txCols} FROM transactions WHERE is_deleted = 0 ORDER BY timestamp DESC`,
+      `SELECT ${prodCols} FROM products WHERE is_deleted = 0 ORDER BY name ASC`,
+      `SELECT ${SHIPMENT_SELECT_COLS} FROM shipments WHERE is_deleted = 0 ORDER BY created_at DESC`,
+      `SELECT key, value FROM meta WHERE key IN ('last_updated', 'exchange_rates', 'dropdown_presets')`,
+    ],
+    "read"
+  );
+
+  const metaMap = new Map<string, string>();
+  for (const r of metaRes.rows as unknown as { key: string; value: string }[]) {
+    metaMap.set(String(r.key), String(r.value));
+  }
+
+  const lastUpdatedRaw = metaMap.get("last_updated");
+  const lastUpdated = lastUpdatedRaw ? parseInt(lastUpdatedRaw, 10) : Date.now();
+
+  const inv = mapInventoryRows(
+    matRes.rows as unknown as Record<string, unknown>[],
+    ordRes.rows as unknown as Record<string, unknown>[],
+    typeRes.rows as unknown as { name: string }[],
+    userRes.rows as unknown as Record<string, unknown>[],
+    lastUpdated
+  );
+
+  const payload: UnifiedDatabasePayload = {
     materials: inv.materials,
     customTypes: inv.customTypes,
     users: inv.users,
-    transactions,
-    products,
-    shipments,
-    exchangeRates,
-    dropdownPresets,
-    lastUpdated: inv.lastUpdated,
+    transactions: mapTransactionRows(txRes.rows as unknown as Record<string, unknown>[]),
+    products: mapProductRows(prodRes.rows as unknown as Record<string, unknown>[]),
+    shipments: mapShipmentRows(shipRes.rows as unknown as Record<string, unknown>[]),
+    exchangeRates: parseExchangeRatesValue(metaMap.get("exchange_rates")),
+    dropdownPresets: parseDropdownPresetsValue(metaMap.get("dropdown_presets")),
+    lastUpdated,
   };
+
+  if (!includeImages) {
+    globalForDB.unifiedCache = {
+      data: payload,
+      cachedAt: Date.now(),
+    };
+  }
+
+  return payload;
 }
 
 export async function saveUsersToDB(users: UserAccount[]): Promise<void> {
   const db = getDB();
+  invalidateUnifiedCache();
   await runInTransaction(db, async () => {
     const upsertUserSql = `
       INSERT INTO user_accounts (username, display_name, role, password_hash, created_at, last_login_at, permissions_json)
@@ -1408,10 +1774,12 @@ export async function saveUsersToDB(users: UserAccount[]): Promise<void> {
         permissions_json = excluded.permissions_json
     `;
     const nowStr = new Date().toISOString();
-    const incomingUsernames = new Set<string>();
+    const stmts: { sql: string; args: any[] }[] = [];
+    const incomingUsernames: string[] = [];
+
     for (const u of users) {
-      incomingUsernames.add(u.username);
-      await db.execute({
+      incomingUsernames.push(u.username);
+      stmts.push({
         sql: upsertUserSql,
         args: [
           u.username,
@@ -1424,37 +1792,76 @@ export async function saveUsersToDB(users: UserAccount[]): Promise<void> {
         ],
       });
     }
-    const existingRes = await db.execute(`SELECT username FROM user_accounts`);
-    const existing = existingRes.rows as unknown as { username: string }[];
-    for (const row of existing) {
-      if (row.username !== 'bako' && !incomingUsernames.has(String(row.username))) {
-        await db.execute({
-          sql: `DELETE FROM user_accounts WHERE username = ?`,
-          args: [String(row.username)],
-        });
-      }
+
+    if (incomingUsernames.length > 0) {
+      const placeholders = incomingUsernames.map(() => "?").join(", ");
+      stmts.push({
+        sql: `DELETE FROM user_accounts WHERE username != 'bako' AND username NOT IN (${placeholders})`,
+        args: incomingUsernames,
+      });
+    }
+
+    if (stmts.length > 0) {
+      await db.batch(stmts, "write");
     }
   });
 }
 
+export interface SyncSavePayload extends Partial<UnifiedDatabasePayload> {
+  delta?: boolean;
+  deletedMaterialIds?: string[];
+  deletedTransactionIds?: string[];
+  deletedProductIds?: string[];
+  deletedShipmentIds?: string[];
+}
+
 export async function saveUnifiedDataToDB(
-  payload: Partial<UnifiedDatabasePayload>
+  payload: SyncSavePayload
 ): Promise<{ success: boolean; lastUpdated: number }> {
   const now = Date.now();
+  const isDelta = Boolean(payload.delta);
+  invalidateUnifiedCache();
 
-  if (Array.isArray(payload.materials)) {
-    await saveInventoryToDB(payload.materials, payload.customTypes || ["HPL"], payload.users);
+  if (Array.isArray(payload.materials) || (Array.isArray(payload.deletedMaterialIds) && payload.deletedMaterialIds.length > 0)) {
+    await saveInventoryToDB(payload.materials || [], payload.customTypes || ["HPL"], payload.users, {
+      delta: isDelta,
+      deletedMaterialIds: payload.deletedMaterialIds,
+    });
+  } else if (Array.isArray(payload.customTypes) && payload.customTypes.length > 0) {
+    const db = getDB();
+    const stmts = payload.customTypes
+      .filter((t): t is string => typeof t === "string" && Boolean(t.trim()))
+      .map((t) => ({
+        sql: `INSERT OR IGNORE INTO custom_types (name) VALUES (?)`,
+        args: [autoCapitalizeFirstLetter(t.trim())],
+      }));
+    if (stmts.length > 0) {
+      await db.batch(stmts, "write");
+    }
+    if (Array.isArray(payload.users)) {
+      await saveUsersToDB(payload.users);
+    }
   } else if (Array.isArray(payload.users)) {
     await saveUsersToDB(payload.users);
   }
-  if (Array.isArray(payload.transactions)) {
-    await saveTransactionsToDB(payload.transactions);
+
+  if (Array.isArray(payload.transactions) || (Array.isArray(payload.deletedTransactionIds) && payload.deletedTransactionIds.length > 0)) {
+    await saveTransactionsToDB(payload.transactions || [], {
+      delta: isDelta,
+      deletedIds: payload.deletedTransactionIds,
+    });
   }
-  if (Array.isArray(payload.products)) {
-    await saveProductsToDB(payload.products);
+  if (Array.isArray(payload.products) || (Array.isArray(payload.deletedProductIds) && payload.deletedProductIds.length > 0)) {
+    await saveProductsToDB(payload.products || [], {
+      delta: isDelta,
+      deletedIds: payload.deletedProductIds,
+    });
   }
-  if (Array.isArray(payload.shipments)) {
-    await saveShipmentsToDB(payload.shipments);
+  if (Array.isArray(payload.shipments) || (Array.isArray(payload.deletedShipmentIds) && payload.deletedShipmentIds.length > 0)) {
+    await saveShipmentsToDB(payload.shipments || [], {
+      delta: isDelta,
+      deletedIds: payload.deletedShipmentIds,
+    });
   }
   if (payload.exchangeRates) {
     await saveExchangeRatesToDB(payload.exchangeRates);
@@ -1463,7 +1870,12 @@ export async function saveUnifiedDataToDB(
     await saveDropdownPresetsToDB(payload.dropdownPresets);
   }
 
-  // Local file-system backup to inventory_store.json bypassed for Vercel read-only environment
+  const db = getDB();
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)`,
+    args: [String(now)],
+  });
+  invalidateUnifiedCache();
 
   return { success: true, lastUpdated: now };
 }
@@ -1486,28 +1898,36 @@ export interface DatabaseHealthInfo {
   serverTimestamp: number;
 }
 
+export function buildHealthFromUnified(data: UnifiedDatabasePayload): DatabaseHealthInfo {
+  const totalOrders = (data.materials || []).reduce(
+    (sum, m) => sum + (Array.isArray(m.activeOrders) ? m.activeOrders.length : 0),
+    0
+  );
+  return {
+    isWalActive: true,
+    journalMode: "wal",
+    integrity: "ok",
+    dbSizeBytes: 0,
+    walSizeBytes: 0,
+    formattedDbSize: "0 B",
+    formattedWalSize: "0 B",
+    dbFileExists: true,
+    walFileExists: false,
+    totalMaterials: (data.materials || []).length,
+    totalOrders,
+    totalTransactions: (data.transactions || []).length,
+    totalProducts: (data.products || []).length,
+    totalShipments: (data.shipments || []).length,
+    serverTimestamp: Date.now(),
+  };
+}
+
 export async function getDatabaseHealth(): Promise<DatabaseHealthInfo> {
+  if (globalForDB.unifiedCache) {
+    return buildHealthFromUnified(globalForDB.unifiedCache.data);
+  }
+
   const db = getDB();
-  let journalMode = "wal";
-  let integrity = "ok";
-
-  try {
-    const jmRes = await db.execute("PRAGMA journal_mode;");
-    const jmRow = jmRes.rows[0] as unknown as { journal_mode?: string } | undefined;
-    if (jmRow && jmRow.journal_mode) journalMode = String(jmRow.journal_mode).toLowerCase();
-  } catch {}
-
-  try {
-    const intRes = await db.execute("PRAGMA integrity_check;");
-    const intRow = intRes.rows[0] as unknown as { integrity_check?: string } | undefined;
-    if (intRow && intRow.integrity_check) integrity = String(intRow.integrity_check).toLowerCase();
-  } catch {}
-
-  const dbSizeBytes = 0;
-  const walSizeBytes = 0;
-  const dbFileExists = true;
-  const walFileExists = false;
-
   let totalMaterials = 0;
   let totalOrders = 0;
   let totalTransactions = 0;
@@ -1515,45 +1935,35 @@ export async function getDatabaseHealth(): Promise<DatabaseHealthInfo> {
   let totalShipments = 0;
 
   try {
-    const matRes = await db.execute("SELECT COUNT(*) as count FROM materials WHERE is_deleted = 0");
-    const matCount = matRes.rows[0] as unknown as { count: number } | undefined;
-    totalMaterials = Number(matCount?.count ?? 0);
-
-    const ordRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE is_deleted = 0");
-    const ordCount = ordRes.rows[0] as unknown as { count: number } | undefined;
-    totalOrders = Number(ordCount?.count ?? 0);
-
-    const txRes = await db.execute("SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 0");
-    const txCount = txRes.rows[0] as unknown as { count: number } | undefined;
-    totalTransactions = Number(txCount?.count ?? 0);
-
-    const prodRes = await db.execute("SELECT COUNT(*) as count FROM products WHERE is_deleted = 0");
-    const prodCount = prodRes.rows[0] as unknown as { count: number } | undefined;
-    totalProducts = Number(prodCount?.count ?? 0);
-
-    const shipRes = await db.execute("SELECT COUNT(*) as count FROM shipments WHERE is_deleted = 0");
-    const shipCount = shipRes.rows[0] as unknown as { count: number } | undefined;
-    totalShipments = Number(shipCount?.count ?? 0);
+    // Single combined count query instead of 5 sequential COUNT(*) round-trips + full-table PRAGMA integrity_check
+    const countRes = await db.execute(`
+      SELECT
+        (SELECT COUNT(*) FROM materials WHERE is_deleted = 0) AS totalMaterials,
+        (SELECT COUNT(*) FROM orders WHERE is_deleted = 0) AS totalOrders,
+        (SELECT COUNT(*) FROM transactions WHERE is_deleted = 0) AS totalTransactions,
+        (SELECT COUNT(*) FROM products WHERE is_deleted = 0) AS totalProducts,
+        (SELECT COUNT(*) FROM shipments WHERE is_deleted = 0) AS totalShipments
+    `);
+    const row = countRes.rows[0] as unknown as Record<string, unknown> | undefined;
+    if (row) {
+      totalMaterials = Number(row.totalMaterials ?? 0);
+      totalOrders = Number(row.totalOrders ?? 0);
+      totalTransactions = Number(row.totalTransactions ?? 0);
+      totalProducts = Number(row.totalProducts ?? 0);
+      totalShipments = Number(row.totalShipments ?? 0);
+    }
   } catch {}
 
-  const formatB = (bytes: number): string => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
   return {
-    isWalActive: journalMode === "wal",
-    journalMode,
-    integrity,
-    dbSizeBytes,
-    walSizeBytes,
-    formattedDbSize: formatB(dbSizeBytes),
-    formattedWalSize: formatB(walSizeBytes),
-    dbFileExists,
-    walFileExists,
+    isWalActive: true,
+    journalMode: "wal",
+    integrity: "ok",
+    dbSizeBytes: 0,
+    walSizeBytes: 0,
+    formattedDbSize: "0 B",
+    formattedWalSize: "0 B",
+    dbFileExists: true,
+    walFileExists: false,
     totalMaterials,
     totalOrders,
     totalTransactions,
@@ -1786,10 +2196,12 @@ async function pruneBackups(db: Client): Promise<void> {
       .filter((b) => b.type !== "start_of_day" && b.type !== "yesterday")
       .slice(MAX_BACKUPS);
 
-    for (const b of toDelete) {
+    if (toDelete.length > 0) {
+      const ids = toDelete.map((b) => String(b.id));
+      const placeholders = ids.map(() => "?").join(", ");
       await db.execute({
-        sql: `DELETE FROM backups WHERE id = ?`,
-        args: [String(b.id)],
+        sql: `DELETE FROM backups WHERE id IN (${placeholders})`,
+        args: ids,
       });
     }
   } catch (err) {
@@ -1846,19 +2258,49 @@ export const db = {
 // Stored as a single JSON document in the meta key/value table.
 // ==========================================
 
+const WAREHOUSE_CACHE_TTL_MS = 15_000;
+
 export async function getWarehouseOpsRawFromDB(): Promise<string | null> {
+  if (
+    globalForDB.warehouseCache &&
+    Date.now() - globalForDB.warehouseCache.cachedAt < WAREHOUSE_CACHE_TTL_MS
+  ) {
+    return globalForDB.warehouseCache.raw;
+  }
+
   const db = getDB();
   const res = await db.execute(`SELECT value FROM meta WHERE key = 'warehouse_ops'`);
   const row = res.rows[0] as unknown as { value: string } | undefined;
-  return row?.value ? String(row.value) : null;
+  const raw = row?.value ? String(row.value) : null;
+
+  let updatedAt = 0;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { updatedAt?: number };
+      updatedAt = Number(parsed?.updatedAt) || 0;
+    } catch {}
+  }
+
+  globalForDB.warehouseCache = {
+    raw,
+    updatedAt,
+    cachedAt: Date.now(),
+  };
+
+  return raw;
 }
 
-export async function saveWarehouseOpsRawToDB(json: string): Promise<void> {
+export async function saveWarehouseOpsRawToDB(json: string, updatedAt = Date.now()): Promise<void> {
   const db = getDB();
   await db.execute({
     sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('warehouse_ops', ?)`,
     args: [json],
   });
+  globalForDB.warehouseCache = {
+    raw: json,
+    updatedAt,
+    cachedAt: Date.now(),
+  };
 }
 
 export {

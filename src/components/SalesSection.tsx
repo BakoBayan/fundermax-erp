@@ -55,7 +55,7 @@ import DropdownManagerModal from './DropdownManagerModal';
 import { exportTransactionsToCSV } from '../utils/export';
 import { roundMoney, buildMoneySnapshot } from '../lib/money';
 import { autoCapitalizeFirstLetter } from '../utils/text';
-import { readImageFiles, readImageFile } from '../utils/imageUpload';
+import { readImageFiles, readImageFile, extractClipboardFiles } from '../utils/imageUpload';
 import { compressImage } from '../utils/compressImage';
 import { DEBT_PAYMENT_ACTION, buildDebtPaymentDetails, getTodayDebtPaymentIntake } from '../utils/debtPayments';
 import { useWarehouseOps } from '../hooks/useWarehouseOps';
@@ -147,6 +147,8 @@ export const TradeLedgerSection: React.FC = () => {
     isViewer,
     userPermissions,
     openVisualCharts,
+    isMergerModalOpen,
+    openMergerModal,
     requestConfirm,
     requestAlert,
     shipments,
@@ -274,9 +276,12 @@ export const TradeLedgerSection: React.FC = () => {
   const [apTimeFilter, setApTimeFilter] = useState('all');
   const [isExecutiveAnalyticsOpen, setIsExecutiveAnalyticsOpen] = useState(false);
 
-  // Math calculator local states for line items
+  // Math calculator local states for line items & summary amounts
   const [rowPriceStr, setRowPriceStr] = useState<string>('');
   const [costPriceStr, setCostPriceStr] = useState<string>('');
+  const [discountDollarsStr, setDiscountDollarsStr] = useState<string>('');
+  const [amountPaidNowStr, setAmountPaidNowStr] = useState<string>('');
+  const [oldUnpaidDebtStr, setOldUnpaidDebtStr] = useState<string>('');
 
   const evaluateMath = (input: string): number | '' => {
     if (!input || !input.trim()) return '';
@@ -284,8 +289,8 @@ export const TradeLedgerSection: React.FC = () => {
       const sanitized = input.replace(/[^0-9+\-*/.()]/g, '');
       if (!sanitized) return '';
       // eslint-disable-next-line no-new-func
-      const result = new Function(`return ${sanitized}`)();
-      return isNaN(result) || !isFinite(result) ? '' : Number(result);
+      const result = new Function(`return (${sanitized})`)();
+      return isNaN(result) || !isFinite(result) ? '' : Math.round(Number(result) * 100) / 100;
     } catch {
       return '';
     }
@@ -298,6 +303,18 @@ export const TradeLedgerSection: React.FC = () => {
   useEffect(() => {
     setCostPriceStr(posDraft.estimatedCost === '' || posDraft.estimatedCost === undefined ? '' : String(posDraft.estimatedCost));
   }, [posDraft.estimatedCost]);
+
+  useEffect(() => {
+    setDiscountDollarsStr(posDraft.discountDollars === '' || posDraft.discountDollars === undefined ? '' : String(posDraft.discountDollars));
+  }, [posDraft.discountDollars]);
+
+  useEffect(() => {
+    setAmountPaidNowStr(posDraft.amountPaidNow === '' || posDraft.amountPaidNow === undefined ? '' : String(posDraft.amountPaidNow));
+  }, [posDraft.amountPaidNow]);
+
+  useEffect(() => {
+    setOldUnpaidDebtStr(posDraft.oldUnpaidDebt === '' || posDraft.oldUnpaidDebt === undefined ? '' : String(posDraft.oldUnpaidDebt));
+  }, [posDraft.oldUnpaidDebt]);
 
   useEffect(() => {
     if (!openActionDropdownId) return;
@@ -383,22 +400,37 @@ export const TradeLedgerSection: React.FC = () => {
     }
   };
 
-  // Legacy Attachment Upload Handler (Requirement 2)
+  // Smart Interceptor Attachment Upload Handler
   const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    if (files.length === 0) return;
     try {
-      const compressed = await compressImage(file, { maxDimension: 1200, quality: 0.8 });
-      if (compressed.base64) {
+      const uploaded = await readImageFiles(files);
+      if (uploaded.length > 0) {
         setPosDraft((prev) => ({
           ...prev,
-          images: [compressed.base64, ...prev.images],
+          images: [...uploaded, ...prev.images],
         }));
       }
     } catch (err) {
-      console.warn('[handleAttachmentUpload compression failed]', err);
-    } finally {
-      e.target.value = '';
+      console.warn('[handleAttachmentUpload failed]', err);
+    }
+  };
+
+  const handleAttachmentFilesDrop = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+    try {
+      const uploaded = await readImageFiles(files);
+      if (uploaded.length > 0) {
+        setPosDraft((prev) => ({
+          ...prev,
+          images: [...uploaded, ...prev.images],
+        }));
+      }
+    } catch (err) {
+      console.warn('[handleAttachmentFilesDrop failed]', err);
     }
   };
 
@@ -422,6 +454,36 @@ export const TradeLedgerSection: React.FC = () => {
   const [payDrawer, setPayDrawer] = useState('');
   const [payImages, setPayImages] = useState<string[]>([]);
   const [payError, setPayError] = useState('');
+
+  // Global Paste Support for Upload Dropzones in SalesSection
+  useEffect(() => {
+    if (isMergerModalOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const pastedFiles = extractClipboardFiles(e.clipboardData);
+      if (pastedFiles.length === 0) return;
+      e.preventDefault();
+      if (payingTx) {
+        openMergerModal(pastedFiles, (mergedDataUrl) => {
+          if (mergedDataUrl) {
+            setPayImages((prev) => [mergedDataUrl, ...prev]);
+          }
+        });
+      } else {
+        openMergerModal(pastedFiles, (mergedDataUrl) => {
+          if (mergedDataUrl) {
+            setPosDraft((prev) => ({
+              ...prev,
+              images: [mergedDataUrl, ...prev.images],
+            }));
+          }
+        });
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isMergerModalOpen, openMergerModal, payingTx, setPosDraft]);
   const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
   const [addingDropdownCategory, setAddingDropdownCategory] = useState<
     'savedTypes' | 'savedProducts' | 'savedSellingTypes' | 'savedSellers' | 'savedBanks' | 'savedPaymentTypes' | 'savedClients' | null
@@ -431,6 +493,38 @@ export const TradeLedgerSection: React.FC = () => {
   // Expandable row state in ledger
   const [expandedTxIds, setExpandedTxIds] = useState<Set<string>>(new Set());
   const [openShareMenuTxId, setOpenShareMenuTxId] = useState<string | null>(null);
+  const [lazyImagesByTxId, setLazyImagesByTxId] = useState<Record<string, string[]>>({});
+  const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
+
+  const handleViewReceipt = async (txId: string, codeLabel?: string, openZoom = true): Promise<string[]> => {
+    const existing = lazyImagesByTxId[txId];
+    if (existing && existing.length > 0) {
+      if (openZoom) {
+        setZoomedImage({ url: existing[0], title: `Invoice ${codeLabel || txId} - Receipt` });
+      }
+      return existing;
+    }
+    setLoadingReceiptId(txId);
+    try {
+      const res = await fetch(`/api/transactions/${encodeURIComponent(txId)}/image`, { cache: 'no-store' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const fetched: string[] = Array.isArray(data?.images) ? data.images : [];
+      if (fetched.length > 0) {
+        setLazyImagesByTxId((prev) => ({ ...prev, [txId]: fetched }));
+        setInspectingTx((prev) => (prev && prev.id === txId ? { ...prev, images: fetched, hasImages: true } : prev));
+        if (openZoom) {
+          setZoomedImage({ url: fetched[0], title: `Invoice ${codeLabel || txId} - Receipt` });
+        }
+      }
+      return fetched;
+    } catch (err) {
+      console.warn('[handleViewReceipt] Failed to fetch receipt image:', err);
+      return [];
+    } finally {
+      setLoadingReceiptId((prev) => (prev === txId ? null : prev));
+    }
+  };
 
   const toggleExpandTx = (id: string) => {
     setExpandedTxIds((prev) => {
@@ -806,10 +900,19 @@ export const TradeLedgerSection: React.FC = () => {
 
     if (editingTxId) {
       editTransaction(editingTxId, txPayload);
-      warehouseOps.softDeleteShipment(editingTxId);
       setEditingTxId(null);
     } else {
       addTransaction(txPayload);
+    }
+
+    if (posDraft.images && posDraft.images.length > 0) {
+      setLazyImagesByTxId((prev) => ({ ...prev, [invoiceId]: posDraft.images }));
+    } else {
+      setLazyImagesByTxId((prev) => {
+        const next = { ...prev };
+        delete next[invoiceId];
+        return next;
+      });
     }
 
     void warehouseOps.syncFromServer?.();
@@ -922,7 +1025,7 @@ export const TradeLedgerSection: React.FC = () => {
         tx.amountPaidNow !== undefined && tx.amountPaidNow !== null ? tx.amountPaidNow : '',
       oldUnpaidDebt: tx.oldUnpaidDebt ? tx.oldUnpaidDebt : '',
       notes: tx.notes || '',
-      images: tx.images || [],
+      images: tx.images && tx.images.length > 0 ? tx.images : (lazyImagesByTxId[tx.id] || []),
       client: tx.client || '',
       clientPhone: extractedPhone,
       legacyInvoiceRef: tx.legacyInvoiceRef || '',
@@ -934,6 +1037,13 @@ export const TradeLedgerSection: React.FC = () => {
           ? tx.costPrice
           : '',
     });
+    if (tx.hasImages && (!tx.images || tx.images.length === 0) && !lazyImagesByTxId[tx.id]?.length) {
+      void handleViewReceipt(tx.id, tx.code, false).then((loaded) => {
+        if (loaded.length > 0) {
+          setPosDraft((prev) => (prev.images.length === 0 ? { ...prev, images: loaded } : prev));
+        }
+      });
+    }
     document.getElementById('sales-draft-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -1310,9 +1420,16 @@ export const TradeLedgerSection: React.FC = () => {
         (t) => t.id === s.id || (t.code && s.batchCode && t.code.toLowerCase() === s.batchCode.toLowerCase())
       );
 
+      const isReceivableRecord =
+        matchedTx?.isReceivable !== undefined
+          ? matchedTx.isReceivable
+          : matchedTx
+          ? matchedTx.paymentType !== 'Supplier Bill' && matchedTx.sellingType !== 'Supplier Purchase'
+          : (s.batchCode || '').toUpperCase().startsWith('INV');
+
       // 0. AR / AP Filter (Customer Sales vs Supplier Bills)
-      if (historyTypeFilter === 'AR' && matchedTx?.isReceivable !== true) return false;
-      if (historyTypeFilter === 'AP' && matchedTx?.isReceivable === true) return false;
+      if (historyTypeFilter === 'AR' && !isReceivableRecord) return false;
+      if (historyTypeFilter === 'AP' && isReceivableRecord) return false;
 
       // 1. Search across code, customer/supplier name, notes, phone, and supplier references
       if (searchLower) {
@@ -1991,7 +2108,7 @@ export const TradeLedgerSection: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-750">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Invoice Code</label>
-                <input type="text" value={posDraft.invoiceCode} onChange={(e) => setPosDraft((prev) => ({ ...prev, invoiceCode: e.target.value }))} placeholder="e.g. INV-101" className="w-full h-11 px-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-shadow" />
+                <input tabIndex={1} type="text" value={posDraft.invoiceCode} onChange={(e) => setPosDraft((prev) => ({ ...prev, invoiceCode: e.target.value }))} placeholder="e.g. INV-101" className="w-full h-11 px-4 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-shadow" />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -2020,6 +2137,7 @@ export const TradeLedgerSection: React.FC = () => {
                   <div className="relative sm:col-span-7">
                     <Phone className="w-4 h-4 absolute start-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
+                      tabIndex={2}
                       type="tel"
                       value={posDraft.clientPhone}
                       onChange={(e) => setPosDraft({ ...posDraft, clientPhone: e.target.value })}
@@ -2044,11 +2162,20 @@ export const TradeLedgerSection: React.FC = () => {
                     <HelpCircle className="w-3 h-3" /> Optional
                   </span>
                 </label>
-                <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center gap-3"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      void handleAttachmentFilesDrop(e.dataTransfer.files);
+                    }
+                  }}
+                >
                   <label className="flex-1 h-12 px-4 text-xs font-bold rounded-xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-sky-500 dark:hover:border-sky-400 text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 cursor-pointer transition-colors">
                     <Paperclip className="w-4 h-4 text-slate-400" />
                     <span className="truncate">{posDraft.images && posDraft.images.length > 0 ? 'Add Another Photo' : 'Upload File / Photo'}</span>
-                    <input type="file" accept="image/*,.pdf" onChange={handleAttachmentUpload} className="hidden" />
+                    <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={handleAttachmentUpload} className="hidden" />
                   </label>
                   {posDraft.images && posDraft.images.length > 0 && (
                     <div className="flex items-center gap-2">
@@ -2201,7 +2328,8 @@ export const TradeLedgerSection: React.FC = () => {
                       </span>
                       <input
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="image/*,.pdf,application/pdf"
+                        multiple
                         onChange={handleAttachmentUpload}
                         className="hidden"
                       />
@@ -2306,20 +2434,20 @@ export const TradeLedgerSection: React.FC = () => {
             </div>
             <div className="col-span-1">
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'بڕ' : 'Qty'}</label>
-              <input ref={quantityInputRef} type="number" min="1" step="any" value={posDraft.rowQuantity} onChange={(e) => setPosDraft({ ...posDraft, rowQuantity: e.target.value === '' ? '' : parseFloat(e.target.value) })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); priceInputRef.current?.focus(); } }} className="w-full h-[38px] px-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-center focus:ring-2 focus:ring-sky-500" />
+              <input tabIndex={3} ref={quantityInputRef} type="number" min="1" step="any" value={posDraft.rowQuantity} onChange={(e) => setPosDraft({ ...posDraft, rowQuantity: e.target.value === '' ? '' : parseFloat(e.target.value) })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); priceInputRef.current?.focus(); } }} className="w-full h-[38px] px-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-center focus:ring-2 focus:ring-sky-500" />
             </div>
             <div className="col-span-2 relative">
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{isKu ? 'نرخ' : 'Price ($)'}</label>
-              <input ref={priceInputRef} type="text" value={rowPriceStr} onChange={(e) => setRowPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); if (e.key === 'Enter') { e.preventDefault(); if (costInputRef.current) costInputRef.current.focus(); else handleAddLineItem(); } } }} placeholder="150+45" className="w-full h-[38px] ps-2 pe-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
+              <input tabIndex={4} ref={priceInputRef} type="text" inputMode="decimal" value={rowPriceStr} onChange={(e) => setRowPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(rowPriceStr); setRowPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, rowPrice: resolved }); if (e.key === 'Enter') { e.preventDefault(); if (costInputRef.current) costInputRef.current.focus(); else handleAddLineItem(); } } }} placeholder="150+45" className="w-full h-[38px] ps-2 pe-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
               <Calculator className="w-3 h-3 absolute end-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
             </div>
             <div className="col-span-2 relative">
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider truncate" title="Internal Cost">{isKu ? 'تێچوو' : 'Cost ($)'}</label>
-              <input ref={costInputRef} type="text" value={costPriceStr} onChange={(e) => setCostPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); if (e.key === 'Enter') { e.preventDefault(); setTimeout(() => handleAddLineItem(), 50); } } }} placeholder="120" className="w-full h-[38px] ps-2 pe-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
+              <input tabIndex={5} ref={costInputRef} type="text" inputMode="decimal" value={costPriceStr} onChange={(e) => setCostPriceStr(e.target.value)} onBlur={() => { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Tab') { const resolved = evaluateMath(costPriceStr); setCostPriceStr(resolved === '' ? '' : String(resolved)); setPosDraft({ ...posDraft, estimatedCost: resolved }); if (e.key === 'Enter') { e.preventDefault(); setTimeout(() => handleAddLineItem(), 50); } } }} placeholder="120" className="w-full h-[38px] ps-2 pe-6 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-sky-500" />
               <Calculator className="w-3 h-3 absolute end-2.5 top-[29px] text-slate-400 pointer-events-none opacity-60" />
             </div>
             <div className="col-span-12 mt-1">
-              <button ref={addRowBtnRef} type="button" onClick={handleAddLineItem} disabled={!posDraft.rowProduct || currentRowPrice === 0} className="w-full h-11 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:bg-sky-600/40 text-white disabled:text-white/70 font-black tracking-widest text-sm shadow-md disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <button tabIndex={6} ref={addRowBtnRef} type="button" onClick={handleAddLineItem} disabled={!posDraft.rowProduct || currentRowPrice === 0} className="w-full h-11 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:bg-sky-600/40 text-white disabled:text-white/70 font-black tracking-widest text-sm shadow-md disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer">
                 <Plus className="w-5 h-5" />
                 {isKu ? 'زیادکردن بۆ وەسڵ' : 'ADD TO INVOICE'}
               </button>
@@ -2398,12 +2526,22 @@ export const TradeLedgerSection: React.FC = () => {
                 {isKu ? 'نرخی فرۆشتن ($)' : 'Selling Price ($)'}
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                pattern="[0-9]*"
-                step="any"
-                value={posDraft.rowPrice}
-                onChange={(e) => setPosDraft({ ...posDraft, rowPrice: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                value={rowPriceStr}
+                onChange={(e) => setRowPriceStr(e.target.value)}
+                onBlur={() => {
+                  const resolved = evaluateMath(rowPriceStr);
+                  setRowPriceStr(resolved === '' ? '' : String(resolved));
+                  setPosDraft({ ...posDraft, rowPrice: resolved });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const resolved = evaluateMath(rowPriceStr);
+                    setRowPriceStr(resolved === '' ? '' : String(resolved));
+                    setPosDraft({ ...posDraft, rowPrice: resolved });
+                  }
+                }}
                 className="w-full h-12 px-3 text-base rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-center font-bold"
                 placeholder="0.00"
               />
@@ -2503,7 +2641,7 @@ export const TradeLedgerSection: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                   {posDraft.items.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <tr key={item.id} className="even:bg-slate-50/70 dark:even:bg-slate-900/20 hover:bg-slate-100/70 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-2.5 text-slate-900 dark:text-white font-semibold">
                         {item.product}
                       </td>
@@ -2607,6 +2745,7 @@ export const TradeLedgerSection: React.FC = () => {
             <span className="text-[10px] text-slate-400 font-normal">{isKu ? 'ئارەزوومەندانە' : 'Optional'}</span>
           </label>
           <textarea
+            tabIndex={7}
             rows={4}
             value={posDraft.notes || ''}
             onChange={(e) => setPosDraft({ ...posDraft, notes: e.target.value })}
@@ -2658,18 +2797,28 @@ export const TradeLedgerSection: React.FC = () => {
             </label>
             <div className="grid grid-cols-2 gap-2">
               <input
-                type="number"
+                tabIndex={8}
+                type="text"
                 inputMode="decimal"
-                pattern="[0-9]*"
-                step="any"
-                value={posDraft.discountDollars}
-                onChange={(e) =>
-                  handleDiscountDollarsChange(e.target.value === '' ? '' : parseFloat(e.target.value))
-                }
+                value={discountDollarsStr}
+                onChange={(e) => setDiscountDollarsStr(e.target.value)}
+                onBlur={() => {
+                  const resolved = evaluateMath(discountDollarsStr);
+                  setDiscountDollarsStr(resolved === '' ? '' : String(resolved));
+                  handleDiscountDollarsChange(resolved);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const resolved = evaluateMath(discountDollarsStr);
+                    setDiscountDollarsStr(resolved === '' ? '' : String(resolved));
+                    handleDiscountDollarsChange(resolved);
+                  }
+                }}
                 placeholder="Amt"
                 className="w-full px-2.5 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono"
               />
               <input
+                tabIndex={9}
                 type="number"
                 inputMode="decimal"
                 pattern="[0-9]*"
@@ -2711,18 +2860,24 @@ export const TradeLedgerSection: React.FC = () => {
               )}
             </div>
             <input
-              type="number"
+              tabIndex={10}
+              type="text"
               inputMode="decimal"
-              pattern="[0-9]*"
-              step="any"
-              value={posDraft.amountPaidNow}
-              onChange={(e) =>
-                setPosDraft({
-                  ...posDraft,
-                  amountPaidNow: e.target.value === '' ? '' : parseFloat(e.target.value),
-                })
-              }
-              placeholder="0.00"
+              value={amountPaidNowStr}
+              onChange={(e) => setAmountPaidNowStr(e.target.value)}
+              onBlur={() => {
+                const resolved = evaluateMath(amountPaidNowStr);
+                setAmountPaidNowStr(resolved === '' ? '' : String(resolved));
+                setPosDraft({ ...posDraft, amountPaidNow: resolved });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const resolved = evaluateMath(amountPaidNowStr);
+                  setAmountPaidNowStr(resolved === '' ? '' : String(resolved));
+                  setPosDraft({ ...posDraft, amountPaidNow: resolved });
+                }
+              }}
+              placeholder="0.00 (e.g. 150+50)"
               className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold"
             />
             {/* Quick-Cash Shortcut Pills */}
@@ -2819,17 +2974,23 @@ export const TradeLedgerSection: React.FC = () => {
               {txFormMode === 'AR' ? 'Prior Customer Debt' : 'Prior Supplier Debt'}
             </label>
             <input
-              type="number"
+              tabIndex={11}
+              type="text"
               inputMode="decimal"
-              pattern="[0-9]*"
-              step="any"
-              value={posDraft.oldUnpaidDebt}
-              onChange={(e) =>
-                setPosDraft({
-                  ...posDraft,
-                  oldUnpaidDebt: e.target.value === '' ? '' : parseFloat(e.target.value),
-                })
-              }
+              value={oldUnpaidDebtStr}
+              onChange={(e) => setOldUnpaidDebtStr(e.target.value)}
+              onBlur={() => {
+                const resolved = evaluateMath(oldUnpaidDebtStr);
+                setOldUnpaidDebtStr(resolved === '' ? '' : String(resolved));
+                setPosDraft({ ...posDraft, oldUnpaidDebt: resolved });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const resolved = evaluateMath(oldUnpaidDebtStr);
+                  setOldUnpaidDebtStr(resolved === '' ? '' : String(resolved));
+                  setPosDraft({ ...posDraft, oldUnpaidDebt: resolved });
+                }
+              }}
               placeholder="0.00"
               className="w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono"
             />
@@ -2875,6 +3036,7 @@ export const TradeLedgerSection: React.FC = () => {
               {((editingTxId && userPermissions.canEditSales) || (!editingTxId && userPermissions.canCreateSales)) && (
                 <>
                   <button
+                    tabIndex={12}
                     onClick={() => handleSaveInvoice(false)}
                     className={`w-full h-14 rounded-2xl text-white font-black text-sm uppercase tracking-widest shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${
                       txFormMode === 'AR'
@@ -3157,9 +3319,9 @@ export const TradeLedgerSection: React.FC = () => {
         </div>
 
         {/* Dual Adaptive Layout: Desktop Dense Table (W >= 1024px) */}
-        <div className="hidden lg:block w-full max-w-full overflow-x-auto pb-4 rounded-3xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-850 shadow-xs">
+        <div className="hidden lg:block w-full max-w-full max-h-[75vh] overflow-x-auto overflow-y-auto pb-4 rounded-3xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-850 shadow-xs">
           <table className="w-full text-start text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+            <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-xs shadow-2xs text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
               <tr>
                 <th className="px-2.5 py-3">{isKu ? 'کۆد / بەروار' : 'Code / Date'}</th>
                 <th className="px-2.5 py-3">{isKu ? 'کڕیار' : 'Customer'}</th>
@@ -3212,18 +3374,35 @@ export const TradeLedgerSection: React.FC = () => {
                   const firstUnit =
                     s.items && s.items.length > 0 && s.items[0].unit ? s.items[0].unit : 'pcs';
 
+                  const fallbackIsReceivable =
+                    matchedTx?.isReceivable !== undefined
+                      ? matchedTx.isReceivable
+                      : matchedTx
+                      ? matchedTx.paymentType !== 'Supplier Bill' && matchedTx.sellingType !== 'Supplier Purchase'
+                      : historyTypeFilter === 'AR'
+                      ? true
+                      : historyTypeFilter === 'AP'
+                      ? false
+                      : (s.batchCode || '').toUpperCase().startsWith('INV');
+                  const fallbackSellingType =
+                    matchedTx?.sellingType || (fallbackIsReceivable ? 'Customer Sale' : 'Supplier Purchase');
+                  const fallbackPaymentType =
+                    matchedTx?.paymentType || (fallbackIsReceivable ? 'Cash' : 'Supplier Bill');
+                  const fallbackPanelType =
+                    matchedTx?.panelType || (fallbackIsReceivable ? 'Panel' : 'Supplier Shipment');
+
                   const tx: PanelTransaction = {
                     id: s.id,
-                    code: s.batchCode || s.id.slice(-6),
+                    code: s.batchCode || matchedTx?.code || s.id.slice(-6),
                     timestamp,
-                    panelType: matchedTx?.panelType || 'Supplier Shipment',
+                    panelType: fallbackPanelType,
                     material: firstDesc,
                     quantity: totalQty || 1,
                     unit: firstUnit,
-                    sellingType: matchedTx?.sellingType || 'Supplier Purchase',
+                    sellingType: fallbackSellingType,
                     seller: matchedTx?.seller || '—',
-                    bank: matchedTx?.bank || 'Supplier Wire / LC',
-                    paymentType: matchedTx?.paymentType || 'Supplier Bill',
+                    bank: matchedTx?.bank || (fallbackIsReceivable ? 'Counter Cash' : 'Supplier Wire / LC'),
+                    paymentType: fallbackPaymentType,
                     currency: txCur,
                     sellingAmount: invoiced,
                     costPrice: invoiced,
@@ -3237,30 +3416,40 @@ export const TradeLedgerSection: React.FC = () => {
                     grossProfit: 0,
                     profitMargin: 0,
                     notes: s.notes || matchedTx?.notes || '',
-                    images: s.attachments || matchedTx?.images || [],
+                    images: lazyImagesByTxId[s.id] || [],
+                    hasImages: Boolean(
+                      matchedTx?.hasImages ||
+                      s.hasAttachments ||
+                      (lazyImagesByTxId[s.id] && lazyImagesByTxId[s.id].length > 0) ||
+                      (s.attachments && s.attachments.length > 0) ||
+                      (matchedTx?.images && matchedTx.images.length > 0)
+                    ),
                     status,
                     lastUpdated: s.updatedAt || timestamp,
-                    items: (s.items || []).map((it, idx) => {
-                      const itemQty = Number(it.receivedQty || it.expectedQty) || 1;
-                      const lineTotal = idx === 0 ? invoiced : 0;
-                      const unitPrice = lineTotal > 0 ? roundMoney(lineTotal / Math.max(1, itemQty), txCur) : 0;
-                      return {
-                        id: it.id,
-                        type: 'Inbound Batch',
-                        product: it.description,
-                        quantity: itemQty,
-                        sellingType: 'Supplier Purchase',
-                        price: unitPrice,
-                        total: lineTotal,
-                        fundermaxBatchRef: s.batchCode,
-                      };
-                    }),
-                    client: s.supplier || s.supplierName || matchedTx?.client || 'FunderMax GmbH',
+                    items:
+                      matchedTx?.items && matchedTx.items.length > 0
+                        ? matchedTx.items
+                        : (s.items || []).map((it, idx) => {
+                            const itemQty = Number(it.receivedQty || it.expectedQty) || 1;
+                            const lineTotal = idx === 0 ? invoiced : 0;
+                            const unitPrice = lineTotal > 0 ? roundMoney(lineTotal / Math.max(1, itemQty), txCur) : 0;
+                            return {
+                              id: it.id,
+                              type: fallbackIsReceivable ? 'Panel' : 'Inbound Batch',
+                              product: it.description,
+                              quantity: itemQty,
+                              sellingType: fallbackSellingType,
+                              price: unitPrice,
+                              total: lineTotal,
+                              fundermaxBatchRef: s.batchCode,
+                            };
+                          }),
+                    client: s.supplier || s.supplierName || matchedTx?.client || (fallbackIsReceivable ? 'Walk-in Customer' : 'FunderMax GmbH'),
                     clientPhone: s.supplierContact || matchedTx?.clientPhone || '',
                     phoneCountryCode: matchedTx?.phoneCountryCode,
                     legacyInvoiceRef: s.originCountry || matchedTx?.legacyInvoiceRef || '',
                     fundermaxBatchRef: s.batchCode,
-                    isReceivable: matchedTx?.isReceivable,
+                    isReceivable: fallbackIsReceivable,
                   };
 
                   const isExpanded = expandedTxIds.has(tx.id);
@@ -3272,7 +3461,7 @@ export const TradeLedgerSection: React.FC = () => {
                     <React.Fragment key={tx.id}>
                       <tr
                         onClick={() => toggleExpandTx(tx.id)}
-                        className="transition-colors cursor-pointer select-none hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                        className="even:bg-slate-50/70 dark:even:bg-slate-900/20 transition-colors cursor-pointer select-none hover:bg-slate-100/80 dark:hover:bg-slate-800/40"
                       >
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-2">
@@ -3287,6 +3476,20 @@ export const TradeLedgerSection: React.FC = () => {
                                 className="w-8 h-8 rounded border border-slate-200 dark:border-slate-700 object-cover cursor-pointer hover:scale-105 transition shrink-0 shadow-2xs"
                                 title={isKu ? 'کرتە بکە بۆ پیشاندانی پسوولە' : 'Click to view receipt'}
                               />
+                            ) : tx.hasImages ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleViewReceipt(tx.id, tx.code || tx.id, true);
+                                }}
+                                disabled={loadingReceiptId === tx.id}
+                                className="h-7 px-2 rounded-lg bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white dark:bg-sky-950/60 dark:hover:bg-sky-600 dark:text-sky-300 dark:hover:text-white border border-sky-200 dark:border-sky-800 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shrink-0 shadow-2xs"
+                                title={isKu ? 'پیشاندانی وەسڵ (View Receipt)' : 'View Receipt'}
+                              >
+                                <Paperclip className="w-3 h-3 shrink-0" />
+                                <span>{loadingReceiptId === tx.id ? '...' : isKu ? 'وەسڵ' : 'View Receipt'}</span>
+                              </button>
                             ) : null}
                             <div className="min-w-0">
                               <div className="font-bold font-mono text-slate-900 dark:text-white text-xs">
@@ -3554,44 +3757,62 @@ export const TradeLedgerSection: React.FC = () => {
                               </div>
 
                               {/* Structured 2-Section Grid: Left (Receipt) vs Right (Financials & Notes) */}
-                              <div className={`grid gap-5 ${tx.images && tx.images.length > 0 ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
+                              <div className={`grid gap-5 ${(tx.images && tx.images.length > 0) || tx.hasImages ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
                                 {/* Left Section (Receipt Image Preview Card) */}
-                                {tx.images && tx.images.length > 0 && (
+                                {((tx.images && tx.images.length > 0) || tx.hasImages) && (
                                   <div className="lg:col-span-4 flex flex-col gap-2">
                                     <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                       <Paperclip className="w-3.5 h-3.5 text-sky-500" />
                                       <span>{isKu ? 'فۆتۆی پسوولە و هاوپێچ:' : 'Attached Receipt / Slip:'}</span>
                                     </div>
                                     <div className="p-3 bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-750 flex flex-col items-center justify-center gap-2">
-                                      <img
-                                        src={tx.images[0]}
-                                        alt="Receipt Preview"
-                                        onClick={() => setZoomedImage({ url: tx.images![0], title: `Invoice ${tx.code || tx.id} - Receipt` })}
-                                        className="max-w-xs max-h-64 object-contain rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm cursor-zoom-in hover:opacity-95 transition"
-                                        title="Click to view full-resolution image"
-                                      />
-                                      {tx.images.length > 1 && (
-                                        <div className="flex flex-wrap gap-1.5 justify-center mt-1">
-                                          {tx.images.slice(1).map((extraImg, idx) => (
-                                            <img
-                                              key={idx}
-                                              src={extraImg}
-                                              alt={`Extra ${idx}`}
-                                              onClick={() => setZoomedImage({ url: extraImg, title: `Invoice ${tx.code || tx.id} - Extra ${idx + 1}` })}
-                                              className="w-12 h-12 object-cover rounded-md border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:scale-105 transition"
-                                            />
-                                          ))}
-                                        </div>
+                                      {tx.images && tx.images.length > 0 ? (
+                                        <>
+                                          <img
+                                            src={tx.images[0]}
+                                            alt="Receipt Preview"
+                                            onClick={() => setZoomedImage({ url: tx.images![0], title: `Invoice ${tx.code || tx.id} - Receipt` })}
+                                            className="max-w-xs max-h-64 object-contain rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm cursor-zoom-in hover:opacity-95 transition"
+                                            title="Click to view full-resolution image"
+                                          />
+                                          {tx.images.length > 1 && (
+                                            <div className="flex flex-wrap gap-1.5 justify-center mt-1">
+                                              {tx.images.slice(1).map((extraImg, idx) => (
+                                                <img
+                                                  key={idx}
+                                                  src={extraImg}
+                                                  alt={`Extra ${idx}`}
+                                                  onClick={() => setZoomedImage({ url: extraImg, title: `Invoice ${tx.code || tx.id} - Extra ${idx + 1}` })}
+                                                  className="w-12 h-12 object-cover rounded-md border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:scale-105 transition"
+                                                />
+                                              ))}
+                                            </div>
+                                          )}
+                                          <span className="text-[11px] text-slate-400 font-medium">
+                                            {isKu ? 'کرتە بکە بۆ گەورەکردن' : 'Click to inspect full image'}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => void handleViewReceipt(tx.id, tx.code || tx.id, true)}
+                                          disabled={loadingReceiptId === tx.id}
+                                          className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold flex items-center gap-2 shadow-sm transition cursor-pointer"
+                                        >
+                                          <Paperclip className="w-4 h-4" />
+                                          <span>
+                                            {loadingReceiptId === tx.id
+                                              ? (isKu ? 'بارکردنی وەسڵ...' : 'Loading Receipt...')
+                                              : (isKu ? 'پیشاندانی وەسڵ (View Receipt)' : 'View Receipt')}
+                                          </span>
+                                        </button>
                                       )}
-                                      <span className="text-[11px] text-slate-400 font-medium">
-                                        {isKu ? 'کرتە بکە بۆ گەورەکردن' : 'Click to inspect full image'}
-                                      </span>
                                     </div>
                                   </div>
                                 )}
 
                                 {/* Right Section (Financials, Line Items & Notes) */}
-                                <div className={`${tx.images && tx.images.length > 0 ? 'lg:col-span-8' : 'col-span-1'} space-y-3`}>
+                                <div className={`${(tx.images && tx.images.length > 0) || tx.hasImages ? 'lg:col-span-8' : 'col-span-1'} space-y-3`}>
                                   {/* Full Line Items Breakdown */}
                                   <div>
                                     <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
@@ -3737,18 +3958,35 @@ export const TradeLedgerSection: React.FC = () => {
               const firstUnit =
                 s.items && s.items.length > 0 && s.items[0].unit ? s.items[0].unit : 'pcs';
 
+              const fallbackIsReceivable =
+                matchedTx?.isReceivable !== undefined
+                  ? matchedTx.isReceivable
+                  : matchedTx
+                  ? matchedTx.paymentType !== 'Supplier Bill' && matchedTx.sellingType !== 'Supplier Purchase'
+                  : historyTypeFilter === 'AR'
+                  ? true
+                  : historyTypeFilter === 'AP'
+                  ? false
+                  : (s.batchCode || '').toUpperCase().startsWith('INV');
+              const fallbackSellingType =
+                matchedTx?.sellingType || (fallbackIsReceivable ? 'Customer Sale' : 'Supplier Purchase');
+              const fallbackPaymentType =
+                matchedTx?.paymentType || (fallbackIsReceivable ? 'Cash' : 'Supplier Bill');
+              const fallbackPanelType =
+                matchedTx?.panelType || (fallbackIsReceivable ? 'Panel' : 'Supplier Shipment');
+
               const tx: PanelTransaction = {
                 id: s.id,
-                code: s.batchCode || s.id.slice(-6),
+                code: s.batchCode || matchedTx?.code || s.id.slice(-6),
                 timestamp,
-                panelType: matchedTx?.panelType || 'Supplier Shipment',
+                panelType: fallbackPanelType,
                 material: firstDesc,
                 quantity: totalQty || 1,
                 unit: firstUnit,
-                sellingType: matchedTx?.sellingType || 'Supplier Purchase',
+                sellingType: fallbackSellingType,
                 seller: matchedTx?.seller || '—',
-                bank: matchedTx?.bank || 'Supplier Wire / LC',
-                paymentType: matchedTx?.paymentType || 'Supplier Bill',
+                bank: matchedTx?.bank || (fallbackIsReceivable ? 'Counter Cash' : 'Supplier Wire / LC'),
+                paymentType: fallbackPaymentType,
                 currency: txCur,
                 sellingAmount: invoiced,
                 costPrice: invoiced,
@@ -3762,30 +4000,40 @@ export const TradeLedgerSection: React.FC = () => {
                 grossProfit: 0,
                 profitMargin: 0,
                 notes: s.notes || matchedTx?.notes || '',
-                images: s.attachments || matchedTx?.images || [],
+                images: lazyImagesByTxId[s.id] || [],
+                hasImages: Boolean(
+                  matchedTx?.hasImages ||
+                  s.hasAttachments ||
+                  (lazyImagesByTxId[s.id] && lazyImagesByTxId[s.id].length > 0) ||
+                  (s.attachments && s.attachments.length > 0) ||
+                  (matchedTx?.images && matchedTx.images.length > 0)
+                ),
                 status,
                 lastUpdated: s.updatedAt || timestamp,
-                items: (s.items || []).map((it, idx) => {
-                  const itemQty = Number(it.receivedQty || it.expectedQty) || 1;
-                  const lineTotal = idx === 0 ? invoiced : 0;
-                  const unitPrice = lineTotal > 0 ? roundMoney(lineTotal / Math.max(1, itemQty), txCur) : 0;
-                  return {
-                    id: it.id,
-                    type: 'Inbound Batch',
-                    product: it.description,
-                    quantity: itemQty,
-                    sellingType: matchedTx?.sellingType || 'Supplier Purchase',
-                    price: unitPrice,
-                    total: lineTotal,
-                    fundermaxBatchRef: s.batchCode,
-                  };
-                }),
-                client: s.supplier || s.supplierName || matchedTx?.client || 'FunderMax GmbH',
+                items:
+                  matchedTx?.items && matchedTx.items.length > 0
+                    ? matchedTx.items
+                    : (s.items || []).map((it, idx) => {
+                        const itemQty = Number(it.receivedQty || it.expectedQty) || 1;
+                        const lineTotal = idx === 0 ? invoiced : 0;
+                        const unitPrice = lineTotal > 0 ? roundMoney(lineTotal / Math.max(1, itemQty), txCur) : 0;
+                        return {
+                          id: it.id,
+                          type: fallbackIsReceivable ? 'Panel' : 'Inbound Batch',
+                          product: it.description,
+                          quantity: itemQty,
+                          sellingType: fallbackSellingType,
+                          price: unitPrice,
+                          total: lineTotal,
+                          fundermaxBatchRef: s.batchCode,
+                        };
+                      }),
+                client: s.supplier || s.supplierName || matchedTx?.client || (fallbackIsReceivable ? 'Walk-in Customer' : 'FunderMax GmbH'),
                 clientPhone: s.supplierContact || matchedTx?.clientPhone || '',
                 phoneCountryCode: matchedTx?.phoneCountryCode,
                 legacyInvoiceRef: s.originCountry || matchedTx?.legacyInvoiceRef || '',
                 fundermaxBatchRef: s.batchCode,
-                isReceivable: matchedTx?.isReceivable,
+                isReceivable: fallbackIsReceivable,
               };
 
               const isDebt = debt > 0;
@@ -3930,8 +4178,8 @@ export const TradeLedgerSection: React.FC = () => {
       {/* MODAL: ADD CUSTOM DROPDOWN ITEM */}
       {addingDropdownCategory && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
-          onClick={() => setAddingDropdownCategory(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs cursor-pointer"
+          onPointerDown={(e) => e.target === e.currentTarget && setAddingDropdownCategory(null)}
         >
           <form
             onSubmit={handleAddDropdownItem}
@@ -3972,8 +4220,8 @@ export const TradeLedgerSection: React.FC = () => {
       {/* INVOICE DETAILS INSPECTION MODAL (Requirement 2) */}
       {inspectingTx && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
-          onClick={() => setInspectingTx(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs cursor-pointer"
+          onPointerDown={(e) => e.target === e.currentTarget && setInspectingTx(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -4051,9 +4299,9 @@ export const TradeLedgerSection: React.FC = () => {
               <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 {isKu ? 'کاڵا و بابەتەکان' : 'Purchased Items'}
               </h4>
-              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-64 overflow-y-auto">
                 <table className="w-full text-start text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold uppercase">
+                  <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-xs text-slate-600 dark:text-slate-300 font-bold uppercase">
                     <tr>
                       <th className="px-3 py-2">{isKu ? 'کاڵا' : 'Item'}</th>
                       <th className="px-3 py-2 text-center">{isKu ? 'بڕ' : 'Qty'}</th>
@@ -4064,7 +4312,7 @@ export const TradeLedgerSection: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                     {inspectingTx.items && inspectingTx.items.length > 0 ? (
                       inspectingTx.items.map((it, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <tr key={idx} className="even:bg-slate-50/70 dark:even:bg-slate-900/20 hover:bg-slate-100/70 dark:hover:bg-slate-800/40">
                           <td className="px-3 py-2 text-slate-900 dark:text-white font-semibold">
                             {it.product}
                             {it.type && <span className="text-slate-400 font-normal ms-1">({it.type})</span>}
@@ -4162,6 +4410,22 @@ export const TradeLedgerSection: React.FC = () => {
                     </button>
                   ))}
                 </div>
+              ) : inspectingTx.hasImages ? (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleViewReceipt(inspectingTx.id, inspectingTx.code || inspectingTx.id, true)}
+                    disabled={loadingReceiptId === inspectingTx.id}
+                    className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold inline-flex items-center gap-2 shadow-sm transition cursor-pointer"
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                    <span>
+                      {loadingReceiptId === inspectingTx.id
+                        ? (isKu ? 'بارکردنی وەسڵ...' : 'Loading Receipt...')
+                        : (isKu ? 'پیشاندانی وەسڵ (View Receipt)' : 'View Receipt')}
+                    </span>
+                  </button>
+                </div>
               ) : (
                 <p className="text-xs text-slate-400 italic pt-1">
                   {isKu ? 'هیچ وێنە یان وەسڵێکی دەستی هاوپێچ نەکراوە.' : 'No attached slips or receipts for this invoice.'}
@@ -4232,8 +4496,8 @@ export const TradeLedgerSection: React.FC = () => {
         const remainingAfter = Math.max(0, debt - entered);
         return (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-            onClick={closeDebtPayment}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 cursor-pointer"
+            onPointerDown={(e) => e.target === e.currentTarget && closeDebtPayment()}
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -4327,14 +4591,16 @@ export const TradeLedgerSection: React.FC = () => {
                 </label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.pdf,application/pdf"
                   multiple
                   onChange={async (e) => {
-                    const files = e.target.files;
-                    if (!files || files.length === 0) return;
-                    const urls = await readImageFiles(files);
-                    setPayImages((prev) => [...urls, ...prev]);
+                    const files = e.target.files ? Array.from(e.target.files) : [];
                     e.target.value = '';
+                    if (files.length === 0) return;
+                    const urls = await readImageFiles(files);
+                    if (urls.length > 0) {
+                      setPayImages((prev) => [...urls, ...prev]);
+                    }
                   }}
                   className="w-full text-xs text-slate-600 dark:text-slate-300 file:me-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 file:font-semibold"
                 />
@@ -4379,8 +4645,8 @@ export const TradeLedgerSection: React.FC = () => {
       {/* INVOICE COMPLETION / SUCCESS CONFIRMATION MODAL */}
       {completedInvoice && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-          onClick={() => setCompletedInvoice(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 cursor-pointer"
+          onPointerDown={(e) => e.target === e.currentTarget && setCompletedInvoice(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -4490,8 +4756,8 @@ export const TradeLedgerSection: React.FC = () => {
       {/* SUCCESS MODAL / SHARE POPUP */}
       {printingTx && (
         <div
-          onClick={() => setPrintingTx(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200 select-none"
+          onPointerDown={(e) => e.target === e.currentTarget && setPrintingTx(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200 select-none cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -4713,8 +4979,8 @@ export const TradeLedgerSection: React.FC = () => {
                           }}
                         />
                         <Legend wrapperStyle={{ fontSize: '11px' }} />
-                        <Area type="monotone" dataKey="revenue" name={isKu ? 'داهات (فرۆشتن)' : 'Revenue (Sales)'} stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#revGrad)" />
-                        <Area type="monotone" dataKey="payables" name={isKu ? 'پارەی دابینکەر (کڕین)' : 'Payables (Bills)'} stroke="#f43f5e" strokeWidth={2.5} fillOpacity={1} fill="url(#payGrad)" />
+                        <Area isAnimationActive={false} type="monotone" dataKey="revenue" name={isKu ? 'داهات (فرۆشتن)' : 'Revenue (Sales)'} stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#revGrad)" />
+                        <Area isAnimationActive={false} type="monotone" dataKey="payables" name={isKu ? 'پارەی دابینکەر (کڕین)' : 'Payables (Bills)'} stroke="#f43f5e" strokeWidth={2.5} fillOpacity={1} fill="url(#payGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -4742,6 +5008,7 @@ export const TradeLedgerSection: React.FC = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
+                          isAnimationActive={false}
                           data={analyticsData.debtDistribution}
                           dataKey="value"
                           nameKey="name"
@@ -4804,7 +5071,7 @@ export const TradeLedgerSection: React.FC = () => {
                             fontSize: '11px',
                           }}
                         />
-                        <Bar dataKey="total" name={isKu ? 'کۆی فرۆشتن' : 'Total Sales'} fill="#0284c7" radius={[0, 8, 8, 0]} />
+                        <Bar isAnimationActive={false} dataKey="total" name={isKu ? 'کۆی فرۆشتن' : 'Total Sales'} fill="#0284c7" radius={[0, 8, 8, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -4843,7 +5110,7 @@ export const TradeLedgerSection: React.FC = () => {
                             fontSize: '11px',
                           }}
                         />
-                        <Bar dataKey="total" name={isKu ? 'کۆی کڕین' : 'Total Sourced'} fill="#e11d48" radius={[0, 8, 8, 0]} />
+                        <Bar isAnimationActive={false} dataKey="total" name={isKu ? 'کۆی کڕین' : 'Total Sourced'} fill="#e11d48" radius={[0, 8, 8, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

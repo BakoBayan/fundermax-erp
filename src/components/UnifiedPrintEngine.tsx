@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Monitor } from 'lucide-react';
 import { APP_CONFIG, APP_VERSION_NUMBER } from '@/config/appConfig';
 import { PrintJob, OrderAllocation, PanelMaterial, PanelTransaction, InboundShipment } from '@/types/inventory';
 import { useInventory } from '@/context/InventoryContext';
@@ -269,8 +270,12 @@ export const DoorProductionCuttingSlip: React.FC<{
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-gray-300 flex items-center justify-between text-[10px] font-mono text-gray-600 select-none">
+        <div className="mt-4 pt-3 border-t border-gray-300 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-gray-600 select-none">
           <div>{isKu ? 'کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) • هێڵی دروستکردنی دەرگا' : 'Shaswar Ahmad Shaswar Co. (Sulaymaniyah) • Door Line'}</div>
+          <div className="flex items-center gap-1 font-semibold text-gray-800">
+            <Monitor className="w-3 h-3 inline shrink-0" />
+            <span>Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654</span>
+          </div>
           <div>Bako&apos;s Master System • v{APP_VERSION_NUMBER}</div>
         </div>
       </div>
@@ -449,8 +454,12 @@ export const WoodPanelsCuttingSlip: React.FC<{
           </div>
         </div>
 
-        <div className="mt-5 text-center text-[10px] font-mono text-gray-500 flex justify-between items-center">
+        <div className="mt-5 text-center text-[10px] font-mono text-gray-500 flex flex-wrap justify-between items-center gap-2">
           <span>Engineered by Bako Bayan Madhhar • 07705488654</span>
+          <span className="inline-flex items-center gap-1 font-semibold text-gray-700">
+            <Monitor className="w-3 h-3 inline shrink-0" />
+            <span>Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654</span>
+          </span>
           <span>Shaswar Ahmad Shaswar Co. Licensure • v{APP_VERSION_NUMBER}</span>
         </div>
       </div>
@@ -600,8 +609,12 @@ export const WarehouseManifestSlip: React.FC<{
           </div>
         </div>
 
-        <div className="mt-5 text-center text-[10px] font-mono text-gray-500 flex justify-between items-center">
+        <div className="mt-5 text-center text-[10px] font-mono text-gray-500 flex flex-wrap justify-between items-center gap-2">
           <span>Engineered by Bako Bayan Madhhar • 07705488654</span>
+          <span className="inline-flex items-center gap-1 font-semibold text-gray-700">
+            <Monitor className="w-3 h-3 inline shrink-0" />
+            <span>Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654</span>
+          </span>
           <span>Shaswar Ahmad Shaswar Co. Licensure • v{APP_VERSION_NUMBER}</span>
         </div>
       </div>
@@ -620,14 +633,11 @@ export const PosInvoiceSlip: React.FC<{
 }> = ({ tx, format = 'a4', formatMoney, language }) => {
   const isKu = language === 'ku';
   const invoiceDateStr = tx.timestamp
-    ? new Date(tx.timestamp).toLocaleDateString(isKu ? 'ku' : 'en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+    ? new Date(tx.timestamp).toLocaleString(isKu ? 'ku' : 'en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
       })
-    : new Date().toLocaleDateString();
+    : new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
   if (format === 'thermal80') {
     return (
@@ -729,6 +739,10 @@ export const PosInvoiceSlip: React.FC<{
         <div className="text-center text-[9.5px] pt-1.5 space-y-1 font-mono">
           <p className="font-black uppercase tracking-wider">THANK YOU FOR YOUR BUSINESS</p>
           <p>Bako&apos;s Master System • v{APP_CONFIG.version}</p>
+          <p className="text-[8.5px] text-gray-700 flex items-center justify-center gap-1">
+            <Monitor className="w-2.5 h-2.5 inline shrink-0" />
+            <span>Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654</span>
+          </p>
           <div className="pt-2 text-center text-[9px] text-gray-700 font-mono">
             - - - - - - - - - - - - - - - - - - - - - - - -
             <span className="block mt-0.5 font-bold">{isKu ? '[ CUT HERE / لێرە بیبڕە ]' : '[ CUT HERE ]'}</span>
@@ -911,8 +925,12 @@ export const PosInvoiceSlip: React.FC<{
           </div>
         </div>
 
-        <div className="mt-5 text-center text-[10px] font-mono text-gray-500 flex justify-between items-center">
+        <div className="mt-5 text-center text-[10px] font-mono text-gray-500 flex flex-wrap justify-between items-center gap-2">
           <span>Engineered by Bako Bayan Madhhar • 07705488654</span>
+          <span className="inline-flex items-center gap-1 font-semibold text-gray-700">
+            <Monitor className="w-3 h-3 inline shrink-0" />
+            <span>Need a custom ERP or application? Contact: bakobayan.official@gmail.com | 07705488654</span>
+          </span>
           <span>Shaswar Ahmad Shaswar Co. Licensure • v{APP_VERSION_NUMBER}</span>
         </div>
       </div>

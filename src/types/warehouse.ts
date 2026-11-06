@@ -35,6 +35,7 @@ export interface InboundShipment {
   items: InboundItem[];
   notes: string;
   attachments?: string[]; // Slip & Hawala photos (data URLs)
+  hasAttachments?: boolean;
   createdAt: string;
   updatedAt: string;
   isDeleted: 0 | 1;

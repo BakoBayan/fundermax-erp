@@ -51,10 +51,10 @@ export const CopyrightModal: React.FC = () => {
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 md:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 md:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto cursor-pointer"
       role="dialog"
       aria-modal="true"
-      onClick={closeCopyrightModal}
+      onPointerDown={(e) => e.target === e.currentTarget && closeCopyrightModal()}
     >
       <div
         onClick={(e) => e.stopPropagation()}

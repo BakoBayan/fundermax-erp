@@ -208,8 +208,8 @@ export const DropdownManagerModal: React.FC<DropdownManagerModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         onClick={(e) => e.stopPropagation()}

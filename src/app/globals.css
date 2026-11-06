@@ -171,27 +171,22 @@
 
 .animate-float-slow {
   animation: float-slow 16s ease-in-out infinite;
-  will-change: transform;
 }
 
 .animate-float-reverse {
   animation: float-reverse 20s ease-in-out infinite;
-  will-change: transform;
 }
 
 .animate-float-diag {
   animation: float-diag 22s ease-in-out infinite;
-  will-change: transform;
 }
 
 .animate-orbit-slow {
   animation: orbit-slow 28s linear infinite;
-  will-change: transform;
 }
 
 .animate-orbit-reverse {
   animation: orbit-reverse 34s linear infinite;
-  will-change: transform;
 }
 
 .animate-pulse-subtle {
@@ -200,24 +195,20 @@
 
 .animate-drift-up-1 {
   animation: drift-up-slow 12s ease-in-out infinite alternate;
-  will-change: transform, opacity;
 }
 
 .animate-drift-up-2 {
   animation: drift-up-slow 16s ease-in-out infinite alternate;
   animation-delay: -5s;
-  will-change: transform, opacity;
 }
 
 .animate-drift-up-3 {
   animation: drift-up-slow 20s ease-in-out infinite alternate;
   animation-delay: -10s;
-  will-change: transform, opacity;
 }
 
 .animate-light-sweep {
   animation: light-sweep 15s ease-in-out infinite;
-  will-change: transform, opacity;
 }
 
 /* ========================================================================= */
@@ -356,49 +347,41 @@
 
 .animate-traverse-lr-1 {
   animation: traverse-left-to-right 28s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  will-change: transform, opacity;
 }
 
 .animate-traverse-lr-2 {
   animation: traverse-left-to-right 38s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   animation-delay: -16s;
-  will-change: transform, opacity;
 }
 
 .animate-traverse-rl-1 {
   animation: traverse-right-to-left 32s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   animation-delay: -8s;
-  will-change: transform, opacity;
 }
 
 .animate-traverse-rl-2 {
   animation: traverse-right-to-left 42s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   animation-delay: -24s;
-  will-change: transform, opacity;
 }
 
 .animate-traverse-tb-1 {
   animation: traverse-top-to-bottom 30s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   animation-delay: -10s;
-  will-change: transform, opacity;
 }
 
 .animate-traverse-bt-1 {
   animation: traverse-bottom-to-top 34s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   animation-delay: -17s;
-  will-change: transform, opacity;
 }
 
 .animate-traverse-diag-1 {
   animation: traverse-diagonal-in-out 36s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   animation-delay: -12s;
-  will-change: transform, opacity;
 }
 
 .animate-traverse-surge-1 {
   animation: traverse-surge-in-out 40s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   animation-delay: -20s;
-  will-change: transform, opacity;
 }
 
 

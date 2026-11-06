@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Paperclip, X } from 'lucide-react';
-import { readImageFiles } from '../utils/imageUpload';
+import { readImageFiles, extractClipboardFiles } from '../utils/imageUpload';
+import { useInventory } from '../context/InventoryContext';
 
 interface SlipUploadFieldProps {
   images: string[];
@@ -11,25 +12,60 @@ interface SlipUploadFieldProps {
   id: string;
 }
 
-/** Slip & Hawala photo picker with thumbnails. */
+/** Slip & Hawala photo picker with thumbnails, multi-file interceptor, and global paste support. */
 export const SlipUploadField: React.FC<SlipUploadFieldProps> = ({ images, onChange, isKu, id }) => {
   const [busy, setBusy] = useState(false);
+  const { isMergerModalOpen, openMergerModal } = useInventory();
+
+  const processSelectedFiles = async (selectedFiles: File[]) => {
+    if (selectedFiles.length === 0) return;
+    setBusy(true);
+    try {
+      const added = await readImageFiles(selectedFiles);
+      if (added.length > 0) {
+        onChange([...images, ...added]);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isMergerModalOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const pastedFiles = extractClipboardFiles(e.clipboardData);
+      if (pastedFiles.length === 0) return;
+      e.preventDefault();
+      openMergerModal(pastedFiles, (mergedDataUrl) => {
+        if (mergedDataUrl) {
+          onChange([...images, mergedDataUrl]);
+        }
+      });
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isMergerModalOpen, openMergerModal, images, onChange]);
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    setBusy(true);
-    try {
-      const added = await readImageFiles(Array.from(files));
-      onChange([...images, ...added]);
-    } finally {
-      setBusy(false);
-      e.target.value = '';
-    }
+    const selectedFiles = Array.from(files);
+    e.target.value = '';
+    await processSelectedFiles(selectedFiles);
   };
 
   return (
-    <div>
+    <div
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          void processSelectedFiles(Array.from(e.dataTransfer.files));
+        }
+      }}
+    >
       <label
         htmlFor={id}
         className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5 cursor-pointer"
@@ -41,7 +77,7 @@ export const SlipUploadField: React.FC<SlipUploadFieldProps> = ({ images, onChan
       <input
         id={id}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf,.pdf"
         multiple
         onChange={handleFiles}
         className="block w-full text-xs text-slate-600 dark:text-slate-300 file:me-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:font-bold file:cursor-pointer"
