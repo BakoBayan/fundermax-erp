@@ -20,10 +20,13 @@ import {
   Building2,
   RefreshCw,
   Clock,
-  Briefcase
+  Briefcase,
+  ArrowRight
 } from 'lucide-react';
 import { CurrencyCode } from '../types/inventory';
 import { SvgAreaTrendChart } from './VisualChartsModal';
+import { NumberScroller } from './DigitScroller';
+import { Skeleton, KpiCardSkeleton, TableSkeleton } from './ui/Skeleton';
 
 interface MaterialBreakdownItem {
   name: string;
@@ -38,12 +41,28 @@ interface MaterialBreakdownItem {
 const MaterialBreakdownTable: React.FC<{
   data: MaterialBreakdownItem[];
   isKu: boolean;
-}> = React.memo(({ data, isKu }) => {
+  isLoading?: boolean;
+}> = React.memo(({ data, isKu, isLoading }) => {
   return (
     <>
       {/* Mobile View: Distinct Padded Cards */}
       <div className="block md:hidden space-y-3">
-        {data.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((k) => (
+              <div key={k} className="p-4 rounded-2xl bg-white/75 dark:bg-slate-900/75 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-32 rounded" />
+                  <Skeleton className="h-5 w-12 rounded-full" />
+                </div>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <Skeleton className="h-3 w-16 rounded" />
+                  <Skeleton className="h-4 w-20 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : data.length === 0 ? (
           <div className="p-6 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs">
             {isKu ? 'هیچ فرۆشتنێک تۆمار نەکراوە لەم ماوەیەدا.' : 'No sales records logged in the selected timeframe.'}
           </div>
@@ -53,7 +72,7 @@ const MaterialBreakdownTable: React.FC<{
             return (
               <div
                 key={idx}
-                className="flex flex-col gap-2 p-4 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 shadow-xs"
+                className="flex flex-col gap-2.5 p-4 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md shadow-xs"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -74,7 +93,7 @@ const MaterialBreakdownTable: React.FC<{
                     {isKu ? 'قازانجی پوخت:' : 'Net Profit:'}
                   </span>
                   <span className="font-black font-mono text-emerald-600 dark:text-emerald-400 text-sm">
-                    +${Math.round(m.profitUSD).toLocaleString()}
+                    <span dir="ltr" className="inline-block">+${Math.round(m.profitUSD).toLocaleString()}</span>
                   </span>
                 </div>
               </div>
@@ -86,7 +105,7 @@ const MaterialBreakdownTable: React.FC<{
       {/* Desktop View: Full Spreadsheet Table */}
       <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4">
         <table className="w-full text-xs text-start">
-          <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
+          <thead className="sticky top-0 z-10 backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border-b border-slate-200/80 dark:border-slate-800/80 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
             <tr>
               <th className="p-3">Panel Material</th>
               <th className="p-3">Category</th>
@@ -97,29 +116,35 @@ const MaterialBreakdownTable: React.FC<{
               <th className="p-3 text-end">Profit Margin</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {data.length === 0 ? (
+          <tbody className="divide-y divide-slate-100 dark:border-slate-800">
+            {isLoading ? (
+              <tr>
+                <td colSpan={7} className="p-4">
+                  <TableSkeleton rows={4} columns={7} />
+                </td>
+              </tr>
+            ) : data.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-8 text-center text-slate-400">
-                  No sales records logged in the selected timeframe.
+                  {isKu ? 'هیچ فرۆشتنێک تۆمار نەکراوە لەم ماوەیەدا.' : 'No sales records logged in the selected timeframe.'}
                 </td>
               </tr>
             ) : (
               data.map((m, idx) => {
                 const margin = m.revenueUSD > 0 ? (m.profitUSD / m.revenueUSD) * 100 : 0;
                 return (
-                  <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr key={idx} className="even:bg-black/[0.02] dark:even:bg-white/[0.02] hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="p-3 font-bold text-slate-900 dark:text-white">{m.name}</td>
                     <td className="p-3 text-slate-500">{m.type}</td>
                     <td className="p-3 text-end font-mono font-bold">{m.sheetsSold}</td>
                     <td className="p-3 text-end font-mono font-bold text-slate-900 dark:text-slate-100">
-                      ${Math.round(m.revenueUSD).toLocaleString()}
+                      <span dir="ltr" className="inline-block">${Math.round(m.revenueUSD).toLocaleString()}</span>
                     </td>
                     <td className="p-3 text-end font-mono text-slate-500">
-                      ${Math.round(m.costUSD).toLocaleString()}
+                      <span dir="ltr" className="inline-block">${Math.round(m.costUSD).toLocaleString()}</span>
                     </td>
                     <td className="p-3 text-end font-mono font-black text-emerald-600 dark:text-emerald-400">
-                      +${Math.round(m.profitUSD).toLocaleString()}
+                      <span dir="ltr" className="inline-block">+${Math.round(m.profitUSD).toLocaleString()}</span>
                     </td>
                     <td className="p-3 text-end font-mono font-bold text-emerald-700 dark:text-emerald-300">
                       {Math.round(margin * 10) / 10}%
@@ -139,12 +164,28 @@ MaterialBreakdownTable.displayName = 'MaterialBreakdownTable';
 const SupplierConsignmentsTable: React.FC<{
   shipments: any[];
   isKu: boolean;
-}> = React.memo(({ shipments, isKu }) => {
+  isLoading?: boolean;
+}> = React.memo(({ shipments, isKu, isLoading }) => {
   return (
     <>
       {/* Mobile View: Distinct Padded Cards */}
       <div className="block md:hidden space-y-3">
-        {shipments.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((k) => (
+              <div key={k} className="p-4 rounded-2xl bg-white/75 dark:bg-slate-900/75 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-28 rounded" />
+                  <Skeleton className="h-5 w-14 rounded-full" />
+                </div>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <Skeleton className="h-3 w-16 rounded" />
+                  <Skeleton className="h-4 w-20 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : shipments.length === 0 ? (
           <div className="p-6 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs">
             {isKu ? 'هیچ کاروانێکی دابینکەر چالاک نییە.' : 'No active supplier consignments in warehouse ops.'}
           </div>
@@ -159,7 +200,7 @@ const SupplierConsignmentsTable: React.FC<{
             return (
               <div
                 key={s.id}
-                className="flex flex-col gap-2 p-4 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 shadow-xs"
+                className="flex flex-col gap-2.5 p-4 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md shadow-xs"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -186,7 +227,7 @@ const SupplierConsignmentsTable: React.FC<{
                     {isKu ? 'قەرزی ماوە:' : 'Remaining Debt:'}
                   </span>
                   <span className="font-black font-mono text-rose-600 dark:text-rose-400 text-sm">
-                    {curr === 'EUR' ? '€' : '$'}{debt.toLocaleString()}
+                    <span dir="ltr" className="inline-block">{curr === 'EUR' ? '€' : '$'}{debt.toLocaleString()}</span>
                   </span>
                 </div>
               </div>
@@ -198,7 +239,7 @@ const SupplierConsignmentsTable: React.FC<{
       {/* Desktop View: Full Spreadsheet Table */}
       <div className="hidden md:block w-full max-w-full overflow-x-auto pb-4">
         <table className="w-full text-xs text-start">
-          <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
+          <thead className="sticky top-0 z-10 backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border-b border-slate-200/80 dark:border-slate-800/80 text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
             <tr>
               <th className="p-3">Batch Code</th>
               <th className="p-3">Supplier Name</th>
@@ -210,10 +251,16 @@ const SupplierConsignmentsTable: React.FC<{
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {shipments.length === 0 ? (
+            {isLoading ? (
+              <tr>
+                <td colSpan={7} className="p-4">
+                  <TableSkeleton rows={4} columns={7} />
+                </td>
+              </tr>
+            ) : shipments.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-8 text-center text-slate-400">
-                  No active supplier consignments in warehouse ops.
+                  {isKu ? 'هیچ کاروانێکی دابینکەر چالاک نییە.' : 'No active supplier consignments in warehouse ops.'}
                 </td>
               </tr>
             ) : (
@@ -225,7 +272,7 @@ const SupplierConsignmentsTable: React.FC<{
                 const isPaid = debt <= 0;
 
                 return (
-                  <tr key={s.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr key={s.id} className="even:bg-black/[0.02] dark:even:bg-white/[0.02] hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="p-3 font-mono font-bold text-sky-600">{s.batchCode}</td>
                     <td className="p-3 font-bold text-slate-900 dark:text-white">
                       {s.supplier}
@@ -233,13 +280,13 @@ const SupplierConsignmentsTable: React.FC<{
                     </td>
                     <td className="p-3 text-slate-500 font-mono">{s.arrivalDate || '—'}</td>
                     <td className="p-3 text-end font-mono font-bold">
-                      {curr === 'EUR' ? '€' : '$'}{invoiced.toLocaleString()}
+                      <span dir="ltr" className="inline-block">{curr === 'EUR' ? '€' : '$'}{invoiced.toLocaleString()}</span>
                     </td>
                     <td className="p-3 text-end font-mono text-emerald-600 font-bold">
-                      {curr === 'EUR' ? '€' : '$'}{paid.toLocaleString()}
+                      <span dir="ltr" className="inline-block">{curr === 'EUR' ? '€' : '$'}{paid.toLocaleString()}</span>
                     </td>
                     <td className="p-3 text-end font-mono font-black text-rose-600 dark:text-rose-400">
-                      {curr === 'EUR' ? '€' : '$'}{debt.toLocaleString()}
+                      <span dir="ltr" className="inline-block">{curr === 'EUR' ? '€' : '$'}{debt.toLocaleString()}</span>
                     </td>
                     <td className="p-3 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -266,6 +313,7 @@ SupplierConsignmentsTable.displayName = 'SupplierConsignmentsTable';
 
 export const ExecutiveProfitSuite: React.FC = React.memo(() => {
   const {
+    isHydrated,
     transactions,
     materials,
     exchangeRates,
@@ -498,7 +546,7 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
   }
 
   return (
-    <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 select-none animate-in fade-in duration-200">
+    <div dir={isKu ? 'rtl' : 'ltr'} className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 select-none animate-in fade-in duration-200">
       {/* ========================================================================= */}
       {/* EXECUTIVE HEADER: Confidential Shield, Period Switcher & Company ID      */}
       {/* ========================================================================= */}
@@ -510,7 +558,7 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                {isKu ? 'قازانج و دارایی بەڕێوەبەر' : 'Executive Profit Suite'}
+                {isKu ? 'داشبۆردی دارایی و قازانجی بەڕێوەبەرایەتی' : 'Executive Profit Suite'}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
                 👑 Executive Only
@@ -538,7 +586,7 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
                 : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
             }`}
           >
-            {isKu ? 'تەواوی کات' : 'All Time'}
+            {isKu ? 'هەمووی' : 'All Time'}
           </button>
           <button
             type="button"
@@ -569,105 +617,116 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
       {/* 4 PRIMARY EXECUTIVE KPI CARDS                                             */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Realized Gross Profit */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'قازانجی پوخت (Gross Profit)' : 'Realized Gross Profit'}</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4" />
+        {!isHydrated ? (
+          <>
+            <KpiCardSkeleton />
+            <KpiCardSkeleton />
+            <KpiCardSkeleton />
+            <KpiCardSkeleton />
+          </>
+        ) : (
+          <>
+            {/* KPI 1: Realized Gross Profit */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-slate-100/30 dark:from-slate-850 dark:via-slate-900/90 dark:to-slate-950 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                <span className="tracking-wide uppercase text-[11px]">{isKu ? 'قازانجی پوختی فرۆشراو' : 'Realized Gross Profit'}</span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-[0_0_12px_rgba(16,185,129,0.25)]">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-center sm:text-start flex justify-center sm:justify-start items-center text-emerald-600 dark:text-emerald-400">
+                <NumberScroller value={financials.profitUSD} prefix="$" mode="executive" />
+              </div>
+              {financials.profitIQD > 0 && (
+                <div className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 text-center sm:text-start">
+                  +<NumberScroller value={financials.profitIQD} suffix=" IQD" mode="executive" />
+                </div>
+              )}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>{isKu ? 'تێکڕای ڕێژەی قازانج:' : 'Average Margin:'}</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                  {financials.marginUSD}%
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-            ${financials.profitUSD.toLocaleString()}
-          </div>
-          {financials.profitIQD > 0 && (
-            <div className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400">
-              +{financials.profitIQD.toLocaleString()} IQD
-            </div>
-          )}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
-            <span>Average Margin:</span>
-            <span className="font-bold text-emerald-600 font-mono">
-              {financials.marginUSD}%
-            </span>
-          </div>
-        </div>
 
-        {/* KPI 2: Net Cash Intake */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'کاشی وەرگیراو' : 'Collected Cash Intake'}</span>
-            <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-              <Wallet className="w-4 h-4" />
+            {/* KPI 2: Net Cash Intake */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-slate-100/30 dark:from-slate-850 dark:via-slate-900/90 dark:to-slate-950 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                <span className="tracking-wide uppercase text-[11px]">{isKu ? 'کۆی نەختی وەرگیراو (کاش)' : 'Collected Cash Intake'}</span>
+                <div className="w-8 h-8 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-[0_0_12px_rgba(14,165,233,0.25)]">
+                  <Wallet className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-center sm:text-start flex justify-center sm:justify-start items-center text-slate-900 dark:text-white">
+                <NumberScroller value={financials.cashPaidUSD} prefix="$" mode="executive" />
+              </div>
+              {financials.cashPaidIQD > 0 && (
+                <div className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 text-center sm:text-start">
+                  +<NumberScroller value={financials.cashPaidIQD} suffix=" IQD" mode="executive" />
+                </div>
+              )}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>{isKu ? 'قەرزی لای کڕیاران:' : 'Customer Debt:'}</span>
+                <span className="font-bold text-rose-500 font-mono">
+                  <NumberScroller value={financials.customerDebtUSD} prefix="$" mode="executive" />
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 dark:text-white">
-            ${financials.cashPaidUSD.toLocaleString()}
-          </div>
-          {financials.cashPaidIQD > 0 && (
-            <div className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400">
-              {financials.cashPaidIQD.toLocaleString()} IQD
-            </div>
-          )}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
-            <span>Customer Debt:</span>
-            <span className="font-bold text-rose-500 font-mono">
-              ${financials.customerDebtUSD.toLocaleString()}
-            </span>
-          </div>
-        </div>
 
-        {/* KPI 3: Supplier Liability */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'قەرزی کۆمپانیاکان (لەسەرمان)' : 'FunderMax Supplier Payables'}</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-              <Truck className="w-4 h-4" />
+            {/* KPI 3: Supplier Liability */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-slate-100/30 dark:from-slate-850 dark:via-slate-900/90 dark:to-slate-950 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                <span className="tracking-wide uppercase text-[11px]">{isKu ? 'قەرزی ماوەی فاندەرمەکس' : 'FunderMax Supplier Payables'}</span>
+                <div className="w-8 h-8 rounded-xl bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-[0_0_12px_rgba(168,85,247,0.25)]">
+                  <Truck className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-center sm:text-start flex justify-center sm:justify-start items-center text-rose-600 dark:text-rose-400">
+                <NumberScroller value={supplierPayables.debtEUR} prefix="€" mode="executive" />
+              </div>
+              {supplierPayables.debtUSD > 0 && (
+                <div className="text-xs font-mono font-bold text-rose-500 text-center sm:text-start">
+                  +<NumberScroller value={supplierPayables.debtUSD} prefix="$" suffix=" USD" mode="executive" />
+                </div>
+              )}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>{isKu ? 'کاروانە چالاکەکان:' : 'Active Consignments:'}</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
+                  {supplierPayables.activeConsignments} {isKu ? 'بار' : 'batches'}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-rose-600 dark:text-rose-400">
-            €{supplierPayables.debtEUR.toLocaleString()}
-          </div>
-          {supplierPayables.debtUSD > 0 && (
-            <div className="text-xs font-mono font-bold text-rose-500">
-              +${supplierPayables.debtUSD.toLocaleString()} USD
-            </div>
-          )}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
-            <span>Active Consignments:</span>
-            <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
-              {supplierPayables.activeConsignments} batches
-            </span>
-          </div>
-        </div>
 
-        {/* KPI 4: Executive Solvency Health */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{isKu ? 'باری دارایی کۆمپانیا' : 'Executive Operating Balance'}</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Coins className="w-4 h-4" />
+            {/* KPI 4: Executive Solvency Health */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-slate-100/30 dark:from-slate-850 dark:via-slate-900/90 dark:to-slate-950 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                <span className="tracking-wide uppercase text-[11px]">{isKu ? 'باڵانسی پوختی گشتیی کۆمپانیا' : 'Executive Operating Balance'}</span>
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-[0_0_12px_rgba(245,158,11,0.25)]">
+                  <Coins className="w-4 h-4" />
+                </div>
+              </div>
+              <div className={`text-2xl sm:text-3xl font-black font-mono tracking-tight text-center sm:text-start flex justify-center sm:justify-start items-center ${netOperatingSurplusUSD >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500 dark:text-amber-400'}`}>
+                <NumberScroller value={Math.round(netOperatingSurplusUSD)} prefix="$" mode="executive" />
+              </div>
+              <div className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 text-center sm:text-start">
+                {isKu ? 'کاشی ماوە پاش دانەوەی قەرز' : 'Net Surplus After Payables'}
+              </div>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>{isKu ? 'دۆخی دارایی:' : 'Company Solvency:'}</span>
+                <span className={`font-black ${netOperatingSurplusUSD >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500 dark:text-amber-400'}`}>
+                  {netOperatingSurplusUSD >= 0 ? (isKu ? 'زۆر جێگیر و بەهێز' : 'Strong') : (isKu ? 'پێویستی بە چاودێرییە' : 'Caution')}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className={`text-2xl sm:text-3xl font-black font-mono ${netOperatingSurplusUSD >= 0 ? 'text-emerald-600' : 'text-amber-500'}`}>
-            ${Math.round(netOperatingSurplusUSD).toLocaleString()}
-          </div>
-          <div className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400">
-            Net Surplus After Payables
-          </div>
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
-            <span>Company Solvency:</span>
-            <span className="font-black text-emerald-600">
-              {netOperatingSurplusUSD >= 0 ? (isKu ? 'زۆر باشە' : 'Strong') : (isKu ? 'مەترسیدارە' : 'Caution')}
-            </span>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {/* ========================================================================= */}
       {/* DUAL DEBT LEDGER: RECEIVABLES (CUSTOMER DEBT) VS PAYABLES (SUPPLIER DEBT) */}
       {/* ========================================================================= */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+      <div className="p-5 sm:p-6 rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-[0_4px_25px_-4px_rgba(99,102,241,0.12)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div>
             <div className="flex items-center gap-2">
@@ -697,7 +756,12 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
                 {isKu ? 'تەرازووی قەرز (Net Balance = Receivables − Payables)' : 'Net Balance = Receivables − Payables'}
               </div>
               <div className="font-mono text-sm font-black">
-                {(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD) >= 0 ? '+' : ''}${Math.round(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD).toLocaleString()} USD
+                <NumberScroller
+                  value={Math.round(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD)}
+                  prefix={((financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD) >= 0 ? '+$' : '-$')}
+                  suffix=" USD"
+                  mode="executive"
+                />
                 <span className="text-[10px] font-normal ms-1">
                   ({(financials.customerDebtUSD + (financials.customerDebtIQD / (exchangeRates.usdToIqd || 1500)) - totalLiabilityUSD) >= 0
                     ? (isKu ? 'باڵانسی ئەرێنی لە بازاڕ' : 'Net Positive in Street Credit')
@@ -708,27 +772,28 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Card 1: Money Owed TO Us (قەرزی لای خەڵک / Receivables) */}
-          <div className="p-5 rounded-2xl border-2 border-rose-400/90 dark:border-rose-500/80 bg-gradient-to-br from-rose-50/80 via-white to-rose-50/40 dark:from-rose-950/40 dark:via-slate-900 dark:to-rose-950/20 shadow-xs flex flex-col justify-between">
+        {!isHydrated ? (
+          <KpiCardSkeleton />
+        ) : (
+          <div className="w-full p-5 rounded-2xl border-2 border-rose-400/90 dark:border-rose-500/80 bg-gradient-to-br from-white via-rose-50/40 to-slate-50 dark:from-slate-850 dark:via-rose-950/20 dark:to-slate-900 shadow-md hover:shadow-lg backdrop-blur-md transition-all duration-300 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300">
-                  {isKu ? 'Money Owed TO Us (قەرزی لای خەڵک / Receivables)' : 'Money Owed TO Us (قەرزی لای خەڵک / Receivables)'}
+                  {isKu ? 'قەرزی کۆمپانیا لای کڕیاران (داواکراو)' : 'Money Owed TO Us (Market Receivables)'}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/80 dark:text-rose-200 border border-rose-300 dark:border-rose-700">
-                  {isKu ? 'ئێمە وەریدەگرینەوە' : 'We Collect'}
+                  {isKu ? 'شایستەی وەرگرتنەوە' : 'We Collect'}
                 </span>
               </div>
               <p className="text-xs text-rose-700/80 dark:text-rose-300/80 font-medium mb-3">
-                {isKu ? 'پارەی داواکراو لە کڕیاران (ئێمە وەریدەگرینەوە)' : 'پارەی داواکراو لە کڕیاران (ئێمە وەریدەگرینەوە)'}
+                {isKu ? 'کۆی گشتیی قەرزی نەدراوی فرۆشتن لای کڕیاران و پڕۆژەکان' : 'Uncollected market balance from credit sales and commercial clients'}
               </p>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-rose-600 dark:text-rose-400">
-                ${financials.customerDebtUSD.toLocaleString()}
+              <div className="text-2xl sm:text-3xl font-black font-mono text-rose-600 dark:text-rose-400 text-center sm:text-start">
+                <NumberScroller value={financials.customerDebtUSD} prefix="$" mode="executive" />
               </div>
               {financials.customerDebtIQD > 0 && (
-                <div className="text-xs font-mono font-bold text-rose-700 dark:text-rose-300 mt-1">
-                  +{financials.customerDebtIQD.toLocaleString()} IQD
+                <div className="text-xs font-mono font-bold text-rose-700 dark:text-rose-300 mt-1 text-center sm:text-start">
+                  +<NumberScroller value={financials.customerDebtIQD} suffix=" IQD" mode="executive" />
                 </div>
               )}
             </div>
@@ -739,46 +804,11 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
                 onClick={() => setCurrentModule('sales')}
                 className="font-bold underline hover:text-rose-900 dark:hover:text-white cursor-pointer"
               >
-                {isKu ? 'بینینی فرۆشتن ←' : 'View Invoices ←'}
+                {isKu ? 'بینینی پسوولەکانی فرۆشتن ←' : 'View Invoices ←'}
               </button>
             </div>
           </div>
-
-          {/* Card 2: Money Owed BY Us (قەرزی سەر ئێمە / Payables) */}
-          <div className="p-5 rounded-2xl border-2 border-amber-400/90 dark:border-amber-500/80 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 dark:from-amber-950/40 dark:via-slate-900 dark:to-amber-950/20 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                  {isKu ? 'Money Owed BY Us (قەرزی سەر ئێمە / Payables)' : 'Money Owed BY Us (قەرزی سەر ئێمە / Payables)'}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/80 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                  {isKu ? 'ئێمە دەبێت بیدەین' : 'We Pay Out'}
-                </span>
-              </div>
-              <p className="text-xs text-amber-700/80 dark:text-amber-300/80 font-medium mb-3">
-                {isKu ? 'پارەی قەرزی دابینکەران (ئێمە دەبێت بیدەین)' : 'پارەی قەرزی دابینکەران (ئێمە دەبێت بیدەین)'}
-              </p>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-amber-600 dark:text-amber-400">
-                €{supplierPayables.debtEUR.toLocaleString()}
-              </div>
-              {supplierPayables.debtUSD > 0 && (
-                <div className="text-xs font-mono font-bold text-amber-700 dark:text-amber-300 mt-1">
-                  +${supplierPayables.debtUSD.toLocaleString()} USD
-                </div>
-              )}
-            </div>
-            <div className="pt-3 mt-4 border-t border-amber-200 dark:border-amber-900/60 flex items-center justify-between text-xs text-amber-700 dark:text-amber-300">
-              <span>{isKu ? 'سەرچاوە: کاروانەکانی فاندەرمەکس' : 'Source: FunderMax Shipments'}</span>
-              <button
-                type="button"
-                onClick={() => setCurrentModule('shipping')}
-                className="font-bold underline hover:text-amber-900 dark:hover:text-white cursor-pointer"
-              >
-                {isKu ? 'بینینی گواستنەوە ←' : 'View Shipping ←'}
-              </button>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -840,7 +870,7 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
         </div>
 
         {/* Table Components (Memoized to isolate from parent state/hover) */}
-        <MaterialBreakdownTable data={materialBreakdown} isKu={isKu} />
+        <MaterialBreakdownTable data={materialBreakdown} isKu={isKu} isLoading={!isHydrated} />
       </div>
 
       {/* ========================================================================= */}
@@ -862,13 +892,13 @@ export const ExecutiveProfitSuite: React.FC = React.memo(() => {
 
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-              Total EUR Debt: €{supplierPayables.debtEUR.toLocaleString()}
+              Total EUR Debt: <span dir="ltr" className="inline-block">€{supplierPayables.debtEUR.toLocaleString()}</span>
             </span>
           </div>
         </div>
 
         {/* Consignment Table Component (Memoized) */}
-        <SupplierConsignmentsTable shipments={wh.activeShipments} isKu={isKu} />
+        <SupplierConsignmentsTable shipments={wh.activeShipments} isKu={isKu} isLoading={!isHydrated} />
       </div>
     </div>
   );

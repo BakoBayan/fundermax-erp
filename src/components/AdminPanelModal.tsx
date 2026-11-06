@@ -1667,7 +1667,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {lang === 'en'
-                          ? 'Absorb legacy business records (.sqlite, .db, .json, .csv) into the v1.6 SQLite schema with zero risk to admin accounts.'
+                          ? 'Absorb legacy business records (.sqlite, .db, .json, .csv) into the v1.0 SQLite schema with zero risk to admin accounts.'
                           : 'هەڵمژین و تێکەڵکردنی تۆمارەکانی سیستەمی کۆن (SQLite, DB, JSON, CSV) بۆ ناو سیستەمی نوێ بە شێوازێکی تەواو پارێزراو.'}
                       </p>
                     </div>

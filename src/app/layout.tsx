@@ -21,8 +21,15 @@ export const metadata: Metadata = {
     title: "Master System",
   },
   icons: {
-    icon: "/icon.svg",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.svg",
     apple: "/icon.svg",
+  },
+  other: {
+    google: "notranslate",
   },
 };
 
@@ -45,8 +52,12 @@ export default function RootLayout({
 }>) {
   noStore();
   return (
-    <html lang="ku" dir="rtl" suppressHydrationWarning className="w-full max-w-full overflow-x-hidden">
+    <html lang="ku" dir="rtl" translate="no" suppressHydrationWarning className="notranslate w-full max-w-full overflow-x-hidden">
       <head>
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+        <meta name="google" content="notranslate" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
         <meta name="HandheldFriendly" content="true" />
         <meta name="MobileOptimized" content="width" />
@@ -71,7 +82,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${vazirmatn.className} antialiased min-h-screen w-full max-w-full overflow-x-hidden`}>
+      <body translate="no" className={`${vazirmatn.className} notranslate antialiased min-h-screen w-full max-w-full overflow-x-hidden`}>
         {children}
         <div id="print-mount-root"></div>
       </body>

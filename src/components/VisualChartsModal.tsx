@@ -551,6 +551,35 @@ export const VisualChartsModal: React.FC = () => {
     setMounted(true);
   }, []);
 
+  // Body and document scroll lock when modal is open
+  useEffect(() => {
+    if (!isVisualChartsOpen) return;
+    const originalBody = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalBody || '';
+      document.documentElement.style.overflow = originalHtml || '';
+    };
+  }, [isVisualChartsOpen]);
+
+  // Native mobile hardware back-button listener
+  useEffect(() => {
+    if (!isVisualChartsOpen) return;
+    window.history.pushState({ modal: 'visual-charts' }, '');
+    const handlePopState = () => {
+      closeVisualCharts();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.modal === 'visual-charts') {
+        window.history.back();
+      }
+    };
+  }, [isVisualChartsOpen, closeVisualCharts]);
+
   const isKu = language === 'ku';
 
   // Strict RBAC Permission Gates
@@ -797,33 +826,33 @@ export const VisualChartsModal: React.FC = () => {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-6 md:p-8 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto cursor-pointer"
+      className="fixed inset-0 z-[100000] flex flex-col items-center justify-center p-0 sm:p-6 md:p-8 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden cursor-pointer"
       role="dialog"
       aria-modal="true"
       onPointerDown={(e) => e.target === e.currentTarget && closeVisualCharts()}
     >
       {/* Executive Bento Container */}
       <div
-        className="relative w-full max-w-7xl max-h-[92vh] flex flex-col rounded-[2.5rem] bg-slate-50/95 dark:bg-slate-950/95 border border-slate-200/80 dark:border-slate-800/80 shadow-2xl overflow-hidden backdrop-blur-2xl my-auto text-slate-900 dark:text-white cursor-default"
+        className="relative w-full max-w-7xl h-full sm:h-auto sm:max-h-[92vh] flex flex-col rounded-none sm:rounded-[2.5rem] bg-slate-50/95 dark:bg-slate-950/95 border-0 sm:border border-slate-200/80 dark:border-slate-800/80 shadow-2xl overflow-hidden backdrop-blur-2xl my-auto text-slate-900 dark:text-white cursor-default"
         dir={isKu ? 'rtl' : 'ltr'}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
-        <div className="px-6 sm:px-8 py-5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
-              <BarChart3 className="w-6 h-6" />
+        <div className="px-4 sm:px-8 py-4 sm:py-5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 shrink-0 aspect-square rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
+              <BarChart3 className="w-6 h-6 shrink-0" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <h2 className="text-lg sm:text-2xl font-black tracking-tight truncate">
                   {isKu ? 'ناوەندی شیکاری بینراوی بەڕێوەبردن' : 'Executive Visual Analytics Suite'}
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0">
                   {APP_CONFIG.version}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium truncate">
                 {isKu
                   ? 'ئاماری وردی دارایی، لۆجستی و دابەشبوونی تەختە بە شێوازی پارێزراوی بەڕێوەبەرایەتی'
                   : 'Rigid RBAC protected command center: Multi-currency payables, cargo pipelines & live stock distribution.'}
@@ -855,8 +884,8 @@ export const VisualChartsModal: React.FC = () => {
         {/* ========================================================================= */}
         {/* 1. MODULE FILTER SWITCHER (Segmented Filter Bar)                          */}
         {/* ========================================================================= */}
-        <div className="px-6 sm:px-8 pt-4 pb-2 bg-slate-100/60 dark:bg-slate-900/40 border-b border-slate-200/60 dark:border-slate-800/60 shrink-0">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <div className="px-4 sm:px-8 py-3 bg-slate-100/60 dark:bg-slate-900/40 border-b border-slate-200/60 dark:border-slate-800/60 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {/* All Modules */}
             <button
               type="button"
@@ -921,7 +950,7 @@ export const VisualChartsModal: React.FC = () => {
         </div>
 
         {/* Scrollable Bento Grid Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6">
+        <div className="flex-1 overflow-y-auto touch-pan-y p-5 sm:p-8 space-y-6">
           
           {/* Main Bento Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1030,13 +1059,15 @@ export const VisualChartsModal: React.FC = () => {
                     </div>
                     <span className="text-[10px] font-mono text-slate-400">Donut</span>
                   </div>
-                  <SvgDonutChart
-                    data={financialDonutData}
-                    totalLabel={isKu ? 'کۆی پسوولە' : 'Total Invoiced'}
-                    totalValue={`$${financialData.totalInvoiced.toLocaleString()}`}
-                    size={220}
-                    isKu={isKu}
-                  />
+                  <div className="overflow-x-auto touch-pan-y scrollbar-thin flex justify-center">
+                    <SvgDonutChart
+                      data={financialDonutData}
+                      totalLabel={isKu ? 'کۆی پسوولە' : 'Total Invoiced'}
+                      totalValue={`$${financialData.totalInvoiced.toLocaleString()}`}
+                      size={220}
+                      isKu={isKu}
+                    />
+                  </div>
                 </div>
 
                 {/* C. Financial SvgGroupedBarChart: Obligations by Supplier */}
@@ -1050,13 +1081,15 @@ export const VisualChartsModal: React.FC = () => {
                     </div>
                     <span className="text-[10px] font-mono text-slate-400">Grouped Bar</span>
                   </div>
-                  {financialBarData.length > 0 ? (
-                    <SvgGroupedBarChart data={financialBarData} height={210} />
-                  ) : (
-                    <div className="h-48 flex items-center justify-center text-xs text-slate-400">
-                      {isKu ? 'هیچ داتایەکی دابینکەر بەردەست نییە' : 'No supplier transaction data available'}
-                    </div>
-                  )}
+                  <div className="overflow-x-auto touch-pan-y scrollbar-thin">
+                    {financialBarData.length > 0 ? (
+                      <SvgGroupedBarChart data={financialBarData} height={210} />
+                    ) : (
+                      <div className="h-48 flex items-center justify-center text-xs text-slate-400">
+                        {isKu ? 'هیچ داتایەکی دابینکەر بەردەست نییە' : 'No supplier transaction data available'}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -1077,13 +1110,15 @@ export const VisualChartsModal: React.FC = () => {
                     </div>
                     <span className="text-[10px] font-mono text-slate-400">Donut</span>
                   </div>
-                  <SvgDonutChart
-                    data={stockDonutData}
-                    totalLabel={isKu ? 'کۆی تەختە' : 'Total Panels'}
-                    totalValue={inventoryData.totalStock.toLocaleString()}
-                    size={220}
-                    isKu={isKu}
-                  />
+                  <div className="overflow-x-auto touch-pan-y scrollbar-thin flex justify-center">
+                    <SvgDonutChart
+                      data={stockDonutData}
+                      totalLabel={isKu ? 'کۆی تەختە' : 'Total Panels'}
+                      totalValue={inventoryData.totalStock.toLocaleString()}
+                      size={220}
+                      isKu={isKu}
+                    />
+                  </div>
                 </div>
 
                 {/* B. Inventory SvgGroupedBarChart: Panel Stock by Material Type */}
@@ -1097,13 +1132,15 @@ export const VisualChartsModal: React.FC = () => {
                     </div>
                     <span className="text-[10px] font-mono text-slate-400">Available vs Reserved</span>
                   </div>
-                  {materialTypeBarData.length > 0 ? (
-                    <SvgGroupedBarChart data={materialTypeBarData} height={210} />
-                  ) : (
-                    <div className="h-48 flex items-center justify-center text-xs text-slate-400">
-                      {isKu ? 'هیچ جۆرە تەختەیەک بەردەست نییە' : 'No material stock records'}
-                    </div>
-                  )}
+                  <div className="overflow-x-auto touch-pan-y scrollbar-thin">
+                    {materialTypeBarData.length > 0 ? (
+                      <SvgGroupedBarChart data={materialTypeBarData} height={210} />
+                    ) : (
+                      <div className="h-48 flex items-center justify-center text-xs text-slate-400">
+                        {isKu ? 'هیچ جۆرە تەختەیەک بەردەست نییە' : 'No material stock records'}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* C. Stock Distribution Bar & Critical Depletion Alerts */}
@@ -1319,13 +1356,15 @@ export const VisualChartsModal: React.FC = () => {
                     </div>
                     <span className="text-[10px] font-mono text-slate-400">Donut</span>
                   </div>
-                  <SvgDonutChart
-                    data={logisticsStatusDonut}
-                    totalLabel={isKu ? 'کۆی بارەکان' : 'Total Shipments'}
-                    totalValue={logisticsData.totalCount}
-                    size={220}
-                    isKu={isKu}
-                  />
+                  <div className="overflow-x-auto touch-pan-y scrollbar-thin flex justify-center">
+                    <SvgDonutChart
+                      data={logisticsStatusDonut}
+                      totalLabel={isKu ? 'کۆی بارەکان' : 'Total Shipments'}
+                      totalValue={logisticsData.totalCount}
+                      size={220}
+                      isKu={isKu}
+                    />
+                  </div>
                 </div>
 
                 {/* C. Logistics SvgAreaTrendChart: Volume across Inbound Shipments */}
@@ -1339,13 +1378,15 @@ export const VisualChartsModal: React.FC = () => {
                     </div>
                     <span className="text-[10px] font-mono text-slate-400">Area Curve</span>
                   </div>
-                  <SvgAreaTrendChart
-                    data={logisticsTrendData}
-                    lineColor="#0284c7"
-                    fillGradientId="logisticsTrendGrad"
-                    height={190}
-                    isKu={isKu}
-                  />
+                  <div className="overflow-x-auto touch-pan-y scrollbar-thin">
+                    <SvgAreaTrendChart
+                      data={logisticsTrendData}
+                      lineColor="#0284c7"
+                      fillGradientId="logisticsTrendGrad"
+                      height={190}
+                      isKu={isKu}
+                    />
+                  </div>
                 </div>
               </>
             )}
@@ -1374,7 +1415,7 @@ export const VisualChartsModal: React.FC = () => {
         </div>
 
         {/* Footer Bar */}
-        <div className="px-6 sm:px-8 py-4 border-t border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 shrink-0">
+        <div className="px-4 sm:px-8 py-3 sm:py-4 border-t border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 shrink-0">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
             <span>

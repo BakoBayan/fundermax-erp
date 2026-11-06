@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
+import { Skeleton, TableSkeleton } from './ui/Skeleton';
 import {
   Truck,
   Plus,
@@ -77,12 +78,12 @@ const STATUS_META: Record<InboundStatus, { label: string; labelKu: string; chip:
 };
 
 const inputCls =
-  'w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500';
+  'w-full min-h-[44px] h-11 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500';
 const labelCls = 'block text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1';
 const primaryBtn =
-  'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 const ghostBtn =
-  'inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
 
 const fmtQty = (n: number): string => (Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 3 }));
 
@@ -146,7 +147,7 @@ const FormError: React.FC<{ message: string }> = ({ message }) =>
   ) : null;
 
 export const WarehouseGoodsSection: React.FC = () => {
-  const { language, currentUser, isViewer, canModify, isAdmin, logActivity, userPermissions, requestConfirm, printWarehouseManifest, setCurrentModule } = useInventory();
+  const { language, currentUser, isViewer, canModify, isAdmin, logActivity, userPermissions, requestConfirm, printWarehouseManifest, setCurrentModule, isHydrated } = useInventory();
   const wh = useWarehouseOps();
 
   const isKu = language === 'ku';
@@ -317,14 +318,14 @@ export const WarehouseGoodsSection: React.FC = () => {
   ];
 
   return (
-    <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-200">
+    <div dir={isKu ? 'rtl' : 'ltr'} className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-200">
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2">
             <Warehouse className="w-6 h-6 text-amber-600 dark:text-amber-400" />
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {isKu ? 'کڕین و دابینکەران: هاوردە و کۆگا' : 'Purchases & Suppliers: Inbound Cargo & Warehouse'}
+              {isKu ? 'بارەکان و کۆگاکان: هاوردە و کۆگا' : 'Shipments & Warehouses: Inbound Cargo & Warehouse'}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -338,7 +339,7 @@ export const WarehouseGoodsSection: React.FC = () => {
             <button
               type="button"
               onClick={() => setCurrentModule('shipping')}
-              className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 text-sm font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 text-sm font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
             >
               <Truck className="w-4 h-4 text-amber-500" />
               <span>{isKu ? 'هێڵی گواستنەوە و بارەکان' : 'Shipping Pipeline'}</span>
@@ -359,7 +360,7 @@ export const WarehouseGoodsSection: React.FC = () => {
           { label: isKu ? 'چاوەڕوانی ڕیزکردنە لە کۆگا' : 'Awaiting Putaway', value: fmtQty(awaitingPutAway), icon: <PackageCheck className="w-4 h-4" />, tone: 'text-sky-600 dark:text-sky-400' },
           { label: isKu ? 'دانراو لە کۆگا / کارگە' : 'Units Racked / Workshop', value: `${fmtQty(totalRackUnits)} / ${fmtQty(workshopUnits)}`, icon: <Boxes className="w-4 h-4" />, tone: 'text-emerald-600 dark:text-emerald-400' },
         ].map((k) => (
-          <div key={k.label} className="p-3.5 rounded-2xl bg-white/90 dark:bg-slate-850/90 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div key={k.label} className="p-3.5 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
             <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {k.icon}
               <span>{k.label}</span>
@@ -379,7 +380,7 @@ export const WarehouseGoodsSection: React.FC = () => {
               role="tab"
               aria-selected={tab === tb.id}
               onClick={() => setTab(tb.id)}
-              className={`h-10 px-4 rounded-xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+              className={`min-h-[44px] h-11 px-4 rounded-xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
                 tab === tb.id
                   ? 'bg-amber-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
@@ -495,7 +496,11 @@ export const WarehouseGoodsSection: React.FC = () => {
             )}
           </div>
 
-          {filteredShipments.length === 0 ? (
+          {!isHydrated ? (
+            <div className="p-6 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+              <TableSkeleton rows={4} columns={5} />
+            </div>
+          ) : filteredShipments.length === 0 ? (
             <div className="py-16 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-850/60">
               <Truck className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
               <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
@@ -511,7 +516,7 @@ export const WarehouseGoodsSection: React.FC = () => {
             filteredShipments.map((s) => (
               <article
                 key={s.id}
-                className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden"
+                className="rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-xs overflow-hidden"
               >
                 <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="min-w-0">
@@ -570,9 +575,9 @@ export const WarehouseGoodsSection: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setModal({ type: 'paySupplier', shipmentId: s.id })}
-                          className="h-7 px-2.5 rounded-lg bg-amber-600/10 hover:bg-amber-600/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          className="min-h-[44px] px-3 rounded-xl bg-amber-600/10 hover:bg-amber-600/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                         >
-                          <Coins className="w-3 h-3" />
+                          <Coins className="w-3.5 h-3.5" />
                           <span>{isKu ? 'تۆماری دانەوەی قەرز' : 'Record Payment'}</span>
                         </button>
                       )}
@@ -594,7 +599,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                                 logActivity('SHIPMENT_STATUS', `${s.batchCode} set to ${STATUS_META[st].label}`, undefined, 'inventory');
                               }
                             }}
-                            className={`min-h-[36px] px-2.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                            className={`min-h-[44px] px-3 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center justify-center ${
                               s.status === st
                                 ? 'bg-amber-600 text-white shadow-xs'
                                 : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
@@ -631,25 +636,25 @@ export const WarehouseGoodsSection: React.FC = () => {
                 </div>
 
                 {/* Items */}
-                <div className="w-full max-w-full border-t border-slate-200 dark:border-slate-800 overflow-x-auto pb-4">
+                <div className="w-full max-w-full border-t border-slate-200/80 dark:border-slate-800/80 overflow-x-auto pb-4">
                   <table className="w-full text-sm min-w-[620px]">
-                    <thead>
-                      <tr className="bg-slate-50 dark:bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        <th className="text-start font-bold px-4 py-2">{isKu ? 'کاڵا' : 'Item'}</th>
-                        <th className="text-end font-bold px-3 py-2">{isKu ? 'چاوەڕوانکراو' : 'Expected'}</th>
-                        <th className="text-end font-bold px-3 py-2">{isKu ? 'وەرگیراو' : 'Received'}</th>
-                        <th className="text-end font-bold px-3 py-2">{isKu ? 'جێگیرکراو' : 'Racked'}</th>
-                        <th className="text-end font-bold px-3 py-2">{isKu ? 'ماوە' : 'Left'}</th>
-                        <th className="px-4 py-2" />
+                    <thead className="sticky top-0 z-10 backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border-b border-slate-200/80 dark:border-slate-800/80">
+                      <tr className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        <th className="text-start font-bold px-4 py-2.5">{isKu ? 'کاڵا' : 'Item'}</th>
+                        <th className="text-end font-bold px-3 py-2.5">{isKu ? 'چاوەڕوانکراو' : 'Expected'}</th>
+                        <th className="text-end font-bold px-3 py-2.5">{isKu ? 'وەرگیراو' : 'Received'}</th>
+                        <th className="text-end font-bold px-3 py-2.5">{isKu ? 'جێگیرکراو' : 'Racked'}</th>
+                        <th className="text-end font-bold px-3 py-2.5">{isKu ? 'ماوە' : 'Left'}</th>
+                        <th className="px-4 py-2.5" />
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {s.items.map((it) => {
                         const allocated = allocatedQtyForItem(wh.allocations, s.id, it.id);
                         const left = Math.max(0, it.receivedQty - allocated);
                         const canPutAway = canManageStock && s.isDeleted === 0 && left > 0;
                         return (
-                          <tr key={it.id} className="border-t border-slate-100 dark:border-slate-800">
+                          <tr key={it.id} className="even:bg-black/[0.02] dark:even:bg-white/[0.02] hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">
                               {it.description}
                               <span className="ms-1.5 text-[11px] font-mono text-slate-400">{it.unit}</span>
@@ -669,7 +674,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                                     const v = toNum(e.target.value);
                                     if (v !== it.receivedQty) wh.setReceivedQty(s.id, it.id, v);
                                   }}
-                                  className="w-24 h-9 px-2 rounded-lg text-end font-mono text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+                                  className="w-24 min-h-[44px] h-11 px-2.5 rounded-xl text-end font-mono text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
                                   aria-label={`Received quantity for ${it.description}`}
                                 />
                               ) : (
@@ -713,12 +718,17 @@ export const WarehouseGoodsSection: React.FC = () => {
                 </button>
               )}
             </div>
-            {wh.locations.map((loc) => {
+            {!isHydrated ? (
+              <div className="p-6 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+                <TableSkeleton rows={3} columns={3} />
+              </div>
+            ) : (
+              wh.locations.map((loc) => {
               const rows = filteredAllocations.filter((a) => a.locationId === loc.id);
               const total = wh.allocations.filter((a) => a.locationId === loc.id).reduce((sum, a) => sum + a.quantity, 0);
               if (q && rows.length === 0) return null;
               return (
-                <section key={loc.id} className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <section key={loc.id} className="rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-xs overflow-hidden">
                   <header className="px-4 py-3 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
                     <div className="flex items-center gap-2 min-w-0">
                       <MapPin className={`w-4 h-4 shrink-0 ${loc.kind === 'workshop' ? 'text-sky-500' : 'text-amber-600'}`} />
@@ -753,7 +763,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                   )}
                 </section>
               );
-            })}
+            }))}
           </div>
 
           <LocationManager canWrite={canManageStock} />
@@ -767,7 +777,7 @@ export const WarehouseGoodsSection: React.FC = () => {
             <select
               value={reasonFilter}
               onChange={(e) => setReasonFilter(e.target.value as 'all' | TransferReason)}
-              className="h-9 px-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold cursor-pointer"
+              className="min-h-[44px] h-11 px-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold cursor-pointer"
               aria-label="Filter by reason"
             >
               <option value="all">All reasons</option>
@@ -781,10 +791,10 @@ export const WarehouseGoodsSection: React.FC = () => {
               <Download className="w-3.5 h-3.5" /> CSV
             </button>
           </div>
-          <div className="w-full max-w-full rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 overflow-x-auto pb-4">
+          <div className="w-full max-w-full rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 overflow-x-auto pb-4 shadow-xs">
             <table className="w-full text-sm min-w-[760px]">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <thead className="sticky top-0 z-10 backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border-b border-slate-200/80 dark:border-slate-800/80">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="text-start font-bold px-4 py-2.5">{isKu ? 'کات' : 'When'}</th>
                   <th className="text-start font-bold px-3 py-2.5">{isKu ? 'کاڵا' : 'Item'}</th>
                   <th className="text-end font-bold px-3 py-2.5">{isKu ? 'بڕ' : 'Qty'}</th>
@@ -794,16 +804,22 @@ export const WarehouseGoodsSection: React.FC = () => {
                   <th className="text-start font-bold px-3 py-2.5">{isKu ? 'بەدەستی' : 'By'}</th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredTransfers.length === 0 && (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {!isHydrated ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-6">
+                      <TableSkeleton rows={4} columns={7} />
+                    </td>
+                  </tr>
+                ) : filteredTransfers.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
                       No stock movements recorded.
                     </td>
                   </tr>
-                )}
-                {filteredTransfers.map((t) => (
-                  <tr key={t.id} className="border-t border-slate-100 dark:border-slate-800 align-top">
+                ) : (
+                  filteredTransfers.map((t) => (
+                  <tr key={t.id} className="even:bg-black/[0.02] dark:even:bg-white/[0.02] hover:bg-slate-100/60 dark:hover:bg-slate-800/50 align-top transition-colors">
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-500 whitespace-nowrap">{new Date(t.timestamp).toLocaleString()}</td>
                     <td className="px-3 py-2.5">
                       <div className="font-semibold text-slate-900 dark:text-white">{t.itemName}</div>
@@ -817,7 +833,7 @@ export const WarehouseGoodsSection: React.FC = () => {
                     </td>
                     <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">{t.userName}</td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
@@ -949,7 +965,7 @@ const LocationManager: React.FC<{ canWrite: boolean }> = ({ canWrite }) => {
     <aside className="space-y-4">
       <h2 className="text-sm font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">Storage Zones</h2>
       {canWrite && (
-        <form onSubmit={submit} className="p-4 rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 space-y-3">
+        <form onSubmit={submit} className="p-4 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-3">
           <div>
             <label className={labelCls} htmlFor="loc-wh">Warehouse</label>
             <input id="loc-wh" list="loc-wh-list" className={inputCls} value={warehouse} onChange={(e) => setWarehouse(e.target.value)} placeholder="Warehouse A" />
@@ -975,14 +991,14 @@ const LocationManager: React.FC<{ canWrite: boolean }> = ({ canWrite }) => {
           </button>
         </form>
       )}
-      <ul className="rounded-2xl bg-white/95 dark:bg-slate-850/95 border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+      <ul className="rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 divide-y divide-slate-100 dark:divide-slate-800 shadow-xs overflow-hidden">
         {wh.locations.map((l) => (
           <li key={l.id} className="px-4 py-2.5 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{formatLocationLabel(l)}</span>
             {canWrite && l.kind === 'storage' && (
               <button
                 type="button"
-                className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-xl inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                 onClick={() => {
                   const res = wh.removeLocation(l.id);
                   if (!res.ok) setError(res.error);

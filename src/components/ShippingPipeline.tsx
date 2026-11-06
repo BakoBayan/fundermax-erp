@@ -158,7 +158,7 @@ export const ShippingPipeline: React.FC<ShippingPipelineProps> = ({ onReturn }) 
     return (
       <div
         key={shipment.id}
-        className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-3 transition-all hover:shadow-md space-y-3"
+        className="p-4 bg-white/75 dark:bg-slate-900/75 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs mb-3 transition-all hover:shadow-md space-y-3"
       >
         {/* Top Header: Tracking Code & Status Badge */}
         <div className="flex items-center justify-between gap-2">
@@ -233,7 +233,7 @@ export const ShippingPipeline: React.FC<ShippingPipelineProps> = ({ onReturn }) 
               <button
                 type="button"
                 onClick={() => updateShipmentStatus(shipment.id, 'pending')}
-                className="w-full py-1.5 text-center text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                className="w-full min-h-[44px] py-2 text-center text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors inline-flex items-center justify-center cursor-pointer"
               >
                 {isKu ? 'گەڕاندنەوە بۆ چاوەڕوانکراو' : 'Move back to Pending'}
               </button>
@@ -308,10 +308,10 @@ export const ShippingPipeline: React.FC<ShippingPipelineProps> = ({ onReturn }) 
       <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
         <div
           onClick={() => setMobileLane('pending')}
-          className={`p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-850 border cursor-pointer transition-all ${
+          className={`p-3 sm:p-4 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border cursor-pointer transition-all ${
             mobileLane === 'pending'
               ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-sm'
-              : 'border-slate-200 dark:border-slate-800'
+              : 'border-slate-200/80 dark:border-slate-800/80 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-xs font-bold text-amber-700 dark:text-amber-400">
@@ -325,10 +325,10 @@ export const ShippingPipeline: React.FC<ShippingPipelineProps> = ({ onReturn }) 
 
         <div
           onClick={() => setMobileLane('in_transit')}
-          className={`p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-850 border cursor-pointer transition-all ${
+          className={`p-3 sm:p-4 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border cursor-pointer transition-all ${
             mobileLane === 'in_transit'
               ? 'border-sky-500 ring-2 ring-sky-500/20 shadow-sm'
-              : 'border-slate-200 dark:border-slate-800'
+              : 'border-slate-200/80 dark:border-slate-800/80 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-xs font-bold text-sky-700 dark:text-sky-400">
@@ -342,10 +342,10 @@ export const ShippingPipeline: React.FC<ShippingPipelineProps> = ({ onReturn }) 
 
         <div
           onClick={() => setMobileLane('delivered')}
-          className={`p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-850 border cursor-pointer transition-all ${
+          className={`p-3 sm:p-4 rounded-2xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-md border cursor-pointer transition-all ${
             mobileLane === 'delivered'
               ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
-              : 'border-slate-200 dark:border-slate-800'
+              : 'border-slate-200/80 dark:border-slate-800/80 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-400">

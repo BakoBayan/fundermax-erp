@@ -1386,8 +1386,8 @@ export const TradeLedgerSection: React.FC = () => {
       link.rel = 'icon';
       document.head.appendChild(link);
     }
-    // High-end dynamic SVG favicon matching Bako Master System green isometric brandmark
-    link.href = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="%23064e3b"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="%2310b981" stroke-width="2" stroke-opacity="0.4"/><g transform="translate(8, 8) scale(2)" fill="none" stroke="%2334d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 7 4-7 4-7-4 7-4Z"/><path d="M12 10.5V21"/><path d="M5 6.5V17l7 4"/><path d="m5 12 7 4"/><path d="M12 10.5h4a2.75 2.75 0 0 1 0 5.5H12"/><path d="M12 16h4.5a2.5 2.5 0 0 1 0 5H12"/></g></svg>';
+    // High-end dynamic SVG favicon matching Bako Master System Chess Knight brandmark
+    link.href = '/icon.svg';
   }, []);
 
   const hasActiveSalesFilters = Boolean(

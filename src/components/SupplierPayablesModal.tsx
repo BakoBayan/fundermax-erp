@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Building2,
   X,
@@ -262,27 +262,60 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
     }, 1200);
   };
 
+  // Body and document scroll lock when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalBody = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalBody || '';
+      document.documentElement.style.overflow = originalHtml || '';
+    };
+  }, [isOpen]);
+
+  // Native Mobile Hardware Back-Button Support (UX Routing)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    window.history.pushState({ modal: 'supplier-payables' }, '');
+
+    const handlePopState = () => {
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.modal === 'supplier-payables') {
+        window.history.back();
+      }
+    };
+  }, [isOpen, onClose]);
+
   return (
     <div
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 select-none cursor-pointer"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 select-none cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[92vh] flex flex-col bg-white dark:bg-slate-850 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-750 overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-3xl max-h-[82vh] sm:max-h-[92vh] flex flex-col bg-white dark:bg-slate-850 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-750 overflow-hidden animate-in zoom-in-95 duration-200 mb-20 sm:mb-0"
       >
         {/* Header */}
-        <div className="p-5 sm:p-6 pb-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900/40">
+        <div className="p-4 sm:p-5 pb-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900/40">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white border border-slate-700 flex items-center justify-center shadow-sm shrink-0">
-              <Building2 className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white border border-slate-700 flex items-center justify-center shadow-sm shrink-0">
+              <Building2 className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
                 {isKu ? 'قەرزی کۆمپانیا بۆ دابینکەران' : 'Company Debt to Suppliers'}
               </h2>
-              <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold block mt-0.5">
-                {isKu ? 'Company Debt to Suppliers (Accounts Payable Ledger)' : 'قەرزی کۆمپانیا بۆ دابینکەران (Accounts Payable)'}
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold block">
+                {isKu ? 'دەفتەری قەرزی کارگە و دابینکەران (Accounts Payable)' : 'Accounts Payable Ledger & Settlements'}
               </span>
             </div>
           </div>
@@ -297,33 +330,37 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
           </button>
         </div>
 
-        {/* Aggregate KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 sm:p-6 pb-2 bg-slate-50/70 dark:bg-slate-900/40 border-b border-slate-200/80 dark:border-slate-800">
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-750 shadow-2xs">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-              {isKu ? 'کۆی قەرزی ماوە' : 'Total Balance Owed'}
+        {/* Compact Inline KPI Strip (Radically shrunk so actual suppliers are immediately visible above fold) */}
+        <div className="px-4 py-2 sm:px-6 bg-slate-50/90 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 text-xs shrink-0 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              {isKu ? 'قەرزی ماوە:' : 'Owed:'}
             </span>
-            <div className="text-xl sm:text-2xl font-black font-mono text-rose-600 dark:text-rose-400 tracking-tight">
+            <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-sm">
               ${totalBalanceOwed.toLocaleString()}
-            </div>
+            </span>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-750 shadow-2xs">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-              {isKu ? 'کۆی پارەی دراو' : 'Total Paid to Date'}
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-750 shrink-0" />
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              {isKu ? 'دراوە:' : 'Paid:'}
             </span>
-            <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
+            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
               ${totalPaidToSuppliers.toLocaleString()}
-            </div>
+            </span>
           </div>
 
-          <div className="col-span-2 sm:col-span-1 p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-750 shadow-2xs">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-              {isKu ? 'دابینکەرانی قەرزدار' : 'Suppliers with Debt'}
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-750 shrink-0" />
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              {isKu ? 'دابینکەر:' : 'Vendors:'}
             </span>
-            <div className="text-xl sm:text-2xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
-              {supplierLedger.filter((s) => s.balanceOwed > 0).length} / {supplierLedger.length}
-            </div>
+            <span className="font-mono font-extrabold text-slate-700 dark:text-slate-300">
+              {supplierLedger.filter((s) => s.balanceOwed > 0).length}/{supplierLedger.length}
+            </span>
           </div>
         </div>
 
@@ -445,28 +482,103 @@ export const SupplierPayablesModal: React.FC<SupplierPayablesModalProps> = ({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-[52vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-start border-collapse text-xs">
-                <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-xs shadow-2xs">
-                  <tr className="border-b border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4">{isKu ? 'ناوی دابینکەر' : 'Supplier Name'}</th>
-                    <th className="py-3 px-4">{isKu ? 'تەلەفۆن' : 'Phone'}</th>
-                    <th className="py-3 px-4 text-end">{isKu ? 'کۆی پارەی دراو' : 'Total Paid'}</th>
-                    <th className="py-3 px-4 text-end">{isKu ? 'قەرزی ماوە' : 'Current Balance Owed'}</th>
-                    <th className="py-3 px-4 text-center">{isKu ? 'کردار' : 'Action'}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                  {supplierLedger.slice(0, visibleLimit).map((sup) => (
-                    <SupplierLedgerRow
+            <div className="space-y-3">
+              {/* Mobile View: Stacked Native Flex-Cards (< 768px) - Eliminates Any Column Crush */}
+              <div className="block md:hidden space-y-3 max-h-[48vh] overflow-y-auto pr-1">
+                {supplierLedger.slice(0, visibleLimit).map((sup) => {
+                  const sym = sup.currency === 'EUR' ? '€' : '$';
+                  const hasDebt = sup.balanceOwed > 0;
+                  return (
+                    <div
                       key={sup.supplier}
-                      sup={sup}
-                      isKu={isKu}
-                      onPay={handleOpenPayDrawer}
-                    />
-                  ))}
-                </tbody>
-              </table>
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-750 space-y-3 shadow-2xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold flex items-center justify-center shrink-0">
+                            {sup.supplier.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-sm text-slate-900 dark:text-white block truncate">
+                              {sup.supplier}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {sup.shipments.length} {isKu ? 'وەجبە' : 'batches'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {sup.phone ? (
+                          <a
+                            href={`tel:${sup.phone}`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 text-xs font-mono font-bold shrink-0"
+                            dir="ltr"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>{sup.phone}</span>
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 font-mono text-xs">-</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-xs">
+                        <div>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">
+                            {isKu ? 'کۆی پارەی دراو' : 'Total Paid'}
+                          </span>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {sym}{sup.totalPaid.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="text-end">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">
+                            {isKu ? 'قەرزی ماوە' : 'Balance Owed'}
+                          </span>
+                          <span className={`font-mono font-black text-sm ${hasDebt ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            {hasDebt ? `${sym}${sup.balanceOwed.toLocaleString()}` : (isKu ? 'تەواو دراوە' : 'Zero Debt')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPayDrawer(sup)}
+                        className="w-full h-10 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{isKu ? 'پارەدان بە دابینکەر' : '+ Pay Supplier'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop View: Full Spreadsheet Table (>= 768px) with Horizontal Scroll & No-Wrap Guard */}
+              <div className="hidden md:block overflow-x-auto max-h-[52vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-start border-collapse text-xs min-w-[640px] whitespace-nowrap">
+                  <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-xs shadow-2xs">
+                    <tr className="border-b border-slate-200 dark:border-slate-750 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
+                      <th className="py-3 px-4">{isKu ? 'ناوی دابینکەر' : 'Supplier Name'}</th>
+                      <th className="py-3 px-4">{isKu ? 'تەلەفۆن' : 'Phone'}</th>
+                      <th className="py-3 px-4 text-end">{isKu ? 'کۆی پارەی دراو' : 'Total Paid'}</th>
+                      <th className="py-3 px-4 text-end">{isKu ? 'قەرزی ماوە' : 'Current Balance Owed'}</th>
+                      <th className="py-3 px-4 text-center">{isKu ? 'کردار' : 'Action'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                    {supplierLedger.slice(0, visibleLimit).map((sup) => (
+                      <SupplierLedgerRow
+                        key={sup.supplier}
+                        sup={sup}
+                        isKu={isKu}
+                        onPay={handleOpenPayDrawer}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               {supplierLedger.length > visibleLimit && (
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 text-center">
                   <button

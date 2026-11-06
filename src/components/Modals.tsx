@@ -46,6 +46,20 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
   const [notes, setNotes] = useState("");
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
 
+  // Body scroll lock when modal is open
+  // Body and document scroll lock when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalBody = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalBody || "";
+      document.documentElement.style.overflow = originalHtml || "";
+    };
+  }, [isOpen]);
+
   // Initialize form state when modal opens or target changes
   useEffect(() => {
     if (!isOpen) return;
@@ -150,11 +164,11 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
   return (
     <div
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none cursor-pointer"
+      className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl max-w-md w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
+        className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl max-w-md w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-y-auto max-h-[85vh] sm:max-h-[90vh] flex flex-col pb-24 sm:pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
       >
         {/* Mobile Pull Pill Drag Handle Indicator */}
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
@@ -443,6 +457,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     if (found) setSelectedMatId(found.id);
   };
 
+  // Body scroll lock when modal is open
+  // Body and document scroll lock when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalBody = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalBody || "";
+      document.documentElement.style.overflow = originalHtml || "";
+    };
+  }, [isOpen]);
+
   // Initialize form state when modal opens or target changes
   useEffect(() => {
     if (!isOpen) return;
@@ -601,11 +629,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   return (
     <div
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none cursor-pointer"
+      className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto select-none cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl max-w-xl w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
+        className="fixed inset-x-0 bottom-0 sm:relative sm:inset-auto bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl max-w-xl w-full border-t sm:border border-slate-200 dark:border-slate-700 shadow-2xl overflow-y-auto max-h-[85vh] sm:max-h-[90vh] flex flex-col pb-24 sm:pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
       >
         {/* Mobile Pull Pill Drag Handle Indicator */}
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />

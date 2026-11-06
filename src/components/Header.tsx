@@ -26,7 +26,10 @@ import {
   SlidersHorizontal,
   BarChart3,
   Menu,
-  X
+  X,
+  ChessKnight,
+  ShelvingUnit,
+  Warehouse
 } from "lucide-react";
 import { AccountModal } from "./AccountModal";
 import { AdminPanelModal } from "./AdminPanelModal";
@@ -94,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
       id: "panels" as PlatformModule,
       titleEn: "Wood Panels",
       titleKu: "تەختەی دار",
-      icon: Layers,
+      icon: Warehouse,
       isAllowed: !!userPermissions?.canViewPanels,
       colorClass: "text-emerald-600 dark:text-emerald-400",
     },
@@ -116,8 +119,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
     },
     {
       id: "goods" as PlatformModule,
-      titleEn: "Purchases & Suppliers",
-      titleKu: "کڕین و دابینکەران",
+      titleEn: "Shipments & Warehouses",
+      titleKu: "بارەکان و کۆگاکان",
       icon: Truck,
       isAllowed: !!userPermissions?.canViewWarehouse,
       colorClass: "text-amber-600 dark:text-amber-400",
@@ -234,7 +237,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
       case "sales":
         return "Sales POS & Invoices";
       case "goods":
-        return "Purchases & Suppliers";
+        return "Shipments & Warehouses";
       case "shipping":
         return "Shipping & Logistics";
       case "audit":
@@ -248,50 +251,47 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
 
   return (
     <>
-      <header dir="ltr" className="relative sticky top-0 z-[80] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs no-print print:hidden w-full max-w-full pointer-events-auto">
-        {/* Admin Preview Session Active Banner */}
-        {isImpersonating && (
-          <div className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white text-xs font-semibold px-4 py-2 flex items-center justify-between shadow-inner animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/20 text-xs">👁️</span>
-              <span>
-                <strong>Admin Live Preview Mode:</strong> Viewing system exactly as account <span className="underline decoration-white/40 font-bold">{currentUser?.displayName || currentUser?.username}</span> (<span className="uppercase text-[11px] font-mono tracking-wider">{currentUser?.role}</span>)
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => stopImpersonation()}
-              className="px-3 py-1 rounded-lg bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs shadow-sm active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
-            >
-              <span>Exit Preview & Return to Admin</span>
-              <span aria-hidden="true">&times;</span>
-            </button>
+      {/* Admin Preview Session Active Banner */}
+      {isImpersonating && (
+        <div className="fixed top-0 left-0 z-[110] w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white text-xs font-semibold px-4 py-2 flex items-center justify-between shadow-inner animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/20 text-xs">👁️</span>
+            <span>
+              <strong>Admin Live Preview Mode:</strong> Viewing system exactly as account <span className="underline decoration-white/40 font-bold">{currentUser?.displayName || currentUser?.username}</span> (<span className="uppercase text-[11px] font-mono tracking-wider">{currentUser?.role}</span>)
+            </span>
           </div>
-        )}
+          <button
+            type="button"
+            onClick={() => stopImpersonation()}
+            className="px-3 py-1 rounded-lg bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs shadow-sm active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
+          >
+            <span>Exit Preview & Return to Admin</span>
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      )}
 
-        {/* Main Header Bar */}
-        <div className="px-3 sm:px-6 py-2 flex items-center justify-between gap-3 w-full max-w-full box-border overflow-visible">
+      <header
+        dir="ltr"
+        className={`fixed top-0 left-0 w-full z-[100] h-16 px-4 md:px-8 flex items-center justify-between bg-white dark:bg-slate-950 border-b border-slate-200/60 dark:border-slate-800/60 no-print print:hidden pointer-events-auto ${language === 'ku' ? 'flex-row-reverse md:flex-row' : 'flex-row'}`}
+      >
           {/* Left: 1-Click Main Menu Return & Breadcrumbs */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={handleLogoClick}
-              className="relative z-20 pointer-events-auto group flex items-center gap-3 h-10 px-2 -ml-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 active:scale-98 transition-all cursor-pointer"
+              className="relative z-20 pointer-events-auto flex items-center gap-3 group cursor-pointer p-1 rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800/80 active:scale-98 transition-all"
               title="Return to Master Main Menu in 1-Click"
             >
-              <BakoLogo size={38} className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 shadow-sm group-hover:scale-105 transition-transform duration-200" />
-              <div className="text-left hidden xs:flex sm:flex flex-col justify-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight leading-none group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-                    Bako&apos;s Master System
-                  </span>
-                  {/* Sleek, Integrated Version Badge */}
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-500/10 dark:bg-emerald-400/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-400/25 tracking-tight leading-none">
-                    {APP_CONFIG.version}
-                  </span>
-                </div>
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tracking-wider mt-1 leading-none hidden sm:block truncate max-w-[280px]">
-                  {language === "ku" ? "کۆمپانیای شاسوار ئەحمەد شاسوار" : "Shaswar Ahmad Shaswar Co."}
+              <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-xl group-hover:scale-110 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 transition-all duration-300">
+                <ChessKnight className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="text-left hidden xs:flex sm:flex flex-col items-start justify-center">
+                <span className="text-lg font-bold text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors tracking-tight leading-tight">
+                  Bako&apos;s Master System
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-0.5">
+                  Enterprise ERP • {APP_CONFIG.version}
                 </span>
               </div>
             </button>
@@ -477,7 +477,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewOrder, onPrint }) => {
               </span>
             </button>
           </div>
-        </div>
 
         {/* Mobile Dropdown Menu overlay */}
         {isMobileMenuOpen && (

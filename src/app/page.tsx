@@ -91,7 +91,9 @@ import {
   Home,
   ReceiptText,
   Package,
-  Truck
+  Truck,
+  ShelvingUnit,
+  Warehouse
 } from 'lucide-react';
 
 type PrintScope = 'panels' | 'orders' | 'all' | 'individual-panels' | 'individual-orders' | 'batch-selection';
@@ -266,7 +268,7 @@ function WarehouseApp() {
           const targetInput =
             currentModule === 'panels'
               ? (document.getElementById('warehouse-panels-search-input') as HTMLInputElement) ||
-                (document.getElementById('mobile-panels-search-input') as HTMLInputElement)
+              (document.getElementById('mobile-panels-search-input') as HTMLInputElement)
               : (document.getElementById('warehouse-orders-search-input') as HTMLInputElement);
 
           if (targetInput) {
@@ -304,7 +306,7 @@ function WarehouseApp() {
   useEffect(() => {
     if ((currentModule === 'panels' || currentModule === 'orders') && !userPermissions.canViewPanels) {
       setCurrentModule('hub');
-    
+
     } else if ((currentModule === 'goods' || currentModule === 'shipping') && !userPermissions.canViewWarehouse) {
       setCurrentModule('hub');
     } else if (currentModule === 'audit' && currentUser?.role?.toLowerCase() !== 'admin') {
@@ -377,11 +379,9 @@ function WarehouseApp() {
     return (
       <div
         key={mat.id}
-        className={`border-2 border-slate-400 rounded-2xl bg-white text-slate-900 font-sans w-full max-w-none shadow-none print-card ${
-          isSingle ? 'p-8 sm:p-9 print-card-single' : 'p-4 sm:p-5 print-card-multi'
-        } ${
-          forcePageBreak ? '[page-break-after:always] [break-after:page]' : '[page-break-after:auto] [break-after:auto]'
-        } [page-break-inside:avoid] [break-inside:avoid]`}
+        className={`border-2 border-slate-400 rounded-2xl bg-white text-slate-900 font-sans w-full max-w-none shadow-none print-card ${isSingle ? 'p-8 sm:p-9 print-card-single' : 'p-4 sm:p-5 print-card-multi'
+          } ${forcePageBreak ? '[page-break-after:always] [break-after:page]' : '[page-break-after:auto] [break-after:auto]'
+          } [page-break-inside:avoid] [break-inside:avoid]`}
       >
         {/* Top Header Block */}
         <div className={`border-b-2 border-slate-300 ${isSingle ? 'pb-5 mb-5' : 'pb-2.5 mb-3'} flex items-start justify-between gap-4`}>
@@ -538,11 +538,9 @@ function WarehouseApp() {
       return (
         <div
           key={ord.id}
-          className={`border-4 border-slate-900 rounded-2xl bg-white text-slate-900 font-sans w-full max-w-none shadow-none print-card ${
-            isSingle ? 'p-8 sm:p-9 print-card-single' : 'p-4 sm:p-5 print-card-multi'
-          } ${
-            forcePageBreak ? '[page-break-after:always] [break-after:page]' : '[page-break-after:auto] [break-after:auto]'
-          } [page-break-inside:avoid] [break-inside:avoid]`}
+          className={`border-4 border-slate-900 rounded-2xl bg-white text-slate-900 font-sans w-full max-w-none shadow-none print-card ${isSingle ? 'p-8 sm:p-9 print-card-single' : 'p-4 sm:p-5 print-card-multi'
+            } ${forcePageBreak ? '[page-break-after:always] [break-after:page]' : '[page-break-after:auto] [break-after:auto]'
+            } [page-break-inside:avoid] [break-inside:avoid]`}
         >
           {/* Header clearly shows: پەڕەی دروستکردنی دەرگا - کۆمپانیای شاسوار ئەحمەد شاسوار (سلێمانی) */}
           <div className={`border-b-4 border-slate-900 ${isSingle ? 'pb-5 mb-5' : 'pb-2.5 mb-3'} flex items-start justify-between gap-4`}>
@@ -649,11 +647,9 @@ function WarehouseApp() {
     return (
       <div
         key={ord.id}
-        className={`border-2 border-slate-400 rounded-2xl bg-white text-slate-900 font-sans w-full max-w-none shadow-none print-card ${
-          isSingle ? 'p-8 sm:p-9 print-card-single' : 'p-4 sm:p-5 print-card-multi'
-        } ${
-          forcePageBreak ? '[page-break-after:always] [break-after:page]' : '[page-break-after:auto] [break-after:auto]'
-        } [page-break-inside:avoid] [break-inside:avoid]`}
+        className={`border-2 border-slate-400 rounded-2xl bg-white text-slate-900 font-sans w-full max-w-none shadow-none print-card ${isSingle ? 'p-8 sm:p-9 print-card-single' : 'p-4 sm:p-5 print-card-multi'
+          } ${forcePageBreak ? '[page-break-after:always] [break-after:page]' : '[page-break-after:auto] [break-after:auto]'
+          } [page-break-inside:avoid] [break-inside:avoid]`}
       >
         <div className={`border-b-2 border-slate-300 ${isSingle ? 'pb-5 mb-5' : 'pb-2.5 mb-3'} flex items-start justify-between gap-4`}>
           <div>
@@ -810,7 +806,7 @@ function WarehouseApp() {
           <WarehouseGoodsSection />
         ) : (
           <AccessDeniedView
-            moduleName={language === 'ku' ? 'کڕین و دابینکەران' : 'Purchases & Suppliers'}
+            moduleName={language === 'ku' ? 'بارەکان و کۆگاکان' : 'Shipments & Warehouses'}
             onReturn={() => setCurrentModule('hub')}
             language={language}
           />
@@ -890,12 +886,12 @@ function WarehouseApp() {
     <div className="relative h-auto md:min-h-screen flex flex-col bg-slate-100/60 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors w-full max-w-full overflow-x-hidden">
       {/* Global Ambient Background Motion Elements (Vivid & Clean on Light/Dark Canvas) */}
       <div
-        className="fixed inset-0 pointer-events-none select-none overflow-hidden z-0 no-print"
+        className="fixed inset-0 pointer-events-none select-none overflow-hidden -z-10 no-print"
         style={{ contain: 'strict', transform: 'translateZ(0)' }}
         aria-hidden="true"
       >
-        <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full [background:radial-gradient(circle,rgba(16,185,129,0.16)_0%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(16,185,129,0.12)_0%,transparent_70%)] animate-float-slow" />
-        <div className="absolute top-1/3 -right-32 w-[520px] h-[520px] rounded-full [background:radial-gradient(circle,rgba(14,165,233,0.15)_0%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(14,165,233,0.11)_0%,transparent_70%)] animate-float-reverse" />
+        <div className="absolute -top-32 -left-32 w-64 sm:w-[520px] h-64 sm:h-[520px] opacity-40 sm:opacity-100 rounded-full [background:radial-gradient(circle,rgba(16,185,129,0.16)_0%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(16,185,129,0.12)_0%,transparent_70%)] animate-float-slow transform-gpu" />
+        <div className="absolute top-1/3 -right-32 w-64 sm:w-[520px] h-64 sm:h-[520px] opacity-40 sm:opacity-100 rounded-full [background:radial-gradient(circle,rgba(14,165,233,0.15)_0%,transparent_70%)] dark:[background:radial-gradient(circle,rgba(14,165,233,0.11)_0%,transparent_70%)] animate-float-reverse transform-gpu" />
       </div>
 
       {/* Universal Master Header */}
@@ -914,20 +910,18 @@ function WarehouseApp() {
                 {/* Panels Section Tab */}
                 <button
                   onClick={() => setCurrentModule('panels')}
-                  className={`flex-1 sm:flex-initial h-9 flex items-center justify-center gap-2 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-                    currentModule === 'panels'
+                  className={`flex-1 sm:flex-initial h-9 flex items-center justify-center gap-2 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${currentModule === 'panels'
                       ? 'bg-emerald-700 text-white shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                    }`}
                 >
-                  <Layers className="w-4 h-4 shrink-0" />
+                  <Warehouse className="w-4 h-4 shrink-0" />
                   <span>{t.panelsSection}</span>
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[11px] font-mono ${
-                      currentModule === 'panels'
+                    className={`px-1.5 py-0.2 rounded-full text-[11px] font-mono ${currentModule === 'panels'
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                    }`}
+                      }`}
                   >
                     {materials.length}
                   </span>
@@ -936,20 +930,18 @@ function WarehouseApp() {
                 {/* Orders Section Tab */}
                 <button
                   onClick={() => setCurrentModule('orders')}
-                  className={`flex-1 sm:flex-initial h-9 flex items-center justify-center gap-2 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-                    currentModule === 'orders'
+                  className={`flex-1 sm:flex-initial h-9 flex items-center justify-center gap-2 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${currentModule === 'orders'
                       ? 'bg-emerald-700 text-white shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                    }`}
                 >
                   <PackageCheck className="w-4 h-4 shrink-0" />
                   <span>{t.ordersSection}</span>
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[11px] font-mono ${
-                      currentModule === 'orders'
+                    className={`px-1.5 py-0.2 rounded-full text-[11px] font-mono ${currentModule === 'orders'
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                    }`}
+                      }`}
                   >
                     {stats.totalOrders}
                   </span>
@@ -980,8 +972,8 @@ function WarehouseApp() {
                         {queuedPanels > 0 && queuedOrders > 0
                           ? `${queuedPanels}P • ${queuedOrders}O`
                           : queuedPanels > 0
-                          ? `${queuedPanels}P`
-                          : `${queuedOrders}O`}
+                            ? `${queuedPanels}P`
+                            : `${queuedOrders}O`}
                       </span>
                     )}
                   </button>
@@ -1039,20 +1031,22 @@ function WarehouseApp() {
       )}
 
       {/* Dynamic Main Workspace Container */}
-      <main className="h-auto md:flex-1 flex flex-col w-full max-w-full min-h-0 overflow-x-hidden pb-4 md:pb-16 no-print print:hidden">
+      <main className="relative z-10 h-auto md:flex-1 flex flex-col w-full max-w-full min-h-0 overflow-x-hidden pt-20 pb-20 md:pb-0 no-print print:hidden bg-transparent">
         {activeMainContent}
+        {/* Understated Universal Footer Attribution */}
+        <FooterAttribution />
       </main>
 
-      {/* Fixed Bottom Navigation Bar (Mobile Only: 5 Thumb Tabs) */}
+      {/* True Native iOS/Android Bottom Navigation Bar */}
       <nav
-        dir="ltr"
+        dir={language === 'ku' ? 'rtl' : 'ltr'}
         aria-label="Mobile Navigation"
-        className="fixed bottom-0 inset-x-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 md:hidden flex justify-around items-center h-16 px-1 safe-bottom no-print print:hidden shadow-lg"
+        className="fixed bottom-0 inset-x-0 w-full z-[9999] bg-white/85 dark:bg-black/85 backdrop-blur-2xl border-t border-gray-200 dark:border-gray-800 md:hidden flex justify-around items-center pt-2 pb-6 md:pb-0 px-2 safe-bottom no-print print:hidden shadow-2xl"
       >
         {[
           { id: 'hub' as const, labelKu: 'سەرەکی', labelEn: 'Hub', icon: Home },
           { id: 'sales' as const, labelKu: 'فرۆشتن', labelEn: 'Sales', icon: ReceiptText },
-          { id: 'panels' as const, labelKu: 'تەختەکان', labelEn: 'Panels', icon: Layers },
+          { id: 'panels' as const, labelKu: 'تەختەکان', labelEn: 'Panels', icon: Warehouse },
           { id: 'orders' as const, labelKu: 'داواکاری', labelEn: 'Orders', icon: Package },
           { id: 'shipping' as const, labelKu: 'گواستنەوە', labelEn: 'Shipping', icon: Truck },
         ].map((tab) => {
@@ -1068,23 +1062,19 @@ function WarehouseApp() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
               }}
-              className={`flex-1 flex flex-col items-center justify-center py-1 transition-all active:scale-95 cursor-pointer min-w-0 ${
-                isActive
-                  ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium'
-              }`}
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition-all active:scale-95 cursor-pointer min-w-0 ${isActive
+                  ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium'
+                }`}
             >
-              <Icon className={`w-4 h-4 sm:w-5 sm:h-5 mb-0.5 shrink-0 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
-              <span className="text-[11px] font-medium leading-tight font-sans whitespace-nowrap">
+              <Icon className={`w-5 h-5 mb-1 shrink-0 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+              <span className="text-[10px] sm:text-[11px] font-semibold leading-tight font-sans whitespace-nowrap tracking-tight">
                 {language === 'ku' ? tab.labelKu : tab.labelEn}
               </span>
             </button>
           );
         })}
       </nav>
-
-      {/* Understated Universal Footer Attribution */}
-      <FooterAttribution />
 
       {/* Universal Modals */}
       <MaterialModal

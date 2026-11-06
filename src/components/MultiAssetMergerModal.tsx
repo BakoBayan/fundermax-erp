@@ -62,8 +62,10 @@ const HANDLE_RADIUS_DOC = 28;
 const PROXY_PREVIEW_MAX_EDGE = 560;
 const CANVAS_MAX_WIDTH = 560;
 const CANVAS_MAX_HEIGHT = 760;
-const COPYRIGHT_TEXT =
-  "Created by Bako's Master System | © 2026 Shaswar Ashamd Shaswar. All rights reserved. • Need a custom ERP? Contact: bakobayan.official@gmail.com | 07705488654";
+const COPYRIGHT_LINE1 =
+  "Created by Bako's Master System © 2026 Shaswar Ahmad Shaswar. All rights reserved.";
+const COPYRIGHT_LINE2 =
+  "Need a custom ERP? Contact: bakobayan.official@gmail.com | 07705488654";
 
 /**
  * Scans sourceCanvas using ctx.getImageData to find the bounding box of non-white / non-transparent
@@ -642,6 +644,35 @@ export function MultiAssetMergerModal() {
     };
   }, []);
 
+  // Body and document scroll lock when modal is open
+  useEffect(() => {
+    if (!isMergerModalOpen) return;
+    const originalBody = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalBody || 'unset';
+      document.documentElement.style.overflow = originalHtml || 'unset';
+    };
+  }, [isMergerModalOpen]);
+
+  // Native mobile hardware back-button listener
+  useEffect(() => {
+    if (!isMergerModalOpen) return;
+    window.history.pushState({ modal: 'image-merger' }, '');
+    const handlePopState = () => {
+      closeMergerModal();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.modal === 'image-merger') {
+        window.history.back();
+      }
+    };
+  }, [isMergerModalOpen, closeMergerModal]);
+
   useEffect(() => {
     itemsRef.current = items.map((it) => ({ ...it }));
   }, [items]);
@@ -758,16 +789,18 @@ export function MultiAssetMergerModal() {
       const contentW = pageW - margin * 2;
       let bottomLimit = pageH - margin;
 
-      // 1. Shortened Single-Line ERP Copyright Attribution at bottom of page
+      // 1. Two-Line ERP Copyright Attribution at bottom of page with breathing room
       const copyFontPx = Math.round(7.5 * dpiScale);
-      const copyBlockHeight = copyFontPx + 18;
+      const lineSpacing = copyFontPx + 6;
+      const copyBlockHeight = lineSpacing * 2 + 12;
       bottomLimit -= copyBlockHeight;
 
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillStyle = "#64748b";
       ctx.font = `600 ${copyFontPx}px Inter, "Segoe UI", sans-serif`;
-      ctx.fillText(COPYRIGHT_TEXT, pageW / 2, bottomLimit + 8, contentW);
+      ctx.fillText(COPYRIGHT_LINE1, pageW / 2, bottomLimit + 8, contentW);
+      ctx.fillText(COPYRIGHT_LINE2, pageW / 2, bottomLimit + 8 + lineSpacing, contentW);
 
       // 2. Document Header Title
       if (headerTitle.trim().length > 0) {
@@ -1201,7 +1234,9 @@ export function MultiAssetMergerModal() {
   const handleCanvasPointerMove = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       const st = dragStateRef.current;
-      if (st.mode === "None" || st.activeIndex < 0) return;
+      const isDragging = st.mode !== "None" && st.activeIndex >= 0;
+      if (!isDragging) return;
+      if (e.cancelable) e.preventDefault();
 
       const targetItem = itemsRef.current[st.activeIndex];
       if (!targetItem) return;
@@ -1388,34 +1423,44 @@ export function MultiAssetMergerModal() {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in"
+      className="fixed inset-0 z-[100000] overflow-y-auto max-h-[100dvh] flex items-start sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in"
       onPointerDown={(e) => e.target === e.currentTarget && closeMergerModal()}
     >
-      <div className="relative w-full max-w-[1380px] h-[92vh] flex flex-col rounded-[2.25rem] bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-3xl border border-white/40 dark:border-slate-800/80 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] overflow-hidden text-slate-900 dark:text-slate-100">
-        {/* Clean Compact Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl shrink-0">
-          <div className="flex items-center gap-3.5 min-w-0">
+      <div className="relative w-full max-w-[1380px] min-h-full sm:min-h-0 sm:h-[92vh] my-auto flex flex-col rounded-none sm:rounded-[2.25rem] bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-3xl border-0 sm:border border-white/40 dark:border-slate-800/80 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] overflow-hidden text-slate-900 dark:text-slate-100">
+        {/* Responsive Un-Crushed Header */}
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl shrink-0">
+          {/* Close button pinned to top right on mobile & desktop */}
+          <button
+            type="button"
+            onClick={closeMergerModal}
+            className="absolute top-4 right-4 sm:static p-2 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 hover:bg-rose-500/15 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 transition-all cursor-pointer active:scale-90 sm:order-last z-10"
+            title="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <div className="flex items-center gap-3.5 min-w-0 pr-10 sm:pr-0">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 shrink-0 ring-1 ring-white/20">
               <Combine className="w-5 h-5" />
             </div>
-            <div className="flex items-center gap-2.5 truncate">
-              <div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
                 <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white truncate">
                   Multi-Asset Merger
                 </h2>
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
-                  Precision Print & Document Composition Studio
-                </p>
+                {mergerIsIntercepted && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-xs shrink-0">
+                    Intercepted
+                  </span>
+                )}
               </div>
-              {mergerIsIntercepted && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-xs">
-                  Intercepted
-                </span>
-              )}
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                Precision Print & Document Composition Studio
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-start sm:justify-end shrink-0">
             <input
               ref={fileInputRef}
               type="file"
@@ -1431,24 +1476,16 @@ export function MultiAssetMergerModal() {
             <button
               type="button"
               onClick={triggerFileInput}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Add Files</span>
-            </button>
-            <button
-              type="button"
-              onClick={closeMergerModal}
-              className="p-2 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 hover:bg-rose-500/15 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 transition-all cursor-pointer active:scale-90"
-              title="Close"
-            >
-              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Main 3-Column Studio Workspace */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 overflow-y-auto lg:overflow-hidden">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 lg:overflow-hidden">
           {/* Left Column: Asset Queue & Selected Item Scale/Caption */}
           <div className="lg:col-span-3 border-b lg:border-b-0 lg:border-r border-slate-200/80 dark:border-slate-800/80 bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl flex flex-col min-h-0 p-4 space-y-3.5 overflow-hidden">
             <MergerDropzone onTriggerClick={triggerFileInput} onFilesDropped={handleAddFiles} />
@@ -1491,7 +1528,7 @@ export function MultiAssetMergerModal() {
                   <p className="text-[10px] text-slate-400 mt-0.5 max-w-[180px]">Drop receipts, slips or PDF pages here to merge</p>
                 </div>
               ) : (
-                <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
+                <div className="flex-1 min-h-0 space-y-2 pr-1">
                   {items.map((item, idx) => {
                     const isSelected = idx === selectedIndex;
                     return (
@@ -1603,7 +1640,7 @@ export function MultiAssetMergerModal() {
           </div>
 
           {/* Center Column: Premium "God View" Canvas Container */}
-          <div className="lg:col-span-6 bg-gradient-to-b from-slate-200/50 via-slate-200/80 to-slate-300/60 dark:from-slate-950 dark:via-slate-900/90 dark:to-slate-950 flex flex-col min-h-[360px] lg:min-h-0 relative items-center justify-center p-4 overflow-hidden shadow-[inset_0_2px_12px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_2px_20px_rgba(0,0,0,0.6)]">
+          <div className="lg:col-span-6 bg-gradient-to-b from-slate-200/50 via-slate-200/80 to-slate-300/60 dark:from-slate-950 dark:via-slate-900/90 dark:to-slate-950 flex flex-col min-h-[360px] lg:min-h-0 relative items-center justify-center p-1 sm:p-4 overflow-hidden shadow-[inset_0_2px_12px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_2px_20px_rgba(0,0,0,0.6)] touch-pan-y">
             {/* Subtle God-View Radial Glow */}
             <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-500/[0.08] via-transparent to-transparent" />
             <canvas
@@ -1614,12 +1651,12 @@ export function MultiAssetMergerModal() {
               onPointerMove={handleCanvasPointerMove}
               onPointerUp={handleCanvasPointerUp}
               onPointerCancel={handleCanvasPointerUp}
-              className="relative max-w-full max-h-full w-auto h-auto object-contain rounded-2xl cursor-grab active:cursor-grabbing select-none touch-none shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.7)] ring-1 ring-slate-900/5 dark:ring-white/10"
+              className="relative max-w-full max-h-full w-auto h-auto object-contain rounded-2xl cursor-grab active:cursor-grabbing select-none touch-pan-y shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.7)] ring-1 ring-slate-900/5 dark:ring-white/10"
             />
           </div>
 
           {/* Right Column: Clean Layout Setup, Single Advanced Options Accordion & Dual Save Actions */}
-          <div className="lg:col-span-3 border-t lg:border-t-0 lg:border-l border-slate-200/80 dark:border-slate-800/80 bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl flex flex-col min-h-0 overflow-y-auto p-4 space-y-3.5">
+          <div className="lg:col-span-3 border-t lg:border-t-0 lg:border-l border-slate-200/80 dark:border-slate-800/80 bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl flex flex-col min-h-0 p-4 space-y-3.5">
             {/* Core Page Setup */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-md p-3.5 space-y-3 shadow-xs">
               <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">

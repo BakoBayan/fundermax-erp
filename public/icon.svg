@@ -1,19 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
   <!-- Brand Squircle Container -->
   <rect width="48" height="48" rx="14" fill="#090d16" stroke="#1e293b" stroke-width="1.2" />
-  <rect x="2" y="2" width="44" height="44" rx="12" fill="none" stroke="#10b981" stroke-opacity="0.22" stroke-width="1" />
+  <rect x="2" y="2" width="44" height="44" rx="12" fill="none" stroke="#10b981" stroke-opacity="0.25" stroke-width="1" />
   
-  <!-- Master Hex-Cube "B" in Lucide Vector Stroke Style -->
-  <g transform="translate(6, 6) scale(1.5)" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <!-- Top Isometric Diamond: Precision Wood Panels & Dimensions -->
-    <path d="m12 2.5 7 4-7 4-7-4 7-4Z" />
-    <!-- Center Structural Axis -->
-    <path d="M12 10.5V21" />
-    <!-- Left Facet: Modular Warehouse Inventory & Stacking Slices -->
-    <path d="M5 6.5V17l7 4" />
-    <path d="m5 12 7 4" />
-    <!-- Right Facet: Distinct Bako 'B' Monogram Lobes -->
-    <path d="M12 10.5h4a2.75 2.75 0 0 1 0 5.5H12" />
-    <path d="M12 16h4.5a2.5 2.5 0 0 1 0 5H12" />
+  <!-- ChessKnight Lucide Vector Stroke in Emerald Theme -->
+  <g transform="translate(10, 10) scale(1.166)" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M5 20a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
+    <path d="M16.5 18c1-2 2.5-5 2.5-9a7 7 0 0 0-7-7H6.635a1 1 0 0 0-.768 1.64L7 5l-2.32 5.802a2 2 0 0 0 .95 2.526l2.87 1.456" />
+    <path d="m15 5 1.425-1.425" />
+    <path d="m17 8 1.53-1.53" />
+    <path d="M9.713 12.185 7 18" />
   </g>
 </svg>
