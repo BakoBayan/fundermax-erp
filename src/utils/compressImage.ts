@@ -1,4 +1,7 @@
+export type CompressionProfile = 'warehouse' | 'document';
+
 export interface CompressImageOptions {
+  profile?: CompressionProfile;
   maxDimension?: number;
   quality?: number;
   mimeType?: 'image/jpeg' | 'image/png' | 'image/webp';
@@ -20,15 +23,23 @@ export async function compressImage(
   file: File,
   options: CompressImageOptions = {}
 ): Promise<CompressImageResult> {
+  const isDocument = options.profile === 'document';
+  const defaultMaxDim = isDocument ? 1920 : 1200;
+  const defaultQuality = isDocument ? 0.85 : 0.8;
+  const defaultMaxSizeKb = isDocument ? 0 : 150;
+
   const {
-    maxDimension = 1200,
-    quality = 0.8,
+    maxDimension = defaultMaxDim,
+    quality = defaultQuality,
     mimeType = 'image/jpeg',
-    maxSizeKb = 150,
+    maxSizeKb = defaultMaxSizeKb,
   } = options;
 
   // Fallback 1: Non-image files (PDFs, docs) bypass canvas safely
   if (!file.type.startsWith('image/')) {
+    if (file.size > 2 * 1024 * 1024) {
+      throw new Error('File too large. PDFs over 2MB must be processed through the active Image Merger.');
+    }
     try {
       const base64 = await readFileAsDataURL(file);
       return { base64, file, width: 0, height: 0 };

@@ -406,7 +406,7 @@ export const TradeLedgerSection: React.FC = () => {
     e.target.value = '';
     if (files.length === 0) return;
     try {
-      const uploaded = await readImageFiles(files);
+      const uploaded = await readImageFiles(files, 'document');
       if (uploaded.length > 0) {
         setPosDraft((prev) => ({
           ...prev,
@@ -422,7 +422,7 @@ export const TradeLedgerSection: React.FC = () => {
     const files = Array.from(fileList || []);
     if (files.length === 0) return;
     try {
-      const uploaded = await readImageFiles(files);
+      const uploaded = await readImageFiles(files, 'document');
       if (uploaded.length > 0) {
         setPosDraft((prev) => ({
           ...prev,
@@ -4597,7 +4597,7 @@ export const TradeLedgerSection: React.FC = () => {
                     const files = e.target.files ? Array.from(e.target.files) : [];
                     e.target.value = '';
                     if (files.length === 0) return;
-                    const urls = await readImageFiles(files);
+                    const urls = await readImageFiles(files, 'document');
                     if (urls.length > 0) {
                       setPayImages((prev) => [...urls, ...prev]);
                     }

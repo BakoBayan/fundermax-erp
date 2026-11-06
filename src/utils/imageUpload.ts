@@ -1,4 +1,4 @@
-import { compressImage } from './compressImage';
+import { compressImage, CompressionProfile } from './compressImage';
 
 export type MergerInterceptorFn = (files: File[]) => Promise<string | null>;
 
@@ -67,30 +67,36 @@ export function shouldInterceptUpload(files: FileList | File[]): boolean {
 
 /**
  * Reads a single image or PDF file, routing through the global MultiAssetMergerModal editor
- * when active, or falling back to standard JPEG compression (<= 150KB).
+ * when active, or falling back to dual-tier compression ('warehouse' or 'document').
  */
-export async function readImageFile(file: File, maxDim = 1200, quality = 0.82): Promise<string> {
+export async function readImageFile(
+  file: File,
+  profile?: CompressionProfile,
+  maxDim?: number,
+  quality?: number
+): Promise<string> {
   if (activeMergerInterceptor) {
     const merged = await activeMergerInterceptor([file]);
     return merged || '';
   }
   const result = await compressImage(file, {
+    profile: profile || 'warehouse',
     maxDimension: maxDim,
     quality,
     mimeType: 'image/jpeg',
-    maxSizeKb: 150,
   });
   return result.base64;
 }
 
 /**
  * Smart Interceptor file reader:
- * - If files.length === 1 AND the file is an image: compresses to <= 150KB and returns [dataUrl].
- * - If files.length >= 2, OR any file is a PDF, OR a combination of both: intercepts the upload,
- *   auto-opens MultiAssetMergerModal pre-loaded with the selected files array, and resolves with
- *   [mergedDataUrl] when the user clicks "Confirm & Apply" (or [] if cancelled).
+ * - If Smart Interceptor is active: auto-opens MultiAssetMergerModal and resolves with merged JPEG.
+ * - Fallback: processes files individually through compressImage using the specified profile ('warehouse' | 'document').
  */
-export async function readImageFiles(files: FileList | File[]): Promise<string[]> {
+export async function readImageFiles(
+  files: FileList | File[],
+  profile?: CompressionProfile
+): Promise<string[]> {
   const arr = Array.from(files || []);
   if (arr.length === 0) return [];
 
@@ -102,9 +108,12 @@ export async function readImageFiles(files: FileList | File[]): Promise<string[]
   const out: string[] = [];
   for (const f of arr) {
     try {
-      const dataUrl = await readImageFile(f);
+      const dataUrl = await readImageFile(f, profile);
       if (dataUrl) out.push(dataUrl);
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('File too large')) {
+        throw e;
+      }
       // skip unreadable file
     }
   }
